@@ -7,7 +7,7 @@ MyInfo(Flask) 프로젝트를 Railway에 배포하는 방법입니다.
 **방법 A — 대시보드 (권장)**  
 1. [railway.com/new](https://railway.com/new) 접속  
 2. **Deploy from GitHub repo** → 이 저장소 선택  
-3. 배포 완료 후 **Settings** → **Networking** → **Generate Domain**  
+3. 배포 완료 후 **도메인 생성** (아래 "Generate Domain 못 찾을 때" 참고)  
 4. 이후 `main`에 push할 때마다 자동 재배포  
 
 **방법 B — CLI**  
@@ -29,7 +29,7 @@ MyInfo(Flask) 프로젝트를 Railway에 배포하는 방법입니다.
 2. **Deploy from GitHub repo** 선택 후 이 저장소(MyInfo) 선택
 3. GitHub 연동이 안 되어 있으면 Railway에서 GitHub 권한 허용
 4. 배포가 자동으로 시작됨 (Python 감지 → `requirements.txt` 설치 → Procfile/nixpacks.toml 기준 실행)
-5. **Settings** → **Networking** → **Generate Domain** 클릭하여 공개 URL 생성
+5. **공개 URL 생성** — 아래 "Generate Domain 못 찾을 때" 참고
 
 ## 자동 배포 (Auto Deploy)
 
@@ -62,6 +62,53 @@ railway up
 ```
 
 배포 후 **Settings** → **Networking** → **Generate Domain**으로 URL 생성.
+
+## Generate Domain 못 찾을 때
+
+도메인 생성은 **프로젝트가 아니라, 배포된 서비스(Service)** 단위에서 합니다.
+
+1. **캔버스에서 서비스 클릭**  
+   프로젝트 화면에서 GitHub로 만든 **서비스 카드**(웹 앱 하나)를 클릭합니다.
+2. **Settings 탭**  
+   오른쪽 패널 또는 상단에서 **Settings** 탭을 엽니다.
+3. **Networking**  
+   **Networking** 섹션을 펼치면 **Public Networking** 이 보입니다.  
+   그 안에 **Generate Domain** 버튼이 있습니다.
+4. **프롬프트로 나오는 경우**  
+   서비스가 정상 리스닝 중이면, **서비스 카드 위**나 **서비스 패널 안**에  
+   "Generate domain" / "Add public URL" 같은 **안내 프롬프트**가 나올 수 있습니다. 그걸 클릭해도 됩니다.
+5. **Generate Domain이 안 보일 때**  
+   - **TCP Proxy**를 이미 켜 두었으면 **Generate Domain**이 숨겨집니다.  
+     Settings → Networking에서 **TCP Proxy** 옆 휴지통으로 제거한 뒤 다시 확인하세요.  
+   - 메뉴가 바뀐 경우: **Settings** 안에서 **Networking**, **Public**, **Domains** 같은 항목을 둘러보세요.
+
+정리: **서비스 선택 → Settings → Networking (또는 Public Networking) → Generate Domain**
+
+## 도메인 메뉴를 못 찾을 때 — CLI로 생성 (계속 진행)
+
+대시보드에서 **Generate Domain**을 못 찾아도, **배포는 이미 완료된 상태**입니다. 아래처럼 CLI로 공개 URL을 만들 수 있습니다.
+
+1. 터미널에서 프로젝트 폴더로 이동 후 로그인·연결:
+   ```powershell
+   cd d:\OneDrive\Cursor_AI_Project\MyInfo
+   npx @railway/cli login
+   npx @railway/cli link
+   ```
+   (`link` 시 브라우저나 터미널에서 프로젝트/서비스 선택)
+
+2. **도메인 생성** (Railway 제공 URL 자동 생성):
+   ```powershell
+   npx @railway/cli domain
+   ```
+   실행 후 터미널에 나온 URL(예: `https://xxx.up.railway.app`)로 접속하면 됩니다.
+
+3. **이미 도메인이 있으면** URL만 확인:
+   ```powershell
+   npx @railway/cli status
+   ```
+   또는 대시보드에서 **서비스 카드**를 클릭했을 때, **Deployments** 탭의 최신 배포나 **요약 패널**에 URL이 표시될 수 있습니다.
+
+**요약:** 도메인 메뉴를 못 찾아도 **계속 진행**해도 됩니다. `railway domain` 한 번으로 공개 URL 생성 가능합니다.
 
 ## 참고
 
