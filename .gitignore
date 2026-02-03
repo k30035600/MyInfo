@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# 가상환경 (프로젝트 내 Scripts/share/Lib)
+Scripts/
+share/
+Lib/
+
+# 커밋 메시지용 임시 파일 (UTF-8)
+msg.txt
+msg2.txt
+
+# 환경/비밀
+.env
+.env.*
+*.key
+!*.key.example
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 빌드/캐시
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# 테스트/커버리지
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 로그
+*.log
+logs/
+
+# Docker (선택)
+# docker-compose.override.yml
