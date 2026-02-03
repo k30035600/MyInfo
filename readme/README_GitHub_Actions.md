@@ -12,7 +12,10 @@
 ## 현재 설정된 워크플로우
 
 - **파일:** `.github/workflows/run-workflow.yml`
-- **트리거:** 수동 실행 (`workflow_dispatch`)
+- **트리거:** 수동 실행 (`workflow_dispatch`)  
+  - GitHub 메시지: *"This workflow has a workflow_dispatch event trigger."*  
+  - 한글: **이 워크플로에는 workflow_dispatch 이벤트 트리거가 있습니다.**  
+  → 푸시/PR 없이 **Actions 탭에서 "Run workflow" 버튼으로만 실행**됩니다.
 - **동작:** 체크아웃 → Python 3.11 설정 → `requirements.txt` 설치 → Python 버전·Flask 확인
 
 ## 워크플로우 추가/수정
