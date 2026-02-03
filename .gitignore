@@ -28,6 +28,7 @@ msg_proceed.txt
 msg_init.txt
 msg_fix.txt
 msg_readme.txt
+msg_ssh.txt
 
 # 환경/비밀
 .env
