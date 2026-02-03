@@ -17,6 +17,7 @@ Lib/
 # 커밋 메시지용 임시 파일 (UTF-8)
 msg.txt
 msg2.txt
+msg3.txt
 
 # 환경/비밀
 .env
