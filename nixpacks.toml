@@ -1,5 +1,0 @@
-# Railway(Nixpacks) 실행 설정
-# Python 감지 및 pip install -r requirements.txt 는 자동
-
-[start]
-cmd = "python start_web.py"
