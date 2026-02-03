@@ -84,6 +84,22 @@ railway up
 
 정리: **서비스 선택 → Settings → Networking (또는 Public Networking) → Generate Domain**
 
+## Error: '$PORT' is not a valid port number
+
+Railway **Settings** 에서 지정한 **Start Command** 는 셸을 거치지 않아 `$PORT` 가 확장되지 않고, 그대로 문자열 `$PORT` 로 전달됩니다.
+
+**해결:**
+
+1. **https://railway.app** → 해당 **프로젝트** → **서비스** 클릭
+2. **Settings** 탭 → **Deploy** 또는 **Build** 섹션으로 이동
+3. **Custom Start Command** / **Start Command** / **Deploy** → **Start Command** 필드 확인
+4. 여기에 `gunicorn ... $PORT` 같은 명령이 있으면:
+   - **비우기** (권장) → Procfile / nixpacks.toml 의 `python start_web.py` 가 사용됨  
+   - 또는 **`python start_web.py`** 로 변경
+5. 저장 후 **Redeploy** (또는 다시 push)
+
+Variables 에서 **PORT** 를 수동으로 넣었다면 삭제. Railway 가 자동으로 PORT 를 넣어 줍니다.
+
 ## 커스텀 도메인 (myinfo.com)
 
 Railway에서 **Generate Domain**으로 만든 URL 대신 **myinfo.com** 으로 접속하려면:
@@ -150,7 +166,7 @@ Railway에서 **Generate Domain**으로 만든 URL 대신 **myinfo.com** 으로 
 | **서비스를 직접 중지함** | 대시보드에서 서비스 **Settings** → 서비스가 **Paused**/중지 상태면 다시 **시작** 또는 **Redeploy** |
 | **빌드 실패** | Build Logs에서 에러 확인 → `requirements.txt`, `Procfile`, `nixpacks.toml` 수정 후 push 또는 Redeploy |
 | **실행 후 바로 크래시** | Deploy Logs 확인 → `gunicorn`/앱 에러면 코드·환경 변수 수정 후 재배포 |
-| **`'$PORT' is not a valid port number`** | Railway **Variables**에서 **PORT**를 수동으로 넣었다면 삭제. Railway가 자동 주입함. 그 후 `start_web.py` 사용 배포로 재시도. |
+| **`'$PORT' is not a valid port number`** | **Railway 대시보드** → 해당 **서비스** → **Settings** → **Deploy** (또는 **Build**) 섹션에서 **Custom Start Command** / **Start Command** 가 있으면 **비우거나** `python start_web.py` 로 변경. 이 필드에서는 `$PORT` 가 확장되지 않아 오류 발생. 비우면 Procfile/nixpacks.toml 의 `python start_web.py` 가 사용됨. |
 | **크레딧/트라이얼 소진** | Railway 대시보드 **Billing** 확인 → 결제 수단 추가 또는 플랜 변경 |
 | **오래 비활성으로 슬립** | 무료/트라이얼은 비활성 시 슬립될 수 있음 → **Redeploy** 또는 저장소 push 로 다시 깨움 |
 

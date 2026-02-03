@@ -519,11 +519,11 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
     host = '127.0.0.1'
-    port = 5000
+    port = int(os.environ.get('PORT', 8080))
     try:
         print("=" * 50, flush=True)
         print("금융거래 통합정보(mybcinfo) 통합 서버를 시작합니다...", flush=True)
-        print("브라우저에서 http://localhost:5000 으로 접속하세요.", flush=True)
+        print(f"브라우저에서 http://localhost:{port} 으로 접속하세요.", flush=True)
         print("", flush=True)
         print("접속 주소:", flush=True)
         print(f"- 홈페이지: http://localhost:{port}  또는  http://{host}:{port}", flush=True)

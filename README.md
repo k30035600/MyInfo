@@ -4,6 +4,22 @@
 
 ---
 
+## 배포용 URL
+
+- **Railway**: 서비스 → **Settings** → **Networking** 또는 **Deployments** 요약에서 확인  
+  형식: `https://<서비스명>.up.railway.app`  
+  커스텀 도메인 사용 시: `https://myinfo.com` (DNS 설정 후)
+- **로컬**: `http://localhost:8080` (개발용)
+
+배포 URL을 한곳에 적어두려면 아래처럼 기입하면 됩니다.
+
+| 환경   | URL |
+|--------|-----|
+| Railway | *(Generate Domain 후 여기 적기, 예: https://myinfo-production-xxxx.up.railway.app)* |
+| 로컬   | http://localhost:8080 |
+
+---
+
 - **MyBank**: 은행 거래 전처리·분석
 - **MyCard**: 카드 거래 전처리·분석
 - 상세 문서: `readme/` 폴더 참고

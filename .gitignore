@@ -39,6 +39,7 @@ commit_msg_*.txt
 # 환경/비밀
 .env
 .env.*
+DEPLOYMENT_URL.txt
 *.key
 !*.key.example
 

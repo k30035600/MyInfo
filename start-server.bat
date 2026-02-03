@@ -15,7 +15,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo [2/2] Starting server...
 echo.
-echo Open http://localhost:5000  /bank  /card
+echo Open http://localhost:8080  /bank  /card
 echo Stop: Ctrl+C
 echo ========================================
 py app.py
