@@ -31,6 +31,7 @@ msg_readme.txt
 msg_ssh.txt
 msg_actions.txt
 msg_dispatch.txt
+msg_actions_fix.txt
 
 # 환경/비밀
 .env

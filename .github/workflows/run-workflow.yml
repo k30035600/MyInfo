@@ -8,6 +8,10 @@ on:
   push:
     branches: [main]   # main 푸시 시 1회 실행 → workflow_dispatch 활성화
 
+# Startup failure 방지: 권한 명시
+permissions:
+  contents: read
+
 jobs:
   run:
     runs-on: ubuntu-latest

@@ -47,12 +47,39 @@
 
 ---
 
+## 5-2. Startup failure (시작 실패)
+
+- **"Startup failure"** = 워크플로우가 시작 단계에서 실패해 실행 자체가 안 됨.
+- 원인: 권한 부족, 설정 문제, GitHub 측 제한 등.
+
+**해결:**
+1. **Settings** → **Actions** → **General** → **Allow all actions** 선택 후 **Save**
+2. **Workflow permissions** → **Read and write permissions** 선택
+3. 워크플로우에 `permissions: contents: read` 추가 (이미 반영됨)
+4. 실패한 run 로그 확인: **Actions** → 해당 run 클릭 → 빨간 X 단계의 로그 확인
+5. 계정/저장소가 **Private** 이면 Actions 분당 제한 확인; **Billing** 문제 있으면 결제 정보 확인
+
+---
+
+## 6. Actions 설정 페이지에서 꼭 확인할 것
+
+1. **Actions permissions**  
+   - **"Disable actions"** 가 선택돼 있으면 → **Allow all actions** 또는 **Allow [저장소] actions** 로 변경 후 **Save**
+
+2. **Workflow permissions**  
+   - **Read and write permissions** 선택 (필요 시)
+
+3. **Fork pull request workflows**  
+   - 포크에서 오는 PR에서도 실행하려면 **Run workflows from fork pull requests** 허용
+
+---
+
 ## 요약
 
 | 원인 | 확인/해결 |
 |------|------------|
+| **Actions 비활성** | **Settings** → **Actions** → **General** → **Disable actions** 해제, **Allow all actions** 선택 후 **Save** |
 | 한 번도 실행 안 됨 | main 푸시 1회 후 Run workflow 시도 |
-| Actions 비활성 | Settings → Actions → General → Disable 해제 |
 | Run workflow 미클릭 | Actions → Run workflow → Run workflow 클릭 |
 | 브랜치 | main 선택 후 실행 |
-| 권한 | Actions → Workflow permissions 확인 |
+| 권한 | Actions → Workflow permissions → Read and write |
