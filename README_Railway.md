@@ -84,6 +84,20 @@ railway up
 
 정리: **서비스 선택 → Settings → Networking (또는 Public Networking) → Generate Domain**
 
+## 커스텀 도메인 (myinfo.com)
+
+Railway에서 **Generate Domain**으로 만든 URL 대신 **myinfo.com** 으로 접속하려면:
+
+1. **Railway 대시보드** → 해당 **서비스** 클릭 → **Settings** → **Networking** (또는 **Domains**)
+2. **Custom Domain** / **Add custom domain** 에서 `myinfo.com` 입력 후 추가
+3. Railway가 안내하는 **CNAME** 값을 확인 (예: `xxx.up.railway.app`)
+4. **도메인 등록처(DNS)** 에서:
+   - **myinfo.com** 에 대해 **CNAME** 레코드 추가: 이름 `@`(또는 비워두기), 값 `xxx.up.railway.app`
+   - 또는 **www.myinfo.com** 만 쓰려면: 이름 `www`, 값 `xxx.up.railway.app`
+5. DNS 전파 후(수 분~최대 48시간) Railway가 SSL 인증서를 발급해 **https://myinfo.com** 으로 접속 가능
+
+참고: Railway는 기본 포트(80/443)를 사용하므로 URL에 **:8080** 을 붙일 필요 없음. 로컬 개발용 포트 8080은 `app.py` / `start-server.bat` 에서 사용.
+
 ## 도메인 메뉴를 못 찾을 때 — CLI로 생성 (계속 진행)
 
 대시보드에서 **Generate Domain**을 못 찾아도, **배포는 이미 완료된 상태**입니다. 아래처럼 CLI로 공개 URL을 만들 수 있습니다.
@@ -109,6 +123,43 @@ railway up
    또는 대시보드에서 **서비스 카드**를 클릭했을 때, **Deployments** 탭의 최신 배포나 **요약 패널**에 URL이 표시될 수 있습니다.
 
 **요약:** 도메인 메뉴를 못 찾아도 **계속 진행**해도 됩니다. `railway domain` 한 번으로 공개 URL 생성 가능합니다.
+
+## 배포가 중단되었을 때
+
+배포가 멈췄거나 서비스가 안 뜨면 아래 순서로 확인하세요.
+
+### 1. 재배포하기
+
+- **대시보드**: 프로젝트 → 해당 **서비스** 클릭 → **Deployments** 탭 → 최신 배포 오른쪽 **⋮** (또는 **Redeploy**) → **Redeploy** 클릭  
+- **Git으로 트리거**: 저장소에서 빈 커밋 push 하면 자동 재배포됨  
+  ```bash
+  git commit --allow-empty -m "chore: trigger Railway redeploy"
+  git push origin main
+  ```
+
+### 2. 로그로 원인 확인
+
+- **서비스** 클릭 → **Deployments** → 해당 배포 클릭  
+- **Build Logs**: 빌드 실패 시 여기서 에러 메시지 확인 (예: `pip install` 실패, Python 버전)  
+- **Deploy Logs**: 실행 후 크래시 시 여기서 확인 (예: 모듈 없음, `PORT` 미설정)
+
+### 3. 자주 나오는 원인
+
+| 상황 | 확인·조치 |
+|------|-----------|
+| **서비스를 직접 중지함** | 대시보드에서 서비스 **Settings** → 서비스가 **Paused**/중지 상태면 다시 **시작** 또는 **Redeploy** |
+| **빌드 실패** | Build Logs에서 에러 확인 → `requirements.txt`, `Procfile`, `nixpacks.toml` 수정 후 push 또는 Redeploy |
+| **실행 후 바로 크래시** | Deploy Logs 확인 → `gunicorn`/앱 에러면 코드·환경 변수 수정 후 재배포 |
+| **`'$PORT' is not a valid port number`** | Railway **Variables**에서 **PORT**를 수동으로 넣었다면 삭제. Railway가 자동 주입함. 그 후 `start_web.py` 사용 배포로 재시도. |
+| **크레딧/트라이얼 소진** | Railway 대시보드 **Billing** 확인 → 결제 수단 추가 또는 플랜 변경 |
+| **오래 비활성으로 슬립** | 무료/트라이얼은 비활성 시 슬립될 수 있음 → **Redeploy** 또는 저장소 push 로 다시 깨움 |
+
+### 4. 설정만 다시 적용하고 싶을 때
+
+코드는 그대로 두고 Railway만 다시 빌드·실행하려면:  
+**Deployments** → 해당 배포 → **Redeploy** 한 번 실행하면 됩니다.
+
+---
 
 ## 참고
 
