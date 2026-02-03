@@ -2,6 +2,22 @@
 
 MyInfo(Flask) 프로젝트를 Railway에 배포하는 방법입니다.
 
+## 계속 진행 (바로 배포하기)
+
+**방법 A — 대시보드 (권장)**  
+1. [railway.com/new](https://railway.com/new) 접속  
+2. **Deploy from GitHub repo** → 이 저장소 선택  
+3. 배포 완료 후 **Settings** → **Networking** → **Generate Domain**  
+4. 이후 `main`에 push할 때마다 자동 재배포  
+
+**방법 B — CLI**  
+1. 터미널에서 `npx @railway/cli login` (브라우저에서 로그인)  
+2. `npx @railway/cli init` 또는 `railway link` 로 프로젝트 연결  
+3. `npx @railway/cli up` 으로 배포  
+4. 대시보드에서 **Generate Domain** 으로 URL 생성  
+
+---
+
 ## 사전 준비
 
 - [Railway 계정](https://railway.com/login) (GitHub 로그인 가능)

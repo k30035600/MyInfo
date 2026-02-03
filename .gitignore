@@ -68,3 +68,4 @@ logs/
 # Docker (선택)
 # docker-compose.override.yml
 .vercel
+.railway
