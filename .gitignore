@@ -25,6 +25,9 @@ msg_src.txt
 msg_ignore.txt
 msg_final.txt
 msg_proceed.txt
+msg_init.txt
+msg_fix.txt
+msg_readme.txt
 
 # 환경/비밀
 .env
