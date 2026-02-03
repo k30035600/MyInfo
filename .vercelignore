@@ -1,0 +1,19 @@
+# Vercel 업로드 제외 (250MB 서버리스 제한 대응)
+readme/
+.github/
+MyBank/Source/
+MyCard/Source/
+MyBank/Readme/
+MyCard/Readme/
+**/Backup/
+**/*.xlsx
+**/*.xls
+**/*.docx
+**/*.png
+**/*.pdf
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.vscode/

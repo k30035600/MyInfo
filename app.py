@@ -4,7 +4,7 @@
 은행거래 통합정보(mybcbank)와 신용카드 통합정보(mybccard)를 통합 관리
 하나의 서버에서 모든 기능을 제공합니다.
 """
-from flask import Flask, render_template, render_template_string, redirect
+from flask import Flask, render_template_string, redirect
 import os
 import sys
 import subprocess

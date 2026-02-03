@@ -32,6 +32,7 @@ msg_ssh.txt
 msg_actions.txt
 msg_dispatch.txt
 msg_actions_fix.txt
+msg_push.txt
 
 # 환경/비밀
 .env
@@ -66,3 +67,4 @@ logs/
 
 # Docker (선택)
 # docker-compose.override.yml
+.vercel

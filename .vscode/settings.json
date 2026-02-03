@@ -1,6 +1,0 @@
-{
-    "files.readonlyInclude": {
-        "{**/.c4z/.extsrcs/*.PROTSYM.cbl,**/.c4z/.extsrcs/*.PROTSYM.listing}": true
-    },
-    "python.defaultInterpreterPath": "C:\\Users\\k3003\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
-}

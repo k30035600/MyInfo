@@ -1,67 +1,14 @@
 {
     // IntelliSense를 사용하여 가능한 특성에 대해 알아보세요.
     // 기존 특성에 대한 설명을 보려면 가리킵니다.
-    // 자세한 내용은 보려면 https://go.microsoft.com/fwlink/?linkid=830387을(를) 방문하세요.
+    // 자세한 내용을 보려면 https://go.microsoft.com/fwlink/?linkid=830387을(를) 방문하세요.
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: MyInfo 홈페이지",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/app.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "justMyCode": true,
-            "env": {
-                "FLASK_APP": "app.py",
-                "FLASK_ENV": "development"
-            }
-        },
-        {
-            "name": "Python: MyBank (은행거래 통합정보)",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/MyBank/app.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "cwd": "${workspaceFolder}/MyBank",
-            "env": {
-                "FLASK_APP": "app.py",
-                "FLASK_ENV": "development"
-            }
-        },
-        {
-            "name": "Python: MyCard (신용카드 통합정보)",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/MyCard/app.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "cwd": "${workspaceFolder}/MyCard",
-            "env": {
-                "FLASK_APP": "app.py",
-                "FLASK_ENV": "development"
-            }
-        },
-        {
             "type": "chrome",
             "request": "launch",
-            "name": "Chrome: MyInfo 홈페이지",
-            "url": "http://localhost:5000",
-            "webRoot": "${workspaceFolder}"
-        },
-        {
-            "type": "chrome",
-            "request": "launch",
-            "name": "Chrome: MyBank",
-            "url": "http://localhost:5001",
-            "webRoot": "${workspaceFolder}"
-        },
-        {
-            "type": "chrome",
-            "request": "launch",
-            "name": "Chrome: MyCard",
-            "url": "http://localhost:5002",
+            "name": "localhost에 대해 Chrome 시작",
+            "url": "http://localhost:8080",
             "webRoot": "${workspaceFolder}"
         }
     ]

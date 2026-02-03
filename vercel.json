@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": null,
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "readme/**|.github/**|**/__pycache__/**|**/*.pyc|**/Backup/**|**/.git/**|**/node_modules/**|**/.venv/**|**/venv/**|**/*.docx|**/*.png|**/*.pdf|MyBank/Source/**|MyCard/Source/**|**/Readme/**"
+    }
+  }
+}
