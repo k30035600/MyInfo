@@ -33,6 +33,8 @@ msg_actions.txt
 msg_dispatch.txt
 msg_actions_fix.txt
 msg_push.txt
+commit_msg.txt
+commit_msg_*.txt
 
 # 환경/비밀
 .env
