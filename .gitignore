@@ -23,6 +23,7 @@ msg5.txt
 msg_commit.txt
 msg_src.txt
 msg_ignore.txt
+msg_final.txt
 
 # 환경/비밀
 .env
