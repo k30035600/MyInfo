@@ -18,6 +18,7 @@ Lib/
 msg.txt
 msg2.txt
 msg3.txt
+msg4.txt
 
 # 환경/비밀
 .env
