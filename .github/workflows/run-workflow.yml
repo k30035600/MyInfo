@@ -4,7 +4,9 @@
 name: Run workflow
 
 on:
-  workflow_dispatch:   # 수동 실행만 허용
+  workflow_dispatch:   # 수동 실행: Actions 탭 → Run workflow
+  push:
+    branches: [main]   # main 푸시 시 1회 실행 → workflow_dispatch 활성화
 
 jobs:
   run:
