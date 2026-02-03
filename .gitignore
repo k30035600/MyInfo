@@ -20,6 +20,7 @@ msg2.txt
 msg3.txt
 msg4.txt
 msg5.txt
+msg_commit.txt
 
 # 환경/비밀
 .env

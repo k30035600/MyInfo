@@ -1,0 +1,12 @@
+# MyInfo (금융거래 통합정보) - 공통 의존성
+pandas>=1.5.0
+numpy>=1.20.0
+openpyxl>=3.0.0
+xlrd>=2.0.0
+flask>=2.0.0
+beautifulsoup4>=4.11.0
+cryptography>=3.4.0
+requests>=2.25.0
+waitress>=2.1.0
+gunicorn>=23.0.0; sys_platform != "win32"
+pywin32>=300; sys_platform == "win32"

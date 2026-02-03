@@ -1,0 +1,15 @@
+# MyInfo (금융거래 통합정보) - Docker Compose
+# 사용: docker-compose up -d
+# 중지: docker-compose down
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=development
+    restart: unless-stopped
