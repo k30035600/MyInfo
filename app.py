@@ -530,8 +530,9 @@ a:hover { text-decoration: underline; }
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
-    host = '127.0.0.1'
+    # Railway/Heroku 등에서는 PORT가 주입되며 0.0.0.0으로 바인딩 필요
     port = int(os.environ.get('PORT', 8080))
+    host = '0.0.0.0' if os.environ.get('PORT') else '127.0.0.1'
     try:
         print("=" * 50, flush=True)
         print("금융거래 통합정보(mybcinfo) 통합 서버를 시작합니다...", flush=True)

@@ -1,0 +1,8 @@
+# Railway Nixpacks 빌드 시 사용 (Dockerfile 없을 때)
+[phases.setup]
+aptPkgs = ["gcc", "libffi-dev", "libssl-dev"]
+
+[variables]
+LANG = "en_US.UTF-8"
+LC_ALL = "en_US.UTF-8"
+PYTHONUTF8 = "1"
