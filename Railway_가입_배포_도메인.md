@@ -47,12 +47,10 @@ git push origin main
 
 3. **서비스 설정**  
    - 생성된 서비스 클릭 → **Settings**  
-   - **Build**: Nixpacks 또는 Docker 사용  
-     - 루트에 `Dockerfile`이 있으면 Docker로 빌드  
-     - 없으면 Nixpacks이 `Procfile` 또는 `start_web.sh` 등으로 실행  
-   - **Start Command** (필요 시):  
-     - `python start_web.py` 또는  
-     - `gunicorn --bind 0.0.0.0:$PORT app:app`  
+   - **Build**: 루트에 `Dockerfile`이 있으면 Docker로 빌드  
+   - **Start Command**: **비워 두세요.** (비어 있으면 Dockerfile의 `CMD`가 사용됩니다.)  
+     - ⚠️ **주의**: `LANG=en_US.UTF-8` 같은 환경 변수를 Start Command에 넣으면 "The executable `lang=en_us.utf-8` could not be found" 오류가 납니다. LANG/LC_ALL은 **Variables** 탭에서만 설정하세요.  
+     - 꼭 지정해야 하면: `python -X utf8 app.py` 처럼 **실행 명령만** 넣기  
    - **Root Directory**: 비워두면 저장소 루트 사용
 
 4. **환경 변수**  
