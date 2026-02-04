@@ -131,3 +131,11 @@ git push origin main
 - [ ] https://myinfo.com 접속 및 동작 확인  
 
 문제가 있으면 Railway 대시보드의 **Deployments** 로그와 **Settings → Networking** 메시지를 확인하세요. 한글 깨짐은 **5. 한글 깨짐 계속될 때**를 참고하세요.
+
+---
+
+## 7. .gitignore / .md / PDF 한글이 깨져 보일 때
+
+- **.gitignore, .md**: 에디터에서 **UTF-8**로 저장하세요. (VS Code: 하단 인코딩 클릭 → "Save with Encoding" → UTF-8.) 프로젝트에 `.gitattributes`를 두어 텍스트 파일을 일관되게 처리합니다.
+- **PDF**: 파일 내용이 깨지면 PDF 제작 시 폰트/인코딩을 UTF-8로 설정해야 합니다. **파일명**에 한글이 있으면(예: `Railway_가입_배포_도메인.pdf`) 터미널·일부 CI에서 깨져 보일 수 있으므로, 필요 시 영문 파일명(예: `Railway_deploy_domain.pdf`) 사용을 권장합니다.
+- **터미널(PowerShell)**: 한글이 깨지면 `chcp 65001` 실행 후 다시 시도하거나, 터미널 설정에서 UTF-8 사용으로 변경하세요.

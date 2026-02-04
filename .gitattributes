@@ -1,0 +1,20 @@
+# 한글 등 UTF-8 텍스트 파일: 줄바꿈 LF, 텍스트로 처리
+* text=auto eol=lf
+*.md text eol=lf
+*.gitignore text eol=lf
+*.txt text eol=lf
+*.py text eol=lf
+*.html text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+*.bat text eol=lf
+
+# 바이너리로 처리 (변환 금지)
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.png binary
+*.jpg binary
+*.ico binary
