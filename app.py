@@ -98,7 +98,7 @@ TEMPLATES = {
     <div class="container">
         <div class="header">
             <h1>💰 금융거래 통합정보</h1>
-            <p>MyInfo - Financial Information System</p>
+            <p>MyInfo - Financial Information System   Ver. 26/02/01</p>
             <p style="font-size: 0.9em; color: #999; margin-top: 5px;">은행 거래와 신용카드 거래를 통합 관리하는 시스템 · <a href="/help" style="color: #667eea;">도움말</a></p>
         </div>
         <div class="services">
