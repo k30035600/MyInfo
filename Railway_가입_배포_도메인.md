@@ -64,7 +64,7 @@ git push origin main
      | `LC_ALL` | `en_US.UTF-8` |
      | `PYTHONUTF8` | `1` |
    - 앱 코드: HTML/JSON 응답에 `charset=utf-8`, Procfile·start_web.py에서 위 환경 변수 설정.
-   - **한글 여전히 깨질 때**: Railway 대시보드 → 해당 서비스 → **Variables**에 위 세 개가 모두 있는지 확인하고, 값에 공백/오타가 없는지 확인한 뒤 **Redeploy** 하세요.
+   - **한글 여전히 깨질 때**: 아래 "한글 깨짐 계속될 때" 참고.
 
 5. **배포 확인**  
    - **Deployments** 탭에서 빌드/실행 로그 확인  
@@ -110,7 +110,16 @@ git push origin main
 
 ---
 
-## 5. 체크리스트 요약
+## 5. 한글 깨짐 계속될 때
+
+- **Docker 사용 시**: Railway가 루트의 `Dockerfile`로 빌드하면 Procfile은 사용되지 않습니다. Dockerfile에 이미 `LANG`, `LC_ALL`, `PYTHONUTF8`와 `python -X utf8`이 들어 있으므로, **Redeploy** 한 번 더 해 보세요.
+- **Variables**: Railway 대시보드 → 해당 서비스 → **Variables**에 `LANG`=`en_US.UTF-8`, `LC_ALL`=`en_US.UTF-8`, `PYTHONUTF8`=`1` 세 개가 모두 있는지 확인하고, 값에 공백/따옴표 없이 넣은 뒤 **Redeploy** 하세요.
+- **Procfile 사용으로 바꾸기**: 한글이 계속 깨지면 Docker 대신 Nixpacks를 쓰고 싶다면, 프로젝트에서 Dockerfile을 임시로 이름 변경(예: `Dockerfile.bak`)한 뒤 커밋·푸시하면 Railway가 Procfile로 빌드합니다. (Procfile에도 UTF-8 환경 변수 설정이 들어 있습니다.)
+- **커밋 메시지**: 한글 커밋 메시지는 터미널/CI에서 깨져 보일 수 있습니다. 가능하면 영문 메시지 사용을 권장합니다.
+
+---
+
+## 6. 체크리스트 요약
 
 - [ ] Railway Gmail(또는 GitHub) 로그인  
 - [ ] MyInfo `git push origin main` 완료  
@@ -121,4 +130,4 @@ git push origin main
 - [ ] DNS에 CNAME/A 레코드 설정  
 - [ ] https://myinfo.com 접속 및 동작 확인  
 
-문제가 있으면 Railway 대시보드의 **Deployments** 로그와 **Settings → Networking** 메시지를 확인하세요.
+문제가 있으면 Railway 대시보드의 **Deployments** 로그와 **Settings → Networking** 메시지를 확인하세요. 한글 깨짐은 **5. 한글 깨짐 계속될 때**를 참고하세요.

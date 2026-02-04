@@ -4,9 +4,15 @@
 은행거래 통합정보(mybcbank)와 신용카드 통합정보(mybccard)를 통합 관리
 하나의 서버에서 모든 기능을 제공합니다.
 """
-from flask import Flask, render_template_string, redirect
 import os
 import sys
+
+# Railway/Docker 등에서 한글 깨짐 방지 (가능한 한 먼저 설정)
+os.environ.setdefault("LANG", "en_US.UTF-8")
+os.environ.setdefault("LC_ALL", "en_US.UTF-8")
+os.environ.setdefault("PYTHONUTF8", "1")
+
+from flask import Flask, render_template_string, redirect
 import subprocess
 import traceback
 import importlib.util
