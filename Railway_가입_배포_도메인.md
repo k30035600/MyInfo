@@ -57,7 +57,13 @@ git push origin main
 
 4. **환경 변수**  
    - **Variables** 탭에서 `PORT`는 Railway가 자동 주입  
-   - 필요하면 다른 변수 추가
+   - **한글 깨짐 방지**: 아래 변수를 추가하면 로그·콘솔 한글도 정상 출력됩니다.  
+     | 이름 | 값 |
+     |------|-----|
+     | `LANG` | `en_US.UTF-8` |
+     | `LC_ALL` | `en_US.UTF-8` |
+     (선택) `PYTHONIOENCODING` = `utf-8`  
+   - 앱 코드에서도 HTML/JSON 응답에 `charset=utf-8`을 넣어 두었습니다.
 
 5. **배포 확인**  
    - **Deployments** 탭에서 빌드/실행 로그 확인  

@@ -20,21 +20,16 @@ SUBAPP_CONFIG = (
     ('MyCard', '/card', 'card_app.py', '신용카드 통합정보'),
 )
 
-# Windows 콘솔 한글 출력 (UTF-8)
-if sys.platform == 'win32':
-    try:
-        # Python 3.7+ 에서는 reconfigure 사용 (더 안전)
-        if hasattr(sys.stdout, 'reconfigure'):
-            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-        else:
-            # Python 3.6 이하에서는 기존 방식 사용 (buffer가 열려있는 경우만)
-            if hasattr(sys.stdout, 'buffer') and not sys.stdout.buffer.closed:
-                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True, errors='replace')
-            if hasattr(sys.stderr, 'buffer') and not sys.stderr.buffer.closed:
-                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True, errors='replace')
-    except Exception:
-        pass
+# 콘솔/로그 한글 출력 (UTF-8) — Windows + Railway(Linux) 공통
+try:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    elif sys.platform == 'win32' and hasattr(sys.stdout, 'buffer') and not getattr(sys.stdout.buffer, 'closed', True):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True, errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True, errors='replace')
+except Exception:
+    pass
 
 # Excel 읽기 시 openpyxl/xlrd에서 나오는 OLE2 경고 억제 (무해한 메시지)
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
@@ -47,6 +42,17 @@ app = Flask(__name__)
 # JSON 인코딩 설정 (한글 지원)
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
+
+
+@app.after_request
+def _ensure_utf8_charset(response):
+    """Railway 등 Linux 호스팅에서 한글 깨짐 방지: 응답에 charset=utf-8 명시"""
+    ct = response.content_type or ""
+    if ct.startswith("text/") or ct.startswith("application/json"):
+        if "charset=" not in ct:
+            response.content_type = f"{ct}; charset=utf-8"
+    return response
+
 
 # 루트 템플릿 (파일 없이 코드 내장)
 TEMPLATES = {
