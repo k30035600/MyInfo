@@ -57,13 +57,14 @@ git push origin main
 
 4. **환경 변수**  
    - **Variables** 탭에서 `PORT`는 Railway가 자동 주입  
-   - **한글 깨짐 방지**: 아래 변수를 추가하면 로그·콘솔 한글도 정상 출력됩니다.  
+   - **한글 깨짐 방지**: 아래 변수를 **반드시** 추가하세요. (Procfile에서도 설정하지만, Variables에 넣어 두면 빌드·로그에도 적용됩니다.)  
      | 이름 | 값 |
      |------|-----|
      | `LANG` | `en_US.UTF-8` |
      | `LC_ALL` | `en_US.UTF-8` |
-     (선택) `PYTHONIOENCODING` = `utf-8`  
-   - 앱 코드에서도 HTML/JSON 응답에 `charset=utf-8`을 넣어 두었습니다.
+     | `PYTHONUTF8` | `1` |
+   - 앱 코드: HTML/JSON 응답에 `charset=utf-8`, Procfile·start_web.py에서 위 환경 변수 설정.
+   - **한글 여전히 깨질 때**: Railway 대시보드 → 해당 서비스 → **Variables**에 위 세 개가 모두 있는지 확인하고, 값에 공백/오타가 없는지 확인한 뒤 **Redeploy** 하세요.
 
 5. **배포 확인**  
    - **Deployments** 탭에서 빌드/실행 로그 확인  
