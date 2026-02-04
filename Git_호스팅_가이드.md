@@ -51,13 +51,21 @@ git remote add origin https://github.com/k30035600/MyInfo.git
 cd d:\OneDrive\Cursor_AI_Project\MyInfo
 git add .
 git status
-git commit -m "chore: Railway 배포 준비"
+git commit -m "chore: Railway deploy prep"
 git push -u origin main
 ```
 
 - `git status`로 커밋될 파일 확인
 - 첫 푸시 시 `-u origin main`으로 upstream 설정
 - 이후에는 `git push`만 해도 됩니다.
+
+### ⚠️ 커밋 메시지 한글 깨짐 방지
+
+- **PowerShell/터미널/CI**에서 한글 커밋 메시지가 깨져 보일 수 있습니다 (예: `?낆텧湲?`).
+- **권장**: `git commit -m "..."` 에는 **영문**만 사용하세요.  
+  예: `feat(bank): show balance graph as absolute value`  
+  예: `chore: remove unused files`
+- 한글 설명이 필요하면 커밋 본문(`git commit` 후 에디터에서 작성)이나 PR/이슈에 남깁니다.
 
 ---
 
