@@ -1003,7 +1003,7 @@
             const categories = visibleData.map(item => item.category || '(빈값)');
             const deposits = visibleData.map(item => item.deposit || 0);
             const withdraws = visibleData.map(item => item.withdraw || 0);
-            const balances = visibleData.map(item => item.balance || 0);
+            const balances = visibleData.map(item => Math.abs(item.balance || 0));
             
             if (categoryCombinedChart) {
                 categoryCombinedChart.destroy();
@@ -1026,7 +1026,7 @@
                         borderColor: 'rgba(255, 0, 0, 0.5)',
                         borderWidth: 1
                     }, {
-                        label: '차액',
+                        label: '차액(절대값)',
                         data: balances,
                         backgroundColor: 'rgba(0, 0, 0, 0.5)',
                         borderColor: 'rgba(0, 0, 0, 0.5)',
