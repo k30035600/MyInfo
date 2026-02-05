@@ -68,6 +68,37 @@ git push origin main
    - **Deployments** 탭에서 빌드/실행 로그 확인  
    - **Generate Domain**으로 `*.railway.app` URL 생성 후 접속 테스트
 
+### 3.5 자동 배포 (GitHub 푸시 시)
+
+Railway에 **GitHub 저장소를 연결**해 두면, **`main` 브랜치에 푸시할 때마다 자동으로 새 배포**가 시작됩니다. 별도 설정 없이 동작합니다.
+
+| 할 일 | 설명 |
+|--------|------|
+| 로컬에서 수정 후 | `git add .` → `git commit -m "영문 메시지"` → `git push origin main` |
+| Railway 동작 | 푸시 감지 → 빌드(Dockerfile 또는 Nixpacks) → 새 배포 실행 |
+| 확인 | Railway 대시보드 → **Deployments** 탭에서 최신 배포 상태·로그 확인 |
+
+- **자동 배포가 안 될 때**: Railway 프로젝트 → 해당 서비스 → **Settings** → **Source**에서 연결된 저장소가 **k30035600/MyInfo**, 브랜치가 **main**인지 확인하세요.  
+- **수동 재배포**: **Deployments** 탭 → **Redeploy** 버튼.
+
+---
+
+## 3.6 Railway 확인 (체크리스트)
+
+배포 후 아래 순서로 확인하세요.
+
+| 순서 | 확인 항목 | 위치 |
+|------|-----------|------|
+| 1 | 최근 배포가 **Success**인지 | **Deployments** 탭 → 맨 위 배포 상태 |
+| 2 | 빌드·실행 로그에 오류 없는지 | 해당 배포 클릭 → **View Logs** |
+| 3 | 도메인 생성 여부 | **Settings** → **Networking** → **Generate Domain** (없으면 클릭) |
+| 4 | `/health` 응답 | 브라우저: `https://본인도메인.up.railway.app/health` → `OK` 표시 |
+| 5 | 홈 접속 | `https://본인도메인.up.railway.app/` → MyInfo 홈 나오는지 |
+| 6 | 환경 변수 | **Variables**: `LANG`, `LC_ALL`, `PYTHONUTF8` (한글용) |
+
+- **대시보드**: https://railway.app/dashboard  
+- **문제 시**: 4.5절 "The train has not arrived" 참고.
+
 ---
 
 ## 4. 도메인 myinfo.com 연결
@@ -141,6 +172,30 @@ git push origin main
 - **Variables**: Railway 대시보드 → 해당 서비스 → **Variables**에 `LANG`=`en_US.UTF-8`, `LC_ALL`=`en_US.UTF-8`, `PYTHONUTF8`=`1` 세 개가 모두 있는지 확인하고, 값에 공백/따옴표 없이 넣은 뒤 **Redeploy** 하세요.
 - **Procfile 사용으로 바꾸기**: 한글이 계속 깨지면 Docker 대신 Nixpacks를 쓰고 싶다면, 프로젝트에서 Dockerfile을 임시로 이름 변경(예: `Dockerfile.bak`)한 뒤 커밋·푸시하면 Railway가 Procfile로 빌드합니다. (Procfile에도 UTF-8 환경 변수 설정이 들어 있습니다.)
 - **커밋 메시지**: 한글 커밋 메시지는 터미널/CI에서 깨져 보일 수 있습니다. 가능하면 영문 메시지 사용을 권장합니다.
+
+---
+
+## 5.5 Railway 서비스 제거/삭제
+
+배포를 중단하고 서비스나 프로젝트를 없애고 싶을 때 아래 순서로 진행하세요.
+
+### 서비스만 삭제 (프로젝트는 유지)
+
+1. **https://railway.app/dashboard** 접속 후 로그인.
+2. 해당 **프로젝트** 클릭 → 삭제할 **서비스** 선택.
+3. **Settings** 탭으로 이동.
+4. 아래로 내려 **Danger** 또는 **Danger Zone** 영역 찾기.
+5. **Remove Service** / **Delete Service** 클릭 → 확인 시 서비스만 삭제됨. (다른 서비스·프로젝트는 그대로 둠.)
+
+### 프로젝트 전체 삭제
+
+1. 대시보드에서 **프로젝트** 선택.
+2. **Project Settings** (톱니바퀴 또는 프로젝트 이름 옆 설정).
+3. **Danger** / **Danger Zone** → **Delete Project** (또는 **Remove Project**).
+4. 확인 시 해당 프로젝트와 그 안의 **모든 서비스**가 삭제됩니다.
+
+- 삭제 후에는 `*.railway.app` 주소로 접속할 수 없습니다.
+- GitHub 저장소 코드는 삭제되지 않습니다. 다시 배포하려면 Railway에서 새 프로젝트를 만들고 같은 저장소를 연결하면 됩니다.
 
 ---
 
