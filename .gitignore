@@ -36,9 +36,6 @@ msg_push.txt
 commit_msg.txt
 commit_msg_*.txt
 
-# 데이터 (xls/xlsx 취득·보관 폴더, GitHub에 올리지 않음)
-.source/
-
 # 환경/비밀
 .env
 .env.*

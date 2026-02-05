@@ -72,6 +72,14 @@ app = Flask(__name__)
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
 
+# Railway 등 배포 환경: .source는 gitignore되어 없음 → 빈 폴더 생성해 오류 방지
+try:
+    _root = os.path.dirname(os.path.abspath(__file__))
+    for _d in (os.path.join(_root, '.source'), os.path.join(_root, '.source', 'Bank'), os.path.join(_root, '.source', 'Card')):
+        os.makedirs(_d, exist_ok=True)
+except Exception:
+    pass
+
 
 @app.after_request
 def _ensure_utf8_charset(response):

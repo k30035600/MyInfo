@@ -27,8 +27,8 @@ app.config['JSON_AS_ASCII'] = False
 # 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, 'Source')
-SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, 'Source', 'Bank')
+SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
+SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
 
 # 전처리후 은행 필터: 드롭다운 값 → 실제 데이터에 있을 수 있는 은행명 별칭
 # 적용 위치: get_processed_data()에서 load_processed_file()(cash_before.xlsx)로 읽은 DataFrame의 '은행명' 컬럼
