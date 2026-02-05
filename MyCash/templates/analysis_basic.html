@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>은행거래 기본분석</title>
+    <title>금융정보 기본분석</title>
     <style>
         * {
             margin: 0;
@@ -491,8 +491,8 @@
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                <h1>은행거래 기본분석</h1>
-                <div style="font-size: 14px; opacity: 0.5;">bank_after.xlsx</div>
+                <h1>금융정보 기본분석</h1>
+                <div style="font-size: 14px; opacity: 0.5;">cash_after.xlsx</div>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
                 <div class="filter-group">
@@ -510,10 +510,10 @@
         <!-- 은행거래 통합정보 네비게이터 -->
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
-            <a href="/bank/" class="nav-item">🏦 은행거래 전처리</a>
-            <a href="/bank/category" class="nav-item">🏷️ 은행거래 카테고리</a>
-            <a href="/bank/analysis/basic" class="nav-item">📊 은행거래 기본분석</a>
-            <a href="/bank/help" class="nav-item">❓ 은행거래 도움말</a>
+            <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+            <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
+            <a href="/cash/help" class="nav-item">📋 금융거래 고급분석</a>
         </nav>
     </div>
 
@@ -617,7 +617,7 @@
         });
 
         // API 기본 경로 설정 (현재 페이지 경로 기반)
-        const API_BASE = window.location.pathname.startsWith('/bank') ? '/bank' : '';
+        const API_BASE = window.location.pathname.startsWith('/cash') ? '/cash' : '';
         
         // 페이지 로드 시 데이터 로드
         window.addEventListener('DOMContentLoaded', () => {
@@ -656,16 +656,16 @@
                 continue;
             }
             
-            // /bank/ 또는 /card/의 경우 정확히 일치해야 함 (다른 경로로 시작하는 경우 제외)
-            if (href === '/bank/' || href === '/card/') {
+            // /cash/ 또는 /card/의 경우 정확히 일치해야 함 (다른 경로로 시작하는 경우 제외)
+            if (href === '/cash/' || href === '/card/') {
                 if (currentPath === href || currentPath === href.slice(0, -1)) {
                     matches.push({ item, priority: 3, href });
                 }
-                // /bank/analysis/basic 같은 경우는 /bank/와 매칭되지 않음
+                // /cash/analysis/basic 같은 경우는 /cash/와 매칭되지 않음
                 continue;
             }
             
-            // 다른 경로들은 startsWith로 매칭 (단, /bank/ 또는 /card/로 시작하는 경우는 제외)
+            // 다른 경로들은 startsWith로 매칭 (단, /cash/ 또는 /card/로 시작하는 경우는 제외)
             if (href !== '/' && currentPath.startsWith(href)) {
                 matches.push({ item, priority: 2, href });
             }

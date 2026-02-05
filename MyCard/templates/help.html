@@ -133,7 +133,7 @@
         <a href="/card/" class="nav-item">💳 신용카드 전처리</a>
         <a href="/card/category" class="nav-item">🏷️ 신용카드 카테고리</a>
         <a href="/card/analysis/basic" class="nav-item">📊 신용카드 기본분석</a>
-        <a href="/card/help" class="nav-item">❓ 신용카드 도움말</a>
+        <a href="/card/help" class="nav-item active">❓ 신용카드 도움말</a>
     </nav>
 
     <div class="container">
@@ -150,8 +150,8 @@ python app.py</div>
             <h3>폴더 구조</h3>
             <p>신용카드 관련 파일은 모두 <strong>MyCard</strong> 폴더 안에서 다룹니다.</p>
             <ul>
-                <li><strong>Source</strong>: 각 카드사에서 내려받은 거래 내역 원본(.xls, .xlsx)을 넣는 폴더입니다. 파일명에 <strong>국민카드</strong>, <strong>신한카드</strong>, <strong>현대카드</strong>, <strong>하나카드</strong>가 포함되어야 인식합니다.</li>
-                <li><strong>card_before.xlsx</strong>: 전처리 결과가 저장되는 파일입니다. Source 파일들을 통합·표준화한 결과입니다. 컬럼: 카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리</li>
+                <li><strong>MyInfo/.source/Card</strong>: 각 카드사에서 내려받은 거래 내역 원본(.xls, .xlsx)을 넣는 폴더입니다. 파일명에 <strong>국민카드</strong>, <strong>신한카드</strong>, <strong>현대카드</strong>, <strong>하나카드</strong>가 포함되어야 인식합니다.</li>
+                <li><strong>card_before.xlsx</strong>: 전처리 결과가 MyInfo/.source에 저장됩니다. .source/Card 파일들을 통합·표준화한 결과입니다. 컬럼: 카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리</li>
                 <li><strong>card_category.xlsx</strong>: 카테고리 분류 규칙(분류, 키워드, 카테고리)이 저장되는 파일입니다. 계정과목·업종분류로 가맹점명 기반 자동 분류를 지원합니다.</li>
                 <li><strong>card_after.xlsx</strong>: 카테고리를 적용한 최종 거래 데이터입니다. 기본분석은 이 파일을 사용합니다.</li>
             </ul>
@@ -159,7 +159,7 @@ python app.py</div>
 
         <div class="help-section">
             <h2>지원 카드사 및 파일 형식</h2>
-            <p>Source 폴더에는 <strong>.xls</strong> 또는 <strong>.xlsx</strong> 파일만 사용합니다. PDF 등 다른 형식은 지원하지 않습니다.</p>
+            <p>MyInfo/.source/Card에는 <strong>.xls</strong> 또는 <strong>.xlsx</strong> 파일만 사용합니다. PDF 등 다른 형식은 지원하지 않습니다.</p>
             <ul>
                 <li><strong>국민카드</strong>: .xls, .xlsx 지원</li>
                 <li><strong>신한카드</strong>: .xls, .xlsx 지원</li>
@@ -175,7 +175,7 @@ python app.py</div>
             <div class="feature-list">
                 <div class="feature-card">
                     <h4>📊 전처리</h4>
-                    <p>Source의 .xls/.xlsx를 읽어 표준 컬럼(카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리)으로 통합합니다. 카드사는 파일명에서, 할부 0은 공백으로 저장됩니다. card_before.xlsx로 저장됩니다.</p>
+                    <p>MyInfo/.source/Card의 .xls/.xlsx를 읽어 표준 컬럼으로 통합합니다. 카드사는 파일명에서, 할부 0은 공백으로 저장됩니다. MyInfo/.source/card_before.xlsx로 저장됩니다.</p>
                 </div>
                 <div class="feature-card">
                     <h4>🏷️ 카테고리</h4>
@@ -203,10 +203,10 @@ python app.py</div>
             
             <h3>신용카드 전처리 (/card/)</h3>
             <ul>
-                <li>MyCard → <strong>Source</strong> 폴더에 국민/신한/현대/하나 카드사 거래 내역 .xls 또는 .xlsx를 넣습니다.</li>
-                <li>전처리 페이지에서 <strong>"전처리 실행"</strong> 버튼을 클릭합니다. 서버가 Source를 읽어 통합하고, card_before.xlsx·card_category.xlsx·card_after.xlsx를 생성·갱신합니다.</li>
+                <li>MyInfo/.source/Card에 국민/신한/현대/하나 카드사 거래 내역 .xls 또는 .xlsx를 넣습니다.</li>
+                <li>전처리 페이지에서 <strong>"전처리 실행"</strong> 버튼을 클릭합니다. 서버가 .source/Card를 읽어 통합하고, MyInfo/.source에 card_before.xlsx·card_category.xlsx·card_after.xlsx를 생성·갱신합니다.</li>
                 <li>전처리 전/후 데이터를 테이블로 비교할 수 있습니다. <strong>카드사</strong>, <strong>년·월</strong> 등 필터로 범위를 줄여 확인하세요.</li>
-                <li>데이터가 없으면 "Source에 .xls/.xlsx가 있는지", "파일명에 카드사명이 포함되는지"를 확인합니다.</li>
+                <li>데이터가 없으면 "MyInfo/.source/Card에 .xls/.xlsx가 있는지", "파일명에 카드사명이 포함되는지"를 확인합니다.</li>
             </ul>
 
             <h3>신용카드 카테고리 (/card/category)</h3>
@@ -234,8 +234,8 @@ python app.py</div>
             
             <h3>데이터가 표시되지 않음</h3>
             <ul>
-                <li><strong>Source</strong> 폴더에 .xls 또는 .xlsx 파일이 있는지 확인하세요. 파일명에 국민카드/신한카드/현대카드/하나카드가 들어가야 합니다.</li>
-                <li>전처리를 실행한 뒤 <strong>card_before.xlsx</strong>가 MyCard 폴더에 생성되었는지 확인하세요. 파일이 비어 있거나 Excel 등에서 열려 있으면 읽기 실패할 수 있습니다.</li>
+                <li><strong>MyInfo/.source/Card</strong>에 .xls 또는 .xlsx 파일이 있는지 확인하세요. 파일명에 국민카드/신한카드/현대카드/하나카드가 들어가야 합니다.</li>
+                <li>전처리를 실행한 뒤 <strong>card_before.xlsx</strong>가 MyInfo/.source에 생성되었는지 확인하세요. 파일이 비어 있거나 Excel 등에서 열려 있으면 읽기 실패할 수 있습니다.</li>
                 <li>브라우저 개발자 도구(F12) → Console 탭에서 오류 메시지를 확인하세요. API 오류 시 서버 터미널 로그도 함께 확인합니다.</li>
             </ul>
 

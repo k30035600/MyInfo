@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>금융거래 통합정보 (MyInfo)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1920px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 40px; text-align: center; }
+        .header { margin-bottom: 6px; }
+        .header h1 { font-size: 2.5em; color: #333; margin-bottom: 4px; font-weight: bold; }
+        .header p { font-size: 1.2em; color: #666; margin-top: 4px; }
+        .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
+        .service-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; padding: 40px; text-decoration: none; color: white; transition: transform 0.3s ease, box-shadow 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
+        .service-card:hover { transform: translateY(-10px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .service-card.bank { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); }
+        .service-card.card { background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); }
+        .service-card.cash { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .service-card h2 { font-size: 2em; margin-bottom: 20px; font-weight: bold; }
+        .service-card p { font-size: 1.1em; line-height: 1.6; opacity: 0.95; }
+        .service-card .icon { font-size: 4em; margin-bottom: 20px; }
+        .features { margin-top: 50px; padding-top: 40px; border-top: 2px solid #eee; }
+        .features h3 { font-size: 1.5em; color: #333; margin-bottom: 30px; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+        .feature-item { padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #667eea; }
+        .feature-item h4 { color: #333; margin-bottom: 10px; font-size: 1.1em; }
+        .feature-item p { color: #666; font-size: 0.9em; }
+        @media (max-width: 768px) { .container { padding: 20px; } .header h1 { font-size: 2em; } .header p { font-size: 1em; } .services { grid-template-columns: 1fr; gap: 20px; } .service-card { padding: 30px; min-height: 200px; } .service-card h2 { font-size: 1.5em; } .service-card .icon { font-size: 3em; } .features-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 480px) { .header h1 { font-size: 1.5em; } .service-card { padding: 20px; min-height: 180px; } .service-card h2 { font-size: 1.3em; } .service-card p { font-size: 0.9em; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 금융거래 통합정보</h1>
+            <p>MyInfo - Financial Information System Ver. {{ version }}</p>
+            <p style="font-size: 0.9em; color: #999; margin-top: 5px;">은행/신용카드 거래 통합관리 및 종합분석</p>
+        </div>
+        <div class="services">
+            <a href="/bank/" class="service-card bank"><div class="icon">🏦</div><h2>은행거래 통합정보</h2><p>MyBank</p><p style="margin-top: 15px; font-size: 0.95em;">은행 거래 내역을 전처리, 카테고리 분류,<br>기본 분석, 도움말을 통해 관리합니다.</p></a>
+            <a href="/card/" class="service-card card"><div class="icon">💳</div><h2>신용카드 통합정보</h2><p>MyCard</p><p style="margin-top: 15px; font-size: 0.95em;">신용카드 거래 내역을 전처리, 카테고리 분류,<br>기본 분석, 고급 분석을 통해 관리합니다.</p></a>
+            <a href="/cash/" class="service-card cash"><div class="icon">📋</div><h2>금융정보 종합분석</h2><p>MyCash</p><p style="margin-top: 15px; font-size: 0.95em;">은행·신용카드 거래를 하나로 모아 전처리, 카테고리,<br>기본 분석, 고급 분석으로 통합 관리합니다.</p></a>
+        </div>
+        <div class="features">
+            <h3>주요 기능</h3>
+            <div class="features-grid">
+                <div class="feature-item"><h4>📊 전처리</h4><p>원본 데이터를 정제하고 표준화된 형식으로 변환</p></div>
+                <div class="feature-item"><h4>🏷️ 카테고리</h4><p>거래 내역을 카테고리별로 자동 분류 및 관리</p></div>
+                <div class="feature-item"><h4>📈 기본분석</h4><p>거래 통계, 월별 추이 등 기본적인 분석 제공</p></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

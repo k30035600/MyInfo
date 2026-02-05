@@ -5,8 +5,8 @@ process_card_data.py — 카드 전용. (은행 관련 역할 없음)
 [역할]
 - 카드 엑셀 원본을 표준 형식 DataFrame으로 읽기
   → 카드 Source → card_before.xlsx 만들 때 사용
-- 카드 파일 통합: Source 폴더의 카드 엑셀을 모아 card_before.xlsx 생성
-- 신용카드 Source → card_before: Source 폴더 엑셀 읽기
+- 카드 파일 통합: .source 폴더의 카드 엑셀을 모아 card_before.xlsx 생성
+- 신용카드 Source → card_before: .source 폴더 엑셀 읽기
   → 행의 컬럼이 모두 공백이면 skip
   → HEADER_TO_STANDARD에 해당하는 행은 헤더 행으로 간주, 해당 행에서 인덱스 취득 후 다음 헤더 행이 나올 때까지 그 인덱스로 card_before 컬럼에 매핑
   → 카드사는 파일명에서 취득, 할부 0은 공백 처리
@@ -20,7 +20,7 @@ process_card_data.py — 카드 전용. (은행 관련 역할 없음)
 - 은행거래(bank_category): 분류 = 전처리, 후처리, 거래방법, 거래지점
 - 신용카드(card_category): 분류 = 계정과목, 업종분류 (본 모듈)
 
-Source는 .xls, .xlsx만 취급.
+.source는 .xls, .xlsx만 취급.
 """
 import pandas as pd
 import os
@@ -46,6 +46,11 @@ if sys.platform == 'win32':
 # 기본 설정
 # =========================================================
 
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
+SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
+SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
+
 CARD_BEFORE_FILE = "card_before.xlsx"
 CATEGORY_FILE = "card_category.xlsx"
 # card_before.xlsx 컬럼 8개 (카테고리는 가맹점명 기반 card_category.xlsx로 분류)
@@ -54,7 +59,7 @@ CARD_BEFORE_COLUMNS = [
 ]
 EXCEL_EXTENSIONS = ('*.xls', '*.xlsx')
 SEARCH_COLUMNS = ['적요', '내용', '거래점', '송금메모', '가맹점명']
-# Source 헤더명 → card_before.xlsx 표준 컬럼 (카테고리는 card_category.xlsx 키워드로 분류)
+# .source 헤더명 → card_before.xlsx 표준 컬럼 (카테고리는 card_category.xlsx 키워드로 분류)
 # 헤더 행에서 인덱스를 취득하고, 다음 헤더 행이 나올 때까지 해당 인덱스로 매핑
 HEADER_TO_STANDARD = {
     '카드사': ['카드사', '카드명'],
@@ -260,7 +265,7 @@ def _map_source_header_to_standard(source_header):
     return None
 
 
-# Source에서 헤더로 쓰이는 문자열 집합 (헤더인 행 판별용)
+# .source에서 헤더로 쓰이는 문자열 집합 (헤더인 행 판별용)
 _HEADER_LIKE_STRINGS = None
 
 
@@ -431,7 +436,7 @@ def _is_date_like_value(val):
 
 
 def _row_to_standard_columns(row, source_columns):
-    """Source 한 행(Series)을 표준 8컬럼 dict로 변환."""
+    """.source 한 행(Series)을 표준 8컬럼 dict로 변환."""
     new_row = {col: '' for col in CARD_BEFORE_COLUMNS}
     for src_col in source_columns:
         std_col = _map_source_header_to_standard(src_col)
@@ -494,17 +499,15 @@ def _postprocess_combined_df(df):
 
 
 def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
-    """Source 폴더의 카드 엑셀을 모아 card_before.xlsx 생성.
+    """MyInfo/.source/Card 의 카드 엑셀을 모아 MyInfo/.source/card_before.xlsx 생성.
 
     - 테이블 헤더: 카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리 (card_before.xlsx 8컬럼)
-    - 헤더 행에서 인덱스 취득 후 데이터 행을 표준 8컬럼에 매핑 (카드사=파일명, 할부 0=공백)
-    - skip_write=True 이면 파일 쓰지 않고 DataFrame만 반환 (호출측에서 카테고리 적용 후 한 번만 저장할 때 사용).
+    - skip_write=True 이면 파일 쓰지 않고 DataFrame만 반환.
 
-    base_dir: 기준 디렉터리(절대경로 권장). None이면 cwd 사용.
+    base_dir: 무시됨. 원본은 .source/Card, 출력은 Source/ 사용.
     """
-    base_dir = Path(base_dir).resolve() if base_dir is not None else Path.cwd()
-    output_path = (base_dir / output_file) if isinstance(output_file, str) else Path(output_file or CARD_BEFORE_FILE)
-    source_dir = base_dir / 'Source'
+    source_dir = Path(SOURCE_CARD_DIR)
+    output_path = Path(SOURCE_DATA_DIR) / (output_file or CARD_BEFORE_FILE)
 
     all_rows = []
     for file_path in _card_excel_files(source_dir):
@@ -641,11 +644,10 @@ DEFAULT_CARD_CATEGORY_ROWS = [
 
 
 def create_category_table(df=None, category_filepath=None):
-    """card_category.xlsx 생성 (신용카드 전용). 분류 = 계정과목, 업종분류. 가맹점명 기반 분류 규칙.
-    df 없어도 기본 규칙으로 생성. category_filepath: 저장 경로. None이면 CATEGORY_FILE(현재 디렉터리 기준)."""
+    """card_category.xlsx 생성 (신용카드 전용). 분류 = 계정과목, 업종분류. MyInfo/.source에 저장.
+    df 없어도 기본 규칙으로 생성. category_filepath: 저장 경로. None이면 .source/card_category.xlsx."""
     category_data = list(DEFAULT_CARD_CATEGORY_ROWS)
 
-    # 2. 중복 제거 및 DataFrame 생성
     seen_all = set()
     unique_category_data = []
     for item in category_data:
@@ -664,7 +666,10 @@ def create_category_table(df=None, category_filepath=None):
     category_df = pd.DataFrame(unique_category_data)
     category_df = category_df.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
 
-    out_path = str(Path(category_filepath).resolve()) if category_filepath else str(Path(CATEGORY_FILE).resolve())
+    if category_filepath:
+        out_path = str(Path(category_filepath).resolve())
+    else:
+        out_path = str(Path(SOURCE_DATA_DIR) / CATEGORY_FILE)
     try:
         parent_dir = os.path.dirname(out_path)
         if parent_dir:

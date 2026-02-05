@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>은행거래 카테고리</title>
+    <title>금융정보 카테고리</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -482,7 +482,7 @@
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                <h1>은행거래 카테고리</h1>
+                <h1>금융정보 카테고리</h1>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
                 <div class="filter-group">
@@ -498,10 +498,10 @@
         <!-- 은행거래 통합정보 네비게이터 -->
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
-            <a href="/bank/" class="nav-item">🏦 은행거래 전처리</a>
-            <a href="/bank/category" class="nav-item">🏷️ 은행거래 카테고리</a>
-            <a href="/bank/analysis/basic" class="nav-item">📊 은행거래 기본분석</a>
-            <a href="/bank/help" class="nav-item">❓ 은행거래 도움말</a>
+            <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+            <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
+            <a href="/cash/help" class="nav-item">📋 금융거래 고급분석</a>
         </nav>
     </div>
 
@@ -509,7 +509,7 @@
     <div class="chart-card" style="margin-top: 0; margin-bottom: 10px; display: flex; flex-direction: column;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
             <h2 style="margin: 0;">카테고리 적용후</h2>
-            <div style="font-size: 14px; opacity: 0.5;"><span id="category-applied-filename">bank_after.xlsx</span></div>
+            <div style="font-size: 14px; opacity: 0.5;"><span id="category-applied-filename">cash_after.xlsx</span></div>
         </div>
         <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -529,7 +529,7 @@
 
     <script>
         // API 기본 경로 설정 (현재 페이지 경로 기반)
-        const API_BASE = window.location.pathname.startsWith('/bank') ? '/bank' : '';
+        const API_BASE = window.location.pathname.startsWith('/cash') ? '/cash' : '';
         
         // 숫자 포맷팅
         function formatNumber(num) {
@@ -611,7 +611,7 @@
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
                     // 테이블에 에러 메시지 표시
-                    const fileErr = (data.error || 'bank_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'cash_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -676,7 +676,7 @@
             }
         }
         
-        // bank_category.xlsx 파일 생성 함수
+        // cash_category.xlsx 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-bank_category-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -699,11 +699,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`bank_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`cash_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     // 카테고리 테이블 다시 로드 (파일 존재 시 버튼이 "출력"으로 변경됨)
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'bank_category.xlsx 파일 생성 실패'}`);
+                    alert(`오류: ${result.error || 'cash_category.xlsx 파일 생성 실패'}`);
                     // 실패 시 버튼 다시 활성화
                     if (btn) {
                         btn.disabled = false;
@@ -713,7 +713,7 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('bank_category.xlsx 파일 생성 중 오류가 발생했습니다.');
+                alert('cash_category.xlsx 파일 생성 중 오류가 발생했습니다.');
                 // 오류 발생 시 버튼 다시 활성화
                 if (btn) {
                     btn.disabled = false;
@@ -1678,7 +1678,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         '<div class="loading" style="padding: 20px; text-align: center; color: #666;">카테고리 적용 후 데이터를 확인할 수 있습니다.</div>';
                 }
                 
-                // bank_after.xlsx 생성 버튼은 항상 활성화
+                // cash_after.xlsx 생성 버튼은 항상 활성화
                 if (btn) {
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
@@ -2197,7 +2197,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const printWindow = window.open('', '_blank');
             const printDate = new Date().toLocaleString('ko-KR');
             printWindow.document.write('<!DOCTYPE html><html><head>' +
-                '<title>은행거래 카테고리 적용후 출력</title>' +
+                '<title>금융정보 카테고리 적용후 출력</title>' +
                 '<meta charset="UTF-8">' +
                 '<style>' +
                 '@page { size: A4 landscape; margin: 5mm; }' +
@@ -2211,7 +2211,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 '.header-info { margin-bottom: 8px; font-size: 10px; color: #666; }' +
                 '.col-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }' +
                 '</style></head><body>' +
-                '<h2>은행거래 카테고리 적용후 (bank_after.xlsx)</h2>' +
+                '<h2>금융정보 카테고리 적용후 (cash_after.xlsx)</h2>' +
                 '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건</div>' +
                 '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tableRows + sumRow + '</tbody></table>' +
                 '<script>window.onload = function() { window.print(); };<\/script>' +
@@ -2219,7 +2219,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             printWindow.document.close();
         }
         
-        // bank_after.xlsx 파일 생성 함수
+        // cash_after.xlsx 파일 생성 함수
         async function generateCategoryFile() {
             const btn = document.getElementById('generate-category-btn');
             const originalText = btn.textContent;
@@ -2342,7 +2342,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 return;
             }
             
-            // bank_after.xlsx 전체 데이터에서 시작일과 종료일 찾기
+            // cash_after.xlsx 전체 데이터에서 시작일과 종료일 찾기
             const allMonthsSet = new Set();
             dataSource.forEach(rowData => {
                 const 거래일 = rowData['거래일'];
@@ -2674,16 +2674,16 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 continue;
             }
             
-            // /bank/ 또는 /card/의 경우 정확히 일치해야 함 (다른 경로로 시작하는 경우 제외)
-            if (href === '/bank/' || href === '/card/') {
+            // /cash/ 또는 /card/의 경우 정확히 일치해야 함 (다른 경로로 시작하는 경우 제외)
+            if (href === '/cash/' || href === '/card/') {
                 if (currentPath === href || currentPath === href.slice(0, -1)) {
                     matches.push({ item, priority: 3, href });
                 }
-                // /bank/category 같은 경우는 /bank/와 매칭되지 않음
+                // /cash/category 같은 경우는 /cash/와 매칭되지 않음
                 continue;
             }
             
-            // 다른 경로들은 startsWith로 매칭 (단, /bank/ 또는 /card/로 시작하는 경우는 제외)
+            // 다른 경로들은 startsWith로 매칭 (단, /cash/ 또는 /card/로 시작하는 경우는 제외)
             if (href !== '/' && currentPath.startsWith(href)) {
                 matches.push({ item, priority: 2, href });
             }

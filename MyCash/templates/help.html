@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>은행거래 도움말 - 은행거래통합정보</title>
+    <title>금융거래 고급분석 - 금융거래통합정보</title>
     <style>
         * {
             margin: 0;
@@ -154,28 +154,28 @@
     </style>
 </head>
 <body>
-    <!-- 은행거래 통합정보 네비게이터 -->
-    <nav class="main-nav" aria-label="은행거래 메뉴">
+    <!-- 금융정보 네비게이터 -->
+    <nav class="main-nav" aria-label="금융정보 메뉴">
         <a href="/" class="nav-item">🏠 홈</a>
-        <a href="/bank/" class="nav-item">🏦 은행거래 전처리</a>
-        <a href="/bank/category" class="nav-item">🏷️ 은행거래 카테고리</a>
-        <a href="/bank/analysis/basic" class="nav-item">📊 은행거래 기본분석</a>
-        <a href="/bank/help" class="nav-item active">❓ 은행거래 도움말</a>
+        <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
+        <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+        <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
+        <a href="/cash/help" class="nav-item active">📋 금융거래 고급분석</a>
     </nav>
 
     <div class="container">
-        <h1>❓ 은행거래 도움말</h1>
+        <h1>📋 금융거래 고급분석</h1>
 
         <div class="help-section">
             <h2>시작하기</h2>
-            <p>은행거래통합정보(MyBank)는 <strong>국민·신한·하나</strong> 등 여러 은행의 거래 내역을 하나로 모아 통합 관리하는 시스템입니다. 전처리 → 카테고리 분류 → 분석 순으로 사용합니다.</p>
+            <p>금융정보통합정보(MyCash)는 은행 및 신용카드의 거래 내역을 하나로 모아 통합 관리하는 시스템입니다. 전처리 → 카테고리 분류 → 분석 순으로 사용합니다.</p>
             <h3>서버 실행</h3>
             <p>프로젝트 루트에서 <code>start-server.bat</code>을 실행하거나, 터미널에서 <code>python app.py</code>를 실행한 뒤 브라우저로 접속합니다.</p>
             <div class="code-block">cd MyInfo 경로
 python app.py</div>
-            <p>실행 시 패키지 설치(pip install) 후 Waitress WSGI 서버가 뜨며, 기본 주소는 <strong>http://localhost:5000</strong>입니다. 은행거래 전처리는 <strong>/bank/</strong>, 카테고리는 <strong>/bank/category</strong>, 기본분석은 <strong>/bank/analysis/basic</strong>입니다.</p>
+            <p>실행 시 패키지 설치(pip install) 후 Waitress WSGI 서버가 뜨며, 기본 주소는 <strong>http://localhost:5000</strong>입니다. 금융정보 전처리는 <strong>/cash/</strong>, 카테고리는 <strong>/cash/category</strong>, 기본분석은 <strong>/cash/analysis/basic</strong>입니다.</p>
             <h3>폴더 구조</h3>
-            <p>은행거래 관련 파일은 모두 <strong>MyBank</strong> 폴더 안에서 다룹니다.</p>
+            <p>금융정보 관련 파일은 모두 <strong>MyCash</strong> 폴더 안에서 다룹니다.</p>
             <ul>
                 <li><strong>Source</strong>: 각 은행에서 내려받은 거래 내역 원본(.xls, .xlsx)을 넣는 폴더입니다. 파일명에 <strong>국민은행</strong>, <strong>신한은행</strong>, <strong>하나은행</strong>이 포함되어야 인식합니다.</li>
                 <li><strong>bank_before.xlsx</strong>: 전처리 결과가 저장되는 파일입니다. Source 파일들을 통합·표준화한 결과입니다.</li>

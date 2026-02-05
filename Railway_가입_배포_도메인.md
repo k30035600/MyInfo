@@ -108,6 +108,33 @@ git push origin main
 
 ---
 
+## 4.5 "Not Found - The train has not arrived at the station" 나올 때
+
+이 메시지는 **Railway가 서비스에서 응답을 받지 못할 때** 나옵니다. 아래 순서로 확인하세요.
+
+1. **Railway 대시보드** → 해당 프로젝트 → **서비스 선택** → **Deployments** 탭  
+   - 가장 최근 배포가 **Success**(초록)인지 확인.  
+   - **Failed**이면 해당 배포 클릭 → **View Logs**에서 빌드/실행 오류 확인.
+
+2. **실행 로그**  
+   - 배포 클릭 후 **Deploy Logs** 또는 **View Logs**에서 Python 오류(traceback), `Address already in use`, `ModuleNotFoundError` 등이 있는지 확인.
+
+3. **도메인 방금 만든 경우**  
+   - **Generate Domain** 직후 1~2분 정도 기다린 뒤 다시 접속.
+
+4. **환경 변수**  
+   - **Variables** 탭에 `PORT`는 Railway가 자동 넣음.  
+   - `LANG`=`en_US.UTF-8`, `LC_ALL`=`en_US.UTF-8`, `PYTHONUTF8`=`1` 있으면 좋음.
+
+5. **동작 확인용 URL**  
+   - 배포가 성공했다면 `https://본인도메인.up.railway.app/health` 로 접속해 보세요.  
+   - `OK`가 보이면 앱은 떠 있는 것이고, 그때도 `/`만 안 보이면 라우팅/템플릿 문제일 수 있음.
+
+6. **재배포**  
+   - **Deployments** → **Redeploy** 또는 GitHub에 커밋 후 푸시하여 다시 배포.
+
+---
+
 ## 5. 한글 깨짐 계속될 때
 
 - **Docker 사용 시**: Railway가 루트의 `Dockerfile`로 빌드하면 Procfile은 사용되지 않습니다. Dockerfile에 이미 `LANG`, `LC_ALL`, `PYTHONUTF8`와 `python -X utf8`이 들어 있으므로, **Redeploy** 한 번 더 해 보세요.

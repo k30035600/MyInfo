@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, make_response, redirect
 import traceback
 import pandas as pd
 import numpy as np
@@ -26,6 +26,10 @@ app.config['JSON_AS_ASCII'] = False
 
 # 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# MyInfo/.source: before·after·category xlsx / Bank: 은행 source xls·xlsx
+PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
+SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
+SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
 
 # 전처리후 은행 필터: 드롭다운 값 → 실제 데이터에 있을 수 있는 은행명 별칭
 # 적용 위치: get_processed_data()에서 load_processed_file()(bank_before.xlsx)로 읽은 DataFrame의 '은행명' 컬럼
@@ -69,16 +73,12 @@ def _json_safe(obj):
     return obj
 
 def load_source_files():
-    """Source 폴더의 원본 파일 목록 가져오기. Source는 .xls, .xlsx만 취급."""
-    # SCRIPT_DIR을 기준으로 절대 경로 사용
-    source_dir = Path(SCRIPT_DIR) / 'Source'
-    
-    # Source 폴더 존재 확인 (.xls, .xlsx만 대상)
+    """MyInfo/.source/Bank 의 원본 파일 목록 가져오기. .xls, .xlsx만 취급."""
+    source_dir = Path(SOURCE_BANK_DIR)
     if not source_dir.exists():
         current_dir = os.getcwd()
-        print(f"[WARNING] Source 폴더를 찾을 수 없습니다. 현재 작업 디렉토리: {current_dir}, 스크립트 디렉토리: {SCRIPT_DIR}, Source 경로: {source_dir.resolve()}", flush=True)
+        print(f"[WARNING] .source/Bank 폴더를 찾을 수 없습니다. 현재 작업 디렉토리: {current_dir}, .source/Bank 경로: {source_dir}", flush=True)
         return []
-    
     files = []
     paths = sorted(
         list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx')),
@@ -99,7 +99,7 @@ def load_source_files():
                     'filename': file_path.name
                 })
         except Exception:
-            # Source는 .xls, .xlsx만 취급. 읽기 실패 시 스킵
+            # .source는 .xls, .xlsx만 취급. 읽기 실패 시 스킵
             continue
         
         files.append(file_info)
@@ -107,9 +107,9 @@ def load_source_files():
     return files
 
 def load_processed_file():
-    """전처리된 파일 로드 (SCRIPT_DIR 기준 절대 경로 사용)"""
+    """전처리된 파일 로드 (MyInfo/.source/bank_before.xlsx)"""
     try:
-        path = Path(SCRIPT_DIR) / 'bank_before.xlsx'
+        path = Path(SOURCE_DATA_DIR) / 'bank_before.xlsx'
         if not path.exists():
             return pd.DataFrame()
         df = pd.read_excel(str(path), engine='openpyxl')
@@ -119,9 +119,9 @@ def load_processed_file():
         return pd.DataFrame()
 
 def load_category_file():
-    """카테고리 파일 로드 (bank_after.xlsx)"""
+    """카테고리 파일 로드 (MyInfo/.source/bank_after.xlsx)"""
     try:
-        category_file = Path(SCRIPT_DIR) / 'bank_after.xlsx'
+        category_file = Path(SOURCE_DATA_DIR) / 'bank_after.xlsx'
         if category_file.exists():
             try:
                 df = pd.read_excel(str(category_file), engine='openpyxl')
@@ -137,7 +137,12 @@ def load_category_file():
 @app.route('/')
 def index():
     workspace_path = str(SCRIPT_DIR)  # 전처리전 작업폴더(MyBank 경로)
-    return render_template('index.html', workspace_path=workspace_path)
+    resp = make_response(render_template('index.html', workspace_path=workspace_path))
+    # 전처리 페이지 캐시 방지: 네비게이션 갱신이 바로 반영되도록
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 @app.route('/favicon.ico')
 def favicon():
@@ -146,16 +151,13 @@ def favicon():
 @app.route('/api/source-files')
 @ensure_working_directory
 def get_source_files():
-    """원본 파일 목록 반환. Source는 .xls, .xlsx만 취급."""
+    """원본 파일 목록 반환. MyInfo/.source/Bank 의 .xls, .xlsx만 취급."""
     try:
         current_dir = os.getcwd()
-        # SCRIPT_DIR을 기준으로 절대 경로 사용
-        source_dir = Path(SCRIPT_DIR) / 'Source'
-        
-        # Source 폴더 존재 확인 (.xls, .xlsx만 대상)
+        source_dir = Path(SOURCE_BANK_DIR)
         if not source_dir.exists():
             return jsonify({
-                'error': f'Source 폴더를 찾을 수 없습니다. (Source는 .xls, .xlsx만 취급)\n현재 작업 디렉토리: {current_dir}\n스크립트 디렉토리: {SCRIPT_DIR}\nSource 경로: {source_dir.resolve()}',
+                'error': f'.source/Bank 폴더를 찾을 수 없습니다.\n현재 작업 디렉토리: {current_dir}\n.source/Bank 경로: {source_dir}',
                 'files': []
             }), 404
         
@@ -205,10 +207,10 @@ def get_processed_data():
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
 
-        output_path = Path(SCRIPT_DIR) / 'bank_before.xlsx'
+        output_path = Path(SOURCE_DATA_DIR) / 'bank_before.xlsx'
         if not output_path.exists():
             return jsonify({
-                'error': 'bank_before.xlsx 생성 실패. Source 폴더와 process_bank_data.py를 확인하세요.',
+                'error': 'bank_before.xlsx 생성 실패. .source/Bank 폴더와 process_bank_data.py를 확인하세요.',
                 'count': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
@@ -217,26 +219,23 @@ def get_processed_data():
 
         df = load_processed_file()
         
-        # category_file_exists 변수 정의 (절대 경로)
-        category_file_exists = (Path(SCRIPT_DIR) / 'bank_after.xlsx').exists()
+        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
         
         if df.empty:
-            # Source 폴더 확인 및 bank_before.xlsx 존재 여부 (Source는 .xls, .xlsx만 취급)
-            source_dir = Path(SCRIPT_DIR) / 'Source'
+            source_dir = Path(SOURCE_BANK_DIR)
             source_files = []
             if source_dir.exists():
                 source_files = list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx'))
-            
             error_msg = '전처리된 데이터가 없습니다.'
             if output_path.exists() and output_path.stat().st_size > 0:
-                error_msg += f'\nbank_before.xlsx는 존재하지만 읽은 데이터가 비어있습니다.'
+                error_msg += '\nbank_before.xlsx는 존재하지만 읽은 데이터가 비어있습니다.'
                 error_msg += '\n파일이 Excel 등에서 열려 있으면 닫고, 내용·시트 구조를 확인해주세요.'
             elif not source_dir.exists():
-                error_msg += '\nSource 폴더가 존재하지 않습니다.'
+                error_msg += '\n.source/Bank 폴더가 존재하지 않습니다.'
             elif len(source_files) == 0:
-                error_msg += '\nSource 폴더에 .xls, .xlsx 파일이 없습니다. (Source는 .xls, .xlsx만 취급)'
+                error_msg += '\n.source/Bank 폴더에 .xls, .xlsx 파일이 없습니다.'
             else:
-                error_msg += f'\nSource 폴더에 {len(source_files)}개의 .xls, .xlsx 파일이 있지만 데이터를 추출할 수 없었습니다.'
+                error_msg += f'\n.source/Bank 폴더에 {len(source_files)}개의 .xls, .xlsx 파일이 있지만 데이터를 추출할 수 없었습니다.'
                 error_msg += '\n파일 형식이나 내용을 확인해주세요.'
             
             response = jsonify({
@@ -289,7 +288,7 @@ def get_processed_data():
         return response
     except Exception as e:
         traceback.print_exc()
-        category_file_exists = os.path.exists('bank_after.xlsx')
+        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
         return jsonify({
             'error': str(e),
             'count': 0,
@@ -319,7 +318,7 @@ def get_category_applied_data():
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
 
-        category_file_exists = os.path.exists('bank_after.xlsx')
+        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
         
         try:
             df = load_category_file()
@@ -387,7 +386,7 @@ def get_category_applied_data():
         return response
     except Exception as e:
         traceback.print_exc()
-        category_file_exists = os.path.exists('bank_after.xlsx')
+        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
         return jsonify({
             'error': str(e),
             'count': 0,
@@ -400,16 +399,13 @@ def get_category_applied_data():
 @app.route('/api/source-data')
 @ensure_working_directory
 def get_source_data():
-    """원본 파일 데이터 반환 (필터링 지원). Source는 .xls, .xlsx만 취급."""
+    """원본 파일 데이터 반환 (필터링 지원). MyInfo/.source/Bank 의 .xls, .xlsx만 취급."""
     try:
-        # SCRIPT_DIR을 기준으로 절대 경로 사용
-        source_dir = Path(SCRIPT_DIR) / 'Source'
+        source_dir = Path(SOURCE_BANK_DIR)
         current_dir = os.getcwd()
-        
-        # Source 폴더 존재 확인 (.xls, .xlsx만 대상)
         if not source_dir.exists():
             return jsonify({
-                'error': f'Source 폴더를 찾을 수 없습니다. (Source는 .xls, .xlsx만 취급)\n현재 작업 디렉토리: {current_dir}\n스크립트 디렉토리: {SCRIPT_DIR}\nSource 경로: {source_dir.resolve()}',
+                'error': f'.source/Bank 폴더를 찾을 수 없습니다.\n현재 작업 디렉토리: {current_dir}\n.source/Bank 경로: {source_dir}',
                 'count': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
@@ -425,12 +421,12 @@ def get_source_data():
         deposit_amount = 0
         withdraw_amount = 0
         
-        # Source는 .xls, .xlsx만 취급
+        # .source는 .xls, .xlsx만 취급
         xls_files = list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx'))
         xls_files = sorted(set(xls_files), key=lambda p: (p.name, str(p)))
         if not xls_files:
             return jsonify({
-                'error': f'Source 폴더에 .xls, .xlsx 파일이 없습니다. (Source는 .xls, .xlsx만 취급)\n현재 작업 디렉토리: {current_dir}\n스크립트 디렉토리: {SCRIPT_DIR}\nSource 경로: {source_dir.resolve()}',
+                'error': f'.source/Bank 폴더에 .xls, .xlsx 파일이 없습니다.\n현재 작업 디렉토리: {current_dir}\n.source/Bank 경로: {source_dir}',
                 'count': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
@@ -473,7 +469,7 @@ def get_source_data():
                     except Exception:
                         continue
             except Exception:
-                # Source는 .xls, .xlsx만 취급. 읽기 실패 시 스킵
+                # .source는 .xls, .xlsx만 취급. 읽기 실패 시 스킵
                 continue
         
         response = jsonify({
@@ -506,9 +502,8 @@ def category():
 @app.route('/api/bank_category')
 @ensure_working_directory
 def get_category_table():
-    """bank_category.xlsx 파일 데이터 반환. 없으면 생성 후 반환."""
+    """bank_category.xlsx 파일 데이터 반환 (MyInfo/.source). 없으면 생성 후 반환."""
     try:
-        # bank_before, bank_category, bank_after 없으면 생성
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -523,7 +518,7 @@ def get_category_table():
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
 
-        path = Path(SCRIPT_DIR) / 'bank_category.xlsx'
+        path = Path(SOURCE_DATA_DIR) / 'bank_category.xlsx'
         file_exists = path.exists()
         
         if not file_exists:
@@ -557,7 +552,7 @@ def get_category_table():
         return response
     except Exception as e:
         traceback.print_exc()
-        file_exists = (Path(SCRIPT_DIR) / 'bank_category.xlsx').exists()
+        file_exists = (Path(SOURCE_DATA_DIR) / 'bank_category.xlsx').exists()
         response = jsonify({
             'error': str(e),
             'data': [],
@@ -569,9 +564,9 @@ def get_category_table():
 @app.route('/api/bank_category', methods=['POST'])
 @ensure_working_directory
 def save_category_table():
-    """bank_category.xlsx 파일에 데이터 추가/삭제 (SCRIPT_DIR 기준 절대 경로)"""
+    """bank_category.xlsx 파일에 데이터 추가/삭제 (MyInfo/.source)"""
     try:
-        path = Path(SCRIPT_DIR) / 'bank_category.xlsx'
+        path = Path(SOURCE_DATA_DIR) / 'bank_category.xlsx'
         data = request.json
         action = data.get('action', 'add')  # 'add' or 'delete'
         
@@ -659,134 +654,9 @@ def analysis_basic():
     return render_template('analysis_basic.html')
 
 @app.route('/analysis/print')
-@ensure_working_directory
-def print_analysis():
-    """은행거래 기본분석 인쇄용 페이지 (2페이지: 보고서 헤더 출력일 좌측, 은행명 우측)"""
-    try:
-        bank_filter = request.args.get('bank', '')
-        category_filter = request.args.get('category', '')  # 선택한 적요 (출력 시 사용)
-        df = load_category_file()
-        if df.empty:
-            return "데이터가 없습니다.", 400
-        if bank_filter:
-            df = df[df['은행명'].astype(str).str.strip() == bank_filter]
-        total_count = len(df)
-        deposit_count = len(df[df['입금액'] > 0])
-        withdraw_count = len(df[df['출금액'] > 0])
-        total_deposit = int(df['입금액'].sum())
-        total_withdraw = int(df['출금액'].sum())
-        net_balance = total_deposit - total_withdraw
-        # 적요별 입출금 내역 (템플릿에서 카테고리로 통일해 사용)
-        category_stats = df.groupby('적요').agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
-        category_stats = category_stats.rename(columns={'적요': '카테고리'})
-        category_stats = category_stats.sort_values('출금액', ascending=False)
-        # 입출금 차액 그래프용: 차액(입금-출금) 기준 정렬 (화면과 동일)
-        category_stats_diff = df.groupby('적요').agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
-        category_stats_diff = category_stats_diff.rename(columns={'적요': '카테고리'})
-        category_stats_diff['차액'] = category_stats_diff['입금액'] - category_stats_diff['출금액']
-        category_stats_diff['차액_절대값'] = category_stats_diff['차액'].abs()
-        category_stats_diff = category_stats_diff.sort_values(
-            ['차액_절대값', '차액', '입금액'], ascending=[False, False, False]
-        ).drop(columns=['차액_절대값'])
-        category_stats_diff['차액_abs'] = category_stats_diff['차액'].abs()
-        max_diff_both = 1
-        if not category_stats_diff.empty:
-            max_diff_both = int(max(
-                category_stats_diff['입금액'].max(),
-                category_stats_diff['출금액'].max(),
-                category_stats_diff['차액'].abs().max()
-            )) or 1
-        top_content = category_stats.iloc[0]['카테고리'] if not category_stats.empty else ''
-        selected_category = category_filter if category_filter else top_content
-        if selected_category:
-            trans_all = df[df['적요'] == selected_category]
-            transaction_total_count = len(trans_all)
-            transactions = trans_all.head(20)
-            transaction_deposit_total = int(trans_all['입금액'].sum())
-            transaction_withdraw_total = int(trans_all['출금액'].sum())
-            # 템플릿 호환: 거래일(yy/mm/dd), 은행명, 내용, 입금액, 출금액 (카드용 이용일/가맹점명 대신)
-            trans_list = []
-            for _, r in transactions.iterrows():
-                d = r.get('거래일', '')
-                if hasattr(d, 'strftime'):
-                    d = d.strftime('%y/%m/%d') if pd.notna(d) else ''
-                elif isinstance(d, str) and len(d) >= 10:
-                    d = d[2:4] + '/' + d[5:7] + '/' + d[8:10]
-                trans_list.append({
-                    '이용일': d,
-                    '카드사': r.get('은행명', ''),
-                    '가맹점명': r.get('내용', '') or r.get('거래점', ''),
-                    '입금액': r.get('입금액', 0),
-                    '출금액': r.get('출금액', 0),
-                })
-            transactions = trans_list
-        else:
-            transaction_total_count = 0
-            transactions = []
-            transaction_deposit_total = 0
-            transaction_withdraw_total = 0
-        bank_stats = df.groupby('은행명').agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
-        bank_stats = bank_stats.rename(columns={'은행명': '카드사'})
-        account_stats = df.groupby(['은행명', '계좌번호']).agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
-        account_stats = account_stats.rename(columns={'은행명': '카드사', '계좌번호': '카드번호'})
-        max_deposit = int(bank_stats['입금액'].max()) if not bank_stats.empty else 1
-        max_withdraw = int(bank_stats['출금액'].max()) if not bank_stats.empty else 1
-        # 월별 집계 (적요별 월그래프 테이블)
-        if '거래일' in df.columns:
-            df_print = df.copy()
-            df_print['_dt'] = pd.to_datetime(df_print['거래일'], errors='coerce')
-            df_print = df_print[df_print['_dt'].notna()]
-            df_print['월'] = df_print['_dt'].dt.to_period('M').astype(str)
-            monthly_totals = df_print.groupby('월').agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
-            monthly_totals = monthly_totals.sort_values('월')
-            monthly_totals['차액_abs'] = (monthly_totals['입금액'] - monthly_totals['출금액']).abs()
-            months_list = monthly_totals['월'].tolist()
-            monthly_totals_list = monthly_totals.to_dict('records')
-            max_monthly_withdraw = int(monthly_totals['출금액'].max()) if not monthly_totals.empty else 1
-            # 월별 입출금 추이 그래프 Y축: 입금/출금/차액 절대값 중 최대 (입출금 차액 그래프와 동일 조건)
-            max_monthly_both = int(max(
-                monthly_totals['입금액'].max(),
-                monthly_totals['출금액'].max(),
-                monthly_totals['차액_abs'].max()
-            )) if not monthly_totals.empty else 1
-        else:
-            months_list = []
-            monthly_totals_list = []
-            max_monthly_withdraw = 1
-            max_monthly_both = 1
-        return render_template('print_analysis.html',
-                               report_date=datetime.now().strftime('%Y-%m-%d'),
-                               bank_filter=bank_filter or '전체',
-                               total_count=total_count,
-                               deposit_count=deposit_count,
-                               withdraw_count=withdraw_count,
-                               total_deposit=total_deposit,
-                               total_withdraw=total_withdraw,
-                               net_balance=net_balance,
-                               category_stats=category_stats.to_dict('records'),
-                               transactions=transactions,
-                               bank_stats=bank_stats.to_dict('records'),
-                               account_stats=account_stats.to_dict('records')[:10],
-                               bank_col='카드사',
-                               account_col='카드번호',
-                               selected_category=selected_category,
-                               max_deposit=max_deposit,
-                               max_withdraw=max_withdraw,
-                               transaction_total_count=transaction_total_count,
-                               transaction_deposit_total=transaction_deposit_total,
-                               transaction_withdraw_total=transaction_withdraw_total,
-                               months_list=months_list,
-                               monthly_totals_list=monthly_totals_list,
-                               max_monthly_withdraw=max_monthly_withdraw,
-                               max_monthly_both=max_monthly_both,
-                               max_category_withdraw=int(category_stats['출금액'].max()) if not category_stats.empty else 1,
-                               max_category_deposit=int(category_stats['입금액'].max()) if not category_stats.empty else 1,
-                               max_category_both=int(max(category_stats['입금액'].max(), category_stats['출금액'].max())) if not category_stats.empty else 1,
-                               category_stats_diff=category_stats_diff.to_dict('records'),
-                               max_diff_both=max_diff_both)
-    except Exception as e:
-        traceback.print_exc()
-        return f"오류 발생: {str(e)}", 500
+def print_analysis_redirect():
+    """구 URL 호환: /analysis/print → /analysis/basic 리다이렉트"""
+    return redirect('/bank/analysis/basic', code=302)
 
 # 분석 API 라우트
 @app.route('/api/analysis/summary')
@@ -1588,8 +1458,8 @@ def generate_category():
                 'error': '카테고리 분류 중 오류가 발생했습니다.'
             }), 500
         
-        # bank_after.xlsx 파일 확인
-        output_path = Path(SCRIPT_DIR) / 'bank_after.xlsx'
+        # bank_after.xlsx 파일 확인 (MyInfo/.source)
+        output_path = Path(SOURCE_DATA_DIR) / 'bank_after.xlsx'
         if output_path.exists():
             try:
                 df = pd.read_excel(str(output_path), engine='openpyxl')

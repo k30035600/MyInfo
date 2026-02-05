@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-process_bank_data.py — 은행용 코드 전용. (카드 관련 역할 없음)
+process_cash_data.py — 금융정보(MyCash) 전용. (카드 관련 역할 없음)
 
 [역할]
-- 은행 파일 통합: .source 폴더의 은행 엑셀을 모아 bank_before.xlsx 생성
-- 카테고리 테이블 생성: bank_before 기반 bank_category.xlsx 생성 및 분류
-- 분류·저장: bank_before → bank_after.xlsx (입출금, 거래방법, 거래지점, 기타거래)
+- 금융(은행) 파일 통합: .source 폴더의 은행 엑셀을 모아 cash_before.xlsx 생성
+- 카테고리 테이블 생성: cash_before 기반 cash_category.xlsx 생성 및 분류
+- 분류·저장: cash_before → cash_after.xlsx (입출금, 거래방법, 거래지점, 기타거래)
 
 .source는 .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)
 """
@@ -32,36 +32,42 @@ if sys.platform == 'win32':
 # 기본 설정
 # =========================================================
 
-INPUT_FILE = "bank_before.xlsx"
-CATEGORY_FILE = "bank_category.xlsx"
-OUTPUT_FILE = "bank_after.xlsx"
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
+SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
+SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
+
+INPUT_FILE = "cash_before.xlsx"
+CATEGORY_FILE = "cash_category.xlsx"
+OUTPUT_FILE = "cash_after.xlsx"
 
 
-def ensure_all_bank_files():
-    """bank_before, bank_category, bank_after 파일이 없으면 생성. 있으면 그대로 사용(읽어서 처리)."""
-    # 1. bank_before.xlsx: 없으면 생성 (.source 통합 또는 빈 파일)
-    if not os.path.exists(INPUT_FILE) or (os.path.exists(INPUT_FILE) and os.path.getsize(INPUT_FILE) == 0):
-        integrate_bank_transactions()
-        return  # integrate가 bank_category, bank_after도 함께 생성
+def ensure_all_cash_files():
+    """cash_before, cash_category, cash_after 파일이 없으면 생성 (MyInfo/.source)."""
+    input_path = os.path.join(SOURCE_DATA_DIR, INPUT_FILE)
+    category_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
+    output_path = os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE)
 
-    # 2. bank_category.xlsx: 없으면 생성
-    if not os.path.exists(CATEGORY_FILE):
+    if not os.path.exists(input_path) or (os.path.exists(input_path) and os.path.getsize(input_path) == 0):
+        integrate_cash_transactions()
+        return
+
+    if not os.path.exists(category_path):
         try:
-            df = pd.read_excel(INPUT_FILE, engine='openpyxl')
+            df = pd.read_excel(input_path, engine='openpyxl')
             if not df.empty:
                 create_category_table(df)
             else:
                 empty_cat = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-                empty_cat.to_excel(CATEGORY_FILE, index=False, engine='openpyxl')
+                empty_cat.to_excel(category_path, index=False, engine='openpyxl')
         except Exception as e:
-            print(f"오류: bank_category.xlsx 생성 실패 - {e}")
+            print(f"오류: cash_category.xlsx 생성 실패 - {e}")
 
-    # 3. bank_after.xlsx: 없으면 생성
-    if not os.path.exists(OUTPUT_FILE):
+    if not os.path.exists(output_path):
         try:
             classify_and_save()
         except Exception as e:
-            print(f"오류: bank_after.xlsx 생성 실패 - {e}")
+            print(f"오류: cash_after.xlsx 생성 실패 - {e}")
 
 
 # =========================================================
@@ -139,7 +145,7 @@ def safe_write_excel(df, filepath, max_retries=3):
     return False
 
 # =========================================================
-# 1. 은행 파일 읽기 함수들 (integrate_bank_transactions.py)
+# 1. 은행 파일 읽기 함수들
 # =========================================================
 
 def read_kb_file_excel(file_path):
@@ -372,10 +378,10 @@ def read_hana_file(file_path):
     return None
 
 # =========================================================
-# 2. 은행 파일 통합 함수 (integrate_bank_transactions.py)
+# 2. 은행 파일 통합 함수 (integrate_cash_transactions)
 # =========================================================
 
-def _bank_excel_files(source_dir):
+def _cash_excel_files(source_dir):
     """ .source 폴더에서 은행 거래 .xls, .xlsx 파일 목록. .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)"""
     out = []
     if not source_dir.exists():
@@ -387,14 +393,13 @@ def _bank_excel_files(source_dir):
                 out.append(p)
     return sorted(set(out), key=lambda p: (p.name, str(p)))
 
-def integrate_bank_transactions(output_file=None):
-    """ .source 폴더의 은행 파일들을 통합하여 bank_before.xlsx 생성. .xls, .xlsx만 취급."""
+def integrate_cash_transactions(output_file=None):
+    """MyInfo/.source/Bank 의 은행 파일을 통합하여 MyInfo/.source/cash_before.xlsx 생성."""
     if output_file is None:
-        output_file = INPUT_FILE
-
-    source_dir = Path('.source')
+        output_file = os.path.join(SOURCE_DATA_DIR, INPUT_FILE)
+    source_dir = Path(SOURCE_BANK_DIR)
     all_data = []
-    bank_files = _bank_excel_files(source_dir)
+    bank_files = _cash_excel_files(source_dir)
 
     for file_path in bank_files:
         name = file_path.name
@@ -423,13 +428,13 @@ def integrate_bank_transactions(output_file=None):
         combined_df.to_excel(output_file, index=False, engine='openpyxl')
         try:
             empty_cat = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-            empty_cat.to_excel(CATEGORY_FILE, index=False, engine='openpyxl')
+            empty_cat.to_excel(os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE), index=False, engine='openpyxl')
         except Exception as e:
-            print(f"오류: 빈 bank_category.xlsx 생성 실패 - {e}")
+            print(f"오류: 빈 cash_category.xlsx 생성 실패 - {e}")
         try:
-            classify_and_save(input_file=output_file, output_file=OUTPUT_FILE)
+            classify_and_save(input_file=output_file, output_file=os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE))
         except Exception as e:
-            print(f"오류: bank_after.xlsx 생성 실패 (빈 통합) - {e}")
+            print(f"오류: cash_after.xlsx 생성 실패 (빈 통합) - {e}")
         return combined_df
 
     combined_df = pd.concat(all_data, ignore_index=True)
@@ -504,34 +509,33 @@ def integrate_bank_transactions(output_file=None):
     # 파일 저장
     combined_df.to_excel(output_file, index=False, engine='openpyxl')
 
-    # bank_category.xlsx 자동 생성 (데이터가 있는 경우에만)
+    # cash_category.xlsx 자동 생성 (데이터가 있는 경우에만)
     if not combined_df.empty:
         try:
             create_category_table(combined_df)
         except Exception as e:
-            print(f"오류: bank_category.xlsx 생성 실패 - {e}")
+            print(f"오류: cash_category.xlsx 생성 실패 - {e}")
     else:
         try:
             empty_category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-            empty_category_df.to_excel(CATEGORY_FILE, index=False, engine='openpyxl')
+            empty_category_df.to_excel(os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE), index=False, engine='openpyxl')
         except Exception as e:
-            print(f"오류: 빈 bank_category.xlsx 생성 실패 - {e}")
+            print(f"오류: 빈 cash_category.xlsx 생성 실패 - {e}")
 
-    # bank_after.xlsx 자동 생성
     try:
-        classify_and_save(input_file=output_file, output_file=OUTPUT_FILE)
+        classify_and_save(input_file=output_file, output_file=os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE))
     except Exception as e:
-        print(f"오류: bank_after.xlsx 생성 실패 - {e}")
+        print(f"오류: cash_after.xlsx 생성 실패 - {e}")
 
     return combined_df
 
 
 # =========================================================
-# 3. 카테고리 테이블 생성 함수 (classify_category.py)
+# 3. 카테고리 테이블 생성 함수
 # =========================================================
 
 def create_category_table(df):
-    """bank_before.xlsx 데이터를 기반으로 bank_category.xlsx 생성"""
+    """cash_before.xlsx 데이터를 기반으로 cash_category.xlsx 생성"""
     category_data = []
 
     # 1. 전처리/후처리 생성
@@ -679,26 +683,24 @@ def create_category_table(df):
     category_df = pd.DataFrame(unique_category_data)
     category_df = category_df.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
 
+    out_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
     try:
         if len(category_df) == 0:
             category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-
-        category_df.to_excel(CATEGORY_FILE, index=False, engine='openpyxl')
-
-        if not os.path.exists(CATEGORY_FILE):
-            raise FileNotFoundError(f"오류: 파일 생성 후에도 {CATEGORY_FILE} 파일이 존재하지 않습니다.")
+        category_df.to_excel(out_path, index=False, engine='openpyxl')
+        if not os.path.exists(out_path):
+            raise FileNotFoundError(f"오류: 파일 생성 후에도 {out_path} 파일이 존재하지 않습니다.")
 
     except PermissionError as e:
-        print(f"오류: 파일 쓰기 권한이 없습니다 - {CATEGORY_FILE}")
+        print(f"오류: 파일 쓰기 권한이 없습니다 - {out_path}")
         raise
     except Exception as e:
-        print(f"오류: bank_category.xlsx 파일 생성 실패 - {e}")
+        print(f"오류: cash_category.xlsx 파일 생성 실패 - {e}")
         raise
-
     return category_df
 
 # =========================================================
-# 4. 분류 함수들 (classify_category.py, create_bank_after.py)
+# 4. 분류 함수들
 # =========================================================
 
 def create_before_text(row):
@@ -966,11 +968,11 @@ def classify_etc(row_idx, df, category_tables):
 # =========================================================
 
 def load_category_table():
-    """bank_category.xlsx 로드 및 category_tables 구성"""
-    if not os.path.exists(CATEGORY_FILE):
+    """cash_category.xlsx 로드 및 category_tables 구성 (MyInfo/.source)"""
+    category_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
+    if not os.path.exists(category_path):
         return None
-
-    category_df = pd.read_excel(CATEGORY_FILE, engine='openpyxl')
+    category_df = pd.read_excel(category_path, engine='openpyxl')
 
     category_tables = {}
     분류_컬럼명 = '분류' if '분류' in category_df.columns else '차수'
@@ -994,11 +996,12 @@ def load_category_table():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """bank_before.xlsx를 읽어서 분류를 수행하고 bank_after.xlsx로 저장"""
+    """cash_before.xlsx를 읽어 분류 후 cash_after.xlsx로 저장 (MyInfo/.source)"""
     if input_file is None:
-        input_file = INPUT_FILE
+        input_file = os.path.join(SOURCE_DATA_DIR, INPUT_FILE)
     if output_file is None:
-        output_file = OUTPUT_FILE
+        output_file = os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE)
+    category_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
 
     try:
         df = pd.read_excel(input_file, engine='openpyxl')
@@ -1006,15 +1009,15 @@ def classify_and_save(input_file=None, output_file=None):
         print(f"오류: {input_file} 읽기 실패 - {e}")
         return False
 
-    if not os.path.exists(CATEGORY_FILE):
+    if not os.path.exists(category_path):
         try:
             if not df.empty:
                 create_category_table(df)
             else:
                 empty_category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-                empty_category_df.to_excel(CATEGORY_FILE, index=False, engine='openpyxl')
+                empty_category_df.to_excel(category_path, index=False, engine='openpyxl')
         except Exception as e:
-            print(f"오류: bank_category.xlsx 생성 실패 - {e}")
+            print(f"오류: cash_category.xlsx 생성 실패 - {e}")
             return False
 
     category_tables = load_category_table()
@@ -1142,7 +1145,7 @@ def main():
         command = sys.argv[1]
 
         if command == 'integrate':
-            integrate_bank_transactions()
+            integrate_cash_transactions()
             return
         elif command == 'classify':
             success = classify_and_save()
@@ -1151,7 +1154,7 @@ def main():
             return
 
     if not os.path.exists(INPUT_FILE) or os.path.getsize(INPUT_FILE) == 0:
-        integrate_bank_transactions()
+        integrate_cash_transactions()
     else:
         classify_and_save()
 

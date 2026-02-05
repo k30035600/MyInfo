@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>은행거래 전처리</title>
     <style>
         * {
@@ -1405,11 +1408,16 @@
 </head>
 <body>
     <div class="header">
-        <div>
-            <h1>은행거래 전처리</h1>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                <h1>은행거래 전처리</h1>
+                <div style="font-size: 14px; opacity: 0.5;">MyBank</div>
+            </div>
+            <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
+            </div>
         </div>
         <!-- 은행거래 통합정보 네비게이터 -->
-        <nav class="main-nav">
+        <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
             <a href="/bank/" class="nav-item">🏦 은행거래 전처리</a>
             <a href="/bank/category" class="nav-item">🏷️ 은행거래 카테고리</a>

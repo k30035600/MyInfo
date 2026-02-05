@@ -1,5 +1,25 @@
 {
-    "files.readonlyInclude": {
-        "{**/.c4z/.extsrcs/*.PROTSYM.cbl,**/.c4z/.extsrcs/*.PROTSYM.listing}": true
+  "files.readonlyInclude": {
+    "{**/.c4z/.extsrcs/*.PROTSYM.cbl,**/.c4z/.extsrcs/*.PROTSYM.listing}": true
+  },
+  "terminal.integrated.env.windows": {
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
+  },
+  "terminal.integrated.defaultProfile.windows": "PowerShell 7 (UTF-8)",
+  "terminal.integrated.profiles.windows": {
+    "PowerShell 7 (UTF-8)": {
+      "path": "pwsh.exe",
+      "args": ["-NoProfile"],
+      "icon": "terminal-powershell"
+    },
+    "PowerShell (UTF-8)": {
+      "path": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "chcp 65001 | Out-Null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; powershell.exe -NoProfile -NoExit"
+      ]
     }
+  }
 }
