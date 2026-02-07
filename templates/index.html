@@ -35,7 +35,7 @@
     <div class="container">
         <div class="header">
             <h1>💰 금융거래 통합정보</h1>
-            <p>MyInfo - Financial Information System Ver. {{ version }}</p>
+            <p>MyInfo - Financial Information System Ver. {{ version }}{% if server_start_time %} (기동 {{ server_start_time }}){% endif %}</p>
             <p style="font-size: 0.9em; color: #999; margin-top: 5px;">은행/신용카드 거래 통합관리 및 종합분석</p>
         </div>
         <div class="services">

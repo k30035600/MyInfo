@@ -670,7 +670,7 @@
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
                     // 테이블에 에러 메시지 표시
-                    const fileErr = (data.error || 'card_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -735,7 +735,7 @@
             }
         }
         
-        // card_category.xlsx 파일 생성 함수
+        // info_category.xlsx 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-category-table-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -758,11 +758,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`card_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     // 카테고리 테이블 다시 로드 (파일 존재 시 버튼이 "출력"으로 변경됨)
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'card_category.xlsx 파일 생성 실패'}`);
+                    alert(`오류: ${result.error || 'info_category.xlsx 파일 생성 실패'}`);
                     // 실패 시 버튼 다시 활성화
                     if (btn) {
                         btn.disabled = false;
@@ -772,7 +772,7 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('card_category.xlsx 파일 생성 중 오류가 발생했습니다.');
+                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다.');
                 // 오류 발생 시 버튼 다시 활성화
                 if (btn) {
                     btn.disabled = false;
@@ -1193,7 +1193,7 @@
             const columns = [
                 '거래일', '거래시간', '카드사', '계좌번호', '입금액', '출금액', '잔액', '구분',
                 '적요', '내용', '거래점', '송금메모',
-                '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '입출금', '거래유형', '기타거래'
             ];
             
             // 카테고리분류를 입출금으로 매핑
@@ -1265,8 +1265,6 @@
                 '송금메모': (1.0 / 20.0 * 100).toFixed(2),
                 '입출금': (0.5 / 20.0 * 100).toFixed(2),
                 '거래유형': (1.5 / 20.0 * 100).toFixed(2),
-                '거래방법': (1.5 / 20.0 * 100).toFixed(2),
-                '거래지점': (1.5 / 20.0 * 100).toFixed(2),
                 '기타거래': (1.5 / 20.0 * 100).toFixed(2)
             };
             
@@ -1286,8 +1284,6 @@
                 '송금메모': 'rgba(33, 150, 243, 0.1)',
                 '입출금': 'rgba(255, 152, 0, 0.1)',
                 '거래유형': 'rgba(255, 152, 0, 0.1)',
-                '거래방법': 'rgba(255, 152, 0, 0.1)',
-                '거래지점': 'rgba(255, 152, 0, 0.1)',
                 '기타거래': 'rgba(255, 152, 0, 0.1)'
             };
             
@@ -1365,7 +1361,7 @@
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     } else if (col === '입출금') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '거래유형' || col === '거래방법' || col === '거래지점' || col === '기타거래') {
+                    } else if (col === '거래유형' || col === '기타거래') {
                         cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     }
                     
@@ -2023,7 +2019,7 @@
             const columns = [
                 '카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리', '분류코드', '업종분류',
                 '입금액', '출금액',
-                '거래일', '구분', '적요', '내용', '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래일', '구분', '적요', '내용', '거래점', '송금메모', '입출금', '거래유형', '기타거래'
             ];
             
             // 카테고리분류를 입출금으로 매핑
@@ -2063,8 +2059,7 @@
                 '구분': 'rgba(33, 150, 243, 0.1)', '적요': 'rgba(33, 150, 243, 0.1)',
                 '내용': 'rgba(33, 150, 243, 0.1)', '거래점': 'rgba(33, 150, 243, 0.1)',
                 '송금메모': 'rgba(33, 150, 243, 0.1)', '입출금': 'rgba(255, 152, 0, 0.1)',
-                '거래유형': 'rgba(255, 152, 0, 0.1)', '거래방법': 'rgba(255, 152, 0, 0.1)',
-                '거래지점': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)'
+                '거래유형': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)'
             };
             
             // 총 비율 계산
@@ -2139,8 +2134,6 @@
             // 컬럼명 표시용 매핑 (차수 표시)
             const columnDisplayNames = {
                 '거래유형': '거래유형 (2차)',
-                '거래방법': '거래방법',
-                '거래지점': '거래지점',
                 '기타거래': '기타거래'
             };
             

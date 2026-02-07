@@ -7,14 +7,17 @@ from pathlib import Path
 import sys
 import io
 import os
+import shutil
+import zipfile
 from functools import wraps
 from datetime import datetime
 
-# UTF-8 인코딩 설정 (Windows 콘솔용)
+# Windows 한글 깨짐 방지: 콘솔 코드페이지만 UTF-8(65001) 설정 (stdout 교체 시 버퍼 닫힘 주의)
 if sys.platform == 'win32':
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
     except Exception:
         pass
 
@@ -26,10 +29,13 @@ app.config['JSON_AS_ASCII'] = False
 
 # 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# MyInfo/.source: before·after·category xlsx / Bank: 은행 source xls·xlsx
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
+# category: MyInfo/info_category.xlsx 하나만 사용 (은행·신용카드·금융정보 공통)
+INFO_CATEGORY_PATH = str(Path(PROJECT_ROOT) / 'info_category.xlsx')
+# 원본 은행 파일: .source/Bank. before/after: MyBank 폴더
 SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
+BANK_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'bank_before.xlsx')
+BANK_AFTER_PATH = os.path.join(SCRIPT_DIR, 'bank_after.xlsx')
 
 # 전처리후 은행 필터: 드롭다운 값 → 실제 데이터에 있을 수 있는 은행명 별칭
 # 적용 위치: get_processed_data()에서 load_processed_file()(bank_before.xlsx)로 읽은 DataFrame의 '은행명' 컬럼
@@ -38,6 +44,69 @@ BANK_FILTER_ALIASES = {
     '신한은행': ['신한은행', '신한'],
     '하나은행': ['하나은행', '하나'],
 }
+
+
+def _is_bad_zip_error(e):
+    """openpyxl이 손상된/비xlsx 파일을 읽을 때 발생하는 오류인지 확인 (zip/decompress 손상 포함)."""
+    msg = str(e).lower()
+    return (
+        isinstance(e, zipfile.BadZipFile)
+        or 'not a zip file' in msg
+        or 'bad zip' in msg
+        or 'zip file' in msg
+        or (('zip' in msg or 'badzip' in msg) and ('file' in msg or 'open' in msg))
+        or 'decompress' in msg
+        or 'invalid block' in msg
+        or 'error -3' in msg
+    )
+
+
+def _backup_bad_xlsx(path, recreate_empty=None):
+    """손상된 xlsx를 .xlsx.bak으로 백업 후 삭제. recreate_empty가 (columns리스트)이면 빈 xlsx 재생성."""
+    p = Path(path)
+    if p.exists() and p.stat().st_size > 0:
+        bak = p.with_suffix(p.suffix + '.bak')
+        try:
+            shutil.copy2(str(p), str(bak))
+        except Exception:
+            pass  # 손상된 파일은 복사 실패 가능, 삭제만 시도
+        try:
+            if p.exists():
+                p.unlink()
+        except FileNotFoundError:
+            pass  # 이미 삭제됨 (다른 요청 등)
+        except OSError as ex:
+            if getattr(ex, 'winerror', None) != 2 and getattr(ex, 'errno', None) != 2:  # 파일 없음이면 무시
+                print(f"백업/삭제 실패 {p}: {ex}", flush=True)
+    if recreate_empty is not None:
+        try:
+            empty = pd.DataFrame(columns=recreate_empty)
+            empty.to_excel(str(p), index=False, engine='openpyxl')
+        except Exception as ex:
+            print(f"빈 xlsx 재생성 실패 {p}: {ex}", flush=True)
+
+
+def safe_read_excel(path, default_empty=True):
+    """xlsx 파일을 안전하게 읽음. 손상/비xlsx 시 백업 후 빈 DataFrame 반환 또는 예외 전파."""
+    path = Path(path)
+    if not path.exists():
+        return pd.DataFrame() if default_empty else None
+    if path.stat().st_size == 0:
+        _backup_bad_xlsx(path)
+        return pd.DataFrame() if default_empty else None
+    try:
+        return pd.read_excel(str(path), engine='openpyxl')
+    except Exception as e:
+        err_msg = str(e).lower()
+        if _is_bad_zip_error(e):
+            print(f"손상된 xlsx 백업 후 무시: {path} - {e}", flush=True)
+            _backup_bad_xlsx(path)
+            return pd.DataFrame() if default_empty else None
+        if 'zip' in err_msg or 'not a zip' in err_msg or 'decompress' in err_msg or 'invalid block' in err_msg:
+            _backup_bad_xlsx(path)
+            return pd.DataFrame() if default_empty else None
+        raise
+
 
 def ensure_working_directory(func):
     """데코레이터: API 엔드포인트에서 작업 디렉토리를 스크립트 위치로 보장"""
@@ -107,31 +176,30 @@ def load_source_files():
     return files
 
 def load_processed_file():
-    """전처리된 파일 로드 (MyInfo/.source/bank_before.xlsx)"""
+    """전처리된 파일 로드 (MyBank/bank_before.xlsx). 손상된 xlsx는 백업 후 빈 DataFrame 반환."""
     try:
-        path = Path(SOURCE_DATA_DIR) / 'bank_before.xlsx'
-        if not path.exists():
-            return pd.DataFrame()
-        df = pd.read_excel(str(path), engine='openpyxl')
-        return df
+        path = Path(BANK_BEFORE_PATH)
+        df = safe_read_excel(path, default_empty=True)
+        print(f"[bank] load_processed_file: path={path}, exists={path.exists()}, shape={df.shape if df is not None else None}", flush=True)
+        return df if df is not None else pd.DataFrame()
     except Exception as e:
         print(f"오류: bank_before.xlsx 파일 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
 def load_category_file():
-    """카테고리 파일 로드 (MyInfo/.source/bank_after.xlsx)"""
+    """카테고리 적용 파일 로드 (MyBank/bank_after.xlsx). 손상된 xlsx는 백업 후 빈 DataFrame 반환."""
     try:
-        category_file = Path(SOURCE_DATA_DIR) / 'bank_after.xlsx'
+        category_file = Path(BANK_AFTER_PATH)
+        print(f"[bank] load_category_file: bank_after exists={category_file.exists()}", flush=True)
         if category_file.exists():
-            try:
-                df = pd.read_excel(str(category_file), engine='openpyxl')
+            df = safe_read_excel(category_file, default_empty=True)
+            if df is not None and not df.empty:
+                print(f"[bank] load_category_file: using bank_after, shape={df.shape}", flush=True)
                 return df
-            except Exception as e:
-                print(f"Error reading {category_file}: {str(e)}")
-                return pd.DataFrame()
+        print(f"[bank] load_category_file: fallback to bank_before", flush=True)
         return load_processed_file()
     except Exception as e:
-        print(f"Error in load_category_file: {str(e)}")
+        print(f"Error in load_category_file: {str(e)}", flush=True)
         return pd.DataFrame()
 
 @app.route('/')
@@ -181,7 +249,7 @@ def get_source_files():
 def get_processed_data():
     """전처리된 데이터 반환 (필터링 지원). bank_before/category/after 없으면 생성."""
     try:
-        # bank_before, bank_category, bank_after 없으면 생성
+        # bank_before, info_category, bank_after 없으면 생성
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -195,6 +263,8 @@ def get_processed_data():
             hint = []
             if 'bank_after' in error_msg or 'PermissionError' in error_msg or '사용 중' in error_msg:
                 hint.append('bank_after.xlsx를 열어둔 프로그램(Excel 등)을 닫아주세요.')
+            if 'xlrd' in error_msg or 'No module' in error_msg:
+                hint.append('.xls 파일 읽기에는 xlrd 패키지가 필요합니다: pip install xlrd')
             extra = '\n' + '\n'.join(hint) if hint else ''
             return jsonify({
                 'error': f'파일 생성 실패: {error_msg}{extra}',
@@ -207,20 +277,42 @@ def get_processed_data():
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
 
-        output_path = Path(SOURCE_DATA_DIR) / 'bank_before.xlsx'
+        output_path = Path(BANK_BEFORE_PATH)
+        if not output_path.exists():
+            try:
+                _pbd.integrate_bank_transactions(output_file=str(output_path))
+            except Exception:
+                pass
         if not output_path.exists():
             return jsonify({
                 'error': 'bank_before.xlsx 생성 실패. .source/Bank 폴더와 process_bank_data.py를 확인하세요.',
+                'detail': f'기대 경로: {output_path}\n원본 폴더: {SOURCE_BANK_DIR}',
                 'count': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
                 'data': []
             }), 500
 
-        df = load_processed_file()
-        
-        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
-        
+        # bank_after를 매 요청마다 최신 info_category(계정과목) 기준으로 재생성 → 카테고리 적용 보장
+        try:
+            _pbd.classify_and_save(input_file=str(output_path), output_file=BANK_AFTER_PATH)
+        except Exception as ex:
+            print(f"[bank] classify_and_save 실패 (기존 파일 사용): {ex}", flush=True)
+
+        # 전처리후 테이블에 카테고리 컬럼 표시: bank_after 있으면 사용, 없으면 bank_before
+        category_file_exists = Path(BANK_AFTER_PATH).exists()
+        print(f"[bank] get_processed_data: category_file_exists={category_file_exists}, output_path={output_path}, output_exists={output_path.exists()}", flush=True)
+        if category_file_exists:
+            try:
+                df = load_category_file()
+            except Exception:
+                df = load_processed_file()
+        else:
+            df = load_processed_file()
+
+        print(f"[bank] get_processed_data: df.shape={df.shape if df is not None else None}, empty={df.empty if df is not None else True}", flush=True)
+        if df is not None and not df.empty:
+            print(f"[bank] get_processed_data: columns={list(df.columns)[:12]}", flush=True)
         if df.empty:
             source_dir = Path(SOURCE_BANK_DIR)
             source_files = []
@@ -237,7 +329,12 @@ def get_processed_data():
             else:
                 error_msg += f'\n.source/Bank 폴더에 {len(source_files)}개의 .xls, .xlsx 파일이 있지만 데이터를 추출할 수 없었습니다.'
                 error_msg += '\n파일 형식이나 내용을 확인해주세요.'
-            
+                try:
+                    import process_bank_data as _pbd_err
+                    if getattr(_pbd_err, 'LAST_INTEGRATE_ERROR', None):
+                        error_msg += '\n\n[원인] ' + _pbd_err.LAST_INTEGRATE_ERROR
+                except Exception:
+                    pass
             response = jsonify({
                 'error': error_msg,
                 'count': 0,
@@ -248,7 +345,7 @@ def get_processed_data():
             })
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
-        
+
         # 필터 파라미터
         bank_filter = (request.args.get('bank') or '').strip()
         date_filter = request.args.get('date', '')
@@ -288,7 +385,7 @@ def get_processed_data():
         return response
     except Exception as e:
         traceback.print_exc()
-        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
+        category_file_exists = Path(BANK_AFTER_PATH).exists()
         return jsonify({
             'error': str(e),
             'count': 0,
@@ -303,7 +400,7 @@ def get_processed_data():
 def get_category_applied_data():
     """카테고리 적용된 데이터 반환 (필터링 지원). bank_after 없으면 생성."""
     try:
-        # bank_before, bank_category, bank_after 없으면 생성
+        # bank_before, info_category, bank_after 없으면 생성
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -318,7 +415,7 @@ def get_category_applied_data():
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
 
-        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
+        category_file_exists = Path(BANK_AFTER_PATH).exists()
         
         try:
             df = load_category_file()
@@ -386,7 +483,7 @@ def get_category_applied_data():
         return response
     except Exception as e:
         traceback.print_exc()
-        category_file_exists = (Path(SOURCE_DATA_DIR) / 'bank_after.xlsx').exists()
+        category_file_exists = Path(BANK_AFTER_PATH).exists()
         return jsonify({
             'error': str(e),
             'count': 0,
@@ -498,11 +595,12 @@ def category():
     """카테고리 페이지"""
     return render_template('category.html')
 
-# 은행거래 카테고리 테이블(bank_category.xlsx): 분류 = 전처리, 후처리, 거래방법, 거래지점
+# 카테고리: MyInfo/info_category.xlsx 단일 테이블(구분 없음, 은행/신용카드 공통)
 @app.route('/api/bank_category')
 @ensure_working_directory
 def get_category_table():
-    """bank_category.xlsx 파일 데이터 반환 (MyInfo/.source). 없으면 생성 후 반환."""
+    """info_category.xlsx 전체 반환 (구분 없음). 없으면 생성 후 반환."""
+    path = Path(INFO_CATEGORY_PATH)
     try:
         _path_added = False
         try:
@@ -512,39 +610,59 @@ def get_category_table():
                 _path_added = True
             import process_bank_data as _pbd
             _pbd.ensure_all_bank_files()
-        except Exception:
-            pass
+            if path.exists():
+                _pbd.migrate_bank_category_file(str(path))
+        except Exception as _e:
+            _err = str(_e).lower()
+            if _is_bad_zip_error(_e) or 'zip' in _err or 'not a zip' in _err or 'badzip' in _err:
+                _backup_bad_xlsx(path, recreate_empty=['분류', '키워드', '카테고리'])
+            else:
+                raise
         finally:
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
 
-        path = Path(SOURCE_DATA_DIR) / 'bank_category.xlsx'
         file_exists = path.exists()
-        
+        cols = ['분류', '키워드', '카테고리']
         if not file_exists:
-            df_empty = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-            df_empty.to_excel(str(path), index=False, engine='openpyxl')
-            file_exists = True
-            df = df_empty
+            df = pd.DataFrame(columns=cols)
         else:
-            df = pd.read_excel(str(path), engine='openpyxl')
-        
-        # NaN 값을 빈 문자열로 변환
-        df = df.fillna('')
-        
-        # 파일 컬럼 순서: 분류, 키워드, 카테고리
-        # 화면 표시 순서: 분류, 키워드, 카테고리
-        # 존재하지 않는 컬럼 추가 (빈 값으로)
-        for col in ['분류', '키워드', '카테고리']:
+            full_df = safe_read_excel(path, default_empty=True)
+            if full_df is None or full_df.empty:
+                full_df = pd.DataFrame(columns=cols)
+                if not path.exists():
+                    _backup_bad_xlsx(path, recreate_empty=cols)
+            else:
+                full_df = full_df.fillna('')
+            if '구분' in full_df.columns:
+                full_df = full_df.drop(columns=['구분'], errors='ignore')
+            df = full_df[cols].copy() if all(c in full_df.columns for c in cols) else full_df.reindex(columns=cols)
+            if len(df) == 0:
+                _orig_cwd = os.getcwd()
+                try:
+                    if str(SCRIPT_DIR) not in sys.path:
+                        sys.path.insert(0, str(SCRIPT_DIR))
+                    import process_bank_data as _pbd_fill
+                    os.chdir(SCRIPT_DIR)
+                    _pbd_fill.create_category_table(pd.DataFrame())
+                    full_df = safe_read_excel(path, default_empty=True)
+                    if full_df is not None and not full_df.empty:
+                        full_df = full_df.fillna('')
+                        if '구분' in full_df.columns:
+                            full_df = full_df.drop(columns=['구분'], errors='ignore')
+                        df = full_df[cols].copy() if all(c in full_df.columns for c in cols) else pd.DataFrame(columns=cols)
+                except Exception:
+                    pass
+                finally:
+                    os.chdir(_orig_cwd)
+        df = df.fillna('') if df is not None else pd.DataFrame(columns=cols)
+        for col in cols:
             if col not in df.columns:
                 df[col] = ''
-        
-        # 데이터를 딕셔너리 리스트로 변환
         data = df.to_dict('records')
-        
         response = jsonify({
             'data': data,
-            'columns': ['분류', '키워드', '카테고리'],  # 화면 표시 순서
+            'columns': ['분류', '키워드', '카테고리'],
             'count': len(df),
             'file_exists': True
         })
@@ -552,7 +670,21 @@ def get_category_table():
         return response
     except Exception as e:
         traceback.print_exc()
-        file_exists = (Path(SOURCE_DATA_DIR) / 'bank_category.xlsx').exists()
+        err_msg = str(e).lower()
+        # 손상된/비xlsx(zip 아님) 시 백업 후 빈 테이블로 200 응답 (500 대신)
+        if (_is_bad_zip_error(e) or 'zip' in err_msg or 'not a zip' in err_msg
+                or 'bad zip' in err_msg or 'badzip' in err_msg):
+            _backup_bad_xlsx(path, recreate_empty=['분류', '키워드', '카테고리'])
+            df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
+            response = jsonify({
+                'data': df.to_dict('records'),
+                'columns': ['분류', '키워드', '카테고리'],
+                'count': 0,
+                'file_exists': True
+            })
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+            return response
+        file_exists = path.exists()
         response = jsonify({
             'error': str(e),
             'data': [],
@@ -564,76 +696,53 @@ def get_category_table():
 @app.route('/api/bank_category', methods=['POST'])
 @ensure_working_directory
 def save_category_table():
-    """bank_category.xlsx 파일에 데이터 추가/삭제 (MyInfo/.source)"""
+    """info_category.xlsx 전체 갱신 (구분 없음)"""
     try:
-        path = Path(SOURCE_DATA_DIR) / 'bank_category.xlsx'
+        path = Path(INFO_CATEGORY_PATH)
         data = request.json
-        action = data.get('action', 'add')  # 'add' or 'delete'
-        
-        # 기존 파일 읽기
-        if path.exists():
-            df = pd.read_excel(str(path), engine='openpyxl')
-        else:
-            df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        
-        df = df.fillna('')
-        
-        # 파일 저장용 컬럼 순서: 분류, 키워드, 카테고리
+        action = data.get('action', 'add')
         file_columns = ['분류', '키워드', '카테고리']
-        # 존재하지 않는 컬럼 추가 (빈 값으로)
+        if path.exists():
+            full_df = safe_read_excel(path, default_empty=True)
+            if full_df is not None and not full_df.empty:
+                full_df = full_df.fillna('')
+                if '구분' in full_df.columns:
+                    full_df = full_df.drop(columns=['구분'], errors='ignore')
+                df = full_df[file_columns].copy() if all(c in full_df.columns for c in file_columns) else pd.DataFrame(columns=file_columns)
+            else:
+                df = pd.DataFrame(columns=file_columns)
+        else:
+            df = pd.DataFrame(columns=file_columns)
         for col in file_columns:
             if col not in df.columns:
                 df[col] = ''
-        # 컬럼 순서 재정렬 (파일 저장 순서)
-        df = df[file_columns]
-        
+        df = df.fillna('')
         if action == 'add':
-            # 데이터 추가
-            new_row = {
-                '분류': data.get('분류', ''),
-                '키워드': data.get('키워드', ''),
-                '카테고리': data.get('카테고리', '')
-            }
+            new_row = {'분류': data.get('분류', ''), '키워드': data.get('키워드', ''), '카테고리': data.get('카테고리', '')}
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         elif action == 'update':
-            # 데이터 수정 (원본 데이터를 찾아서 수정)
             original_분류 = data.get('original_분류', '')
             original_keyword = data.get('original_키워드', '')
             original_category = data.get('original_카테고리', '')
-            
             new_분류 = data.get('분류', '')
             new_keyword = data.get('키워드', '')
             new_category = data.get('카테고리', '')
-            
-            # 원본 데이터 찾기
-            mask = ((df['분류'] == original_분류) & 
-                   (df['키워드'] == original_keyword) & 
-                   (df['카테고리'] == original_category))
-            
+            mask = ((df['분류'] == original_분류) & (df['키워드'] == original_keyword) & (df['카테고리'] == original_category))
             if mask.any():
-                # 해당 행 수정
                 df.loc[mask, '분류'] = new_분류
                 df.loc[mask, '키워드'] = new_keyword
                 df.loc[mask, '카테고리'] = new_category
             else:
-                return jsonify({
-                    'success': False,
-                    'error': '수정할 데이터를 찾을 수 없습니다.'
-                }), 400
+                return jsonify({'success': False, 'error': '수정할 데이터를 찾을 수 없습니다.'}), 400
         elif action == 'delete':
-            # 데이터 삭제 (분류, 키워드, 카테고리로 정확히 매칭)
-            # 삭제 시 원본 데이터 사용 (입력 필드의 값이 아닌 선택된 행의 원본 값)
             분류값 = data.get('original_분류', data.get('분류', ''))
             keyword = data.get('original_키워드', data.get('키워드', ''))
             category = data.get('original_카테고리', data.get('카테고리', ''))
             df = df[~((df['분류'] == 분류값) & (df['키워드'] == keyword) & (df['카테고리'] == category))]
-        
-        # 파일 저장 (컬럼 순서: 분류, 키워드, 카테고리)
-        df[file_columns].to_excel(str(path), index=False, engine='openpyxl')
-        
+        df.to_excel(str(path), index=False, engine='openpyxl')
         response = jsonify({
             'success': True,
-            'message': f'카테고리 테이블이 업데이트되었습니다.',
+            'message': '카테고리 테이블이 업데이트되었습니다.',
             'count': len(df)
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
@@ -659,7 +768,7 @@ def print_analysis():
     """은행거래 기본분석 인쇄용 페이지 (bank_after.xlsx 사용, 신용카드 기본분석과 동일 양식)"""
     try:
         bank_filter = request.args.get('bank', '')
-        category_filter = request.args.get('category', '')  # 선택한 적요 (출력 시 사용)
+        category_filter = request.args.get('category', '')  # 선택한 카테고리 (출력 시 사용)
 
         df = load_category_file()
         if df.empty:
@@ -675,10 +784,11 @@ def print_analysis():
         total_withdraw = int(df['출금액'].sum())
         net_balance = total_deposit - total_withdraw
 
-        # 적요별 입출금 내역 (카테고리 컬럼명을 적요로)
-        category_col = '적요' if '적요' in df.columns else '카테고리'
+        # 카테고리별 입출금 내역 (bank_after의 카테고리 컬럼 기준)
+        category_col = '카테고리' if '카테고리' in df.columns else '적요'
         if category_col not in df.columns:
             df[category_col] = '(빈값)'
+        df[category_col] = df[category_col].fillna('').astype(str).str.strip().replace('', '(빈값)')
         category_stats = df.groupby(category_col).agg({
             '입금액': 'sum',
             '출금액': 'sum'
@@ -717,6 +827,12 @@ def print_analysis():
 
         max_deposit = int(bank_stats['입금액'].max()) if not bank_stats.empty else 1
         max_withdraw = int(bank_stats['출금액'].max()) if not bank_stats.empty else 1
+        max_account_deposit = int(account_stats['입금액'].max()) if not account_stats.empty and '입금액' in account_stats.columns else 1
+        max_account_withdraw = int(account_stats['출금액'].max()) if not account_stats.empty and '출금액' in account_stats.columns else 1
+        total_account_deposit = int(account_stats['입금액'].sum()) if not account_stats.empty and '입금액' in account_stats.columns else 0
+        total_account_withdraw = int(account_stats['출금액'].sum()) if not account_stats.empty and '출금액' in account_stats.columns else 0
+        total_account_deposit_10 = int(account_stats.head(10)['입금액'].sum()) if not account_stats.empty and '입금액' in account_stats.columns else 0
+        total_account_withdraw_10 = int(account_stats.head(10)['출금액'].sum()) if not account_stats.empty and '출금액' in account_stats.columns else 0
 
         date_col = '거래일'
         if date_col in df.columns:
@@ -754,6 +870,12 @@ def print_analysis():
                              selected_category=selected_category,
                              max_deposit=max_deposit,
                              max_withdraw=max_withdraw,
+                             max_account_deposit=max_account_deposit,
+                             max_account_withdraw=max_account_withdraw,
+                             total_account_deposit=total_account_deposit,
+                             total_account_withdraw=total_account_withdraw,
+                             total_account_deposit_10=total_account_deposit_10,
+                             total_account_withdraw_10=total_account_withdraw_10,
                              transaction_total_count=transaction_total_count,
                              transaction_deposit_total=transaction_deposit_total,
                              transaction_withdraw_total=transaction_withdraw_total,
@@ -810,7 +932,7 @@ def get_analysis_summary():
 @app.route('/api/analysis/by-category')
 @ensure_working_directory
 def get_analysis_by_category():
-    """적요별 분석 (카테고리 파일 사용)"""
+    """카테고리별 분석 (bank_after 기준)"""
     try:
         df = load_category_file()
         if df.empty:
@@ -828,7 +950,7 @@ def get_analysis_by_category():
         # 카테고리 필터 (여러 필터 지원)
         classification_filter = request.args.get('입출금', '')
         transaction_type_filter = request.args.get('거래유형', '')
-        transaction_target_filter = request.args.get('거래방법', '')
+        category_filter = request.args.get('카테고리', '')
         
         # 기존 방식 지원 (하위 호환성)
         category_type = request.args.get('category_type', '')
@@ -842,30 +964,32 @@ def get_analysis_by_category():
             df = df[df['입출금'] == classification_filter]
         if transaction_type_filter and '거래유형' in df.columns:
             df = df[df['거래유형'] == transaction_type_filter]
-        if transaction_target_filter and '거래방법' in df.columns:
-            df = df[df['거래방법'] == transaction_target_filter]
+        if category_filter and '카테고리' in df.columns:
+            df = df[df['카테고리'] == category_filter]
         
-        # 적요별 입금/출금 집계 (입출금, 거래유형, 거래방법 정보도 포함)
+        # 카테고리별 입금/출금 집계 (입출금, 거래유형 등 대표값 포함)
+        group_col = '카테고리' if '카테고리' in df.columns else '적요'
+        if group_col not in df.columns:
+            df[group_col] = '(빈값)'
+        df[group_col] = df[group_col].fillna('').astype(str).str.strip().replace('', '(빈값)')
         agg_dict = {
             '입금액': 'sum',
             '출금액': 'sum'
         }
-        
-        # 입출금, 거래유형, 거래방법, 은행명, 내용, 거래점이 있으면 첫 번째 값 사용 (대표값)
-        if '입출금' in df.columns:
+        # groupby 키와 같은 컬럼은 agg에 넣지 않음 (already exists 오류 방지)
+        if '입출금' in df.columns and '입출금' != group_col:
             agg_dict['입출금'] = 'first'
-        if '거래유형' in df.columns:
+        if '거래유형' in df.columns and '거래유형' != group_col:
             agg_dict['거래유형'] = 'first'
-        if '거래방법' in df.columns:
-            agg_dict['거래방법'] = 'first'
-        if '은행명' in df.columns:
+        if '카테고리' in df.columns and '카테고리' != group_col:
+            agg_dict['카테고리'] = 'first'
+        if '은행명' in df.columns and '은행명' != group_col:
             agg_dict['은행명'] = 'first'
-        if '내용' in df.columns:
+        if '내용' in df.columns and '내용' != group_col:
             agg_dict['내용'] = 'first'
-        if '거래점' in df.columns:
+        if '거래점' in df.columns and '거래점' != group_col:
             agg_dict['거래점'] = 'first'
-        
-        category_stats = df.groupby('적요').agg(agg_dict).reset_index()
+        category_stats = df.groupby(group_col).agg(agg_dict).reset_index()
         
         # 차액 계산
         category_stats['차액'] = category_stats['입금액'] - category_stats['출금액']
@@ -878,13 +1002,14 @@ def get_analysis_by_category():
         # 데이터 포맷팅
         data = []
         for _, row in category_stats.iterrows():
+            cat_val = row[group_col] if pd.notna(row[group_col]) and str(row[group_col]).strip() != '' else '(빈값)'
             item = {
-                'category': row['적요'] if pd.notna(row['적요']) and row['적요'] != '' else '(빈값)',
+                'category': cat_val,
                 'deposit': int(row['입금액']) if pd.notna(row['입금액']) else 0,
                 'withdraw': int(row['출금액']) if pd.notna(row['출금액']) else 0,
                 'balance': int(row['차액']) if pd.notna(row['차액']) else 0
             }
-            # 입출금, 거래유형, 거래방법 정보 추가
+            # 입출금, 거래유형, 카테고리 정보 추가
             if '입출금' in row:
                 item['classification'] = str(row['입출금']) if pd.notna(row['입출금']) and row['입출금'] != '' else '(빈값)'
             else:
@@ -893,8 +1018,8 @@ def get_analysis_by_category():
                 item['transactionType'] = str(row['거래유형']) if pd.notna(row['거래유형']) and row['거래유형'] != '' else '(빈값)'
             else:
                 item['transactionType'] = '(빈값)'
-            if '거래방법' in row:
-                item['transactionTarget'] = str(row['거래방법']) if pd.notna(row['거래방법']) and row['거래방법'] != '' else '(빈값)'
+            if '카테고리' in row:
+                item['transactionTarget'] = str(row['카테고리']) if pd.notna(row['카테고리']) and row['카테고리'] != '' else '(빈값)'
             else:
                 item['transactionTarget'] = '(빈값)'
             if '은행명' in row:
@@ -920,7 +1045,7 @@ def get_analysis_by_category():
 @app.route('/api/analysis/by-category-group')
 @ensure_working_directory
 def get_analysis_by_category_group():
-    """카테고리 기준 분석 (입출금/거래유형/거래방법/거래지점 기준 집계)"""
+    """카테고리 기준 분석 (입출금/거래유형/카테고리 기준 집계)"""
     try:
         df = load_category_file()
         if df.empty:
@@ -935,31 +1060,26 @@ def get_analysis_by_category_group():
         if bank_filter:
             df = df[df['은행명'] == bank_filter]
         
-        # 카테고리 필터 (입출금/거래유형/거래방법/거래지점)
+        # 카테고리 필터 (입출금/거래유형/카테고리)
         입출금_filter = request.args.get('입출금', '')
         거래유형_filter = request.args.get('거래유형', '')
-        거래방법_filter = request.args.get('거래방법', '')
-        거래지점_filter = request.args.get('거래지점', '')
+        category_filter = request.args.get('카테고리', '')
         
         if 입출금_filter and '입출금' in df.columns:
             df = df[df['입출금'] == 입출금_filter]
         if 거래유형_filter and '거래유형' in df.columns:
             df = df[df['거래유형'] == 거래유형_filter]
-        if 거래방법_filter and '거래방법' in df.columns:
-            df = df[df['거래방법'] == 거래방법_filter]
-        if 거래지점_filter and '거래지점' in df.columns:
-            df = df[df['거래지점'] == 거래지점_filter]
+        if category_filter and '카테고리' in df.columns:
+            df = df[df['카테고리'] == category_filter]
         
-        # 입출금/거래유형/거래방법/거래지점 기준으로 집계
+        # 입출금/거래유형/카테고리 기준으로 집계
         groupby_columns = []
         if '입출금' in df.columns:
             groupby_columns.append('입출금')
         if '거래유형' in df.columns:
             groupby_columns.append('거래유형')
-        if '거래방법' in df.columns:
-            groupby_columns.append('거래방법')
-        if '거래지점' in df.columns:
-            groupby_columns.append('거래지점')
+        if '카테고리' in df.columns:
+            groupby_columns.append('카테고리')
         
         if not groupby_columns:
             return jsonify({'data': []})
@@ -1006,10 +1126,8 @@ def get_analysis_by_category_group():
                     item['입출금'] = str(category_group) if pd.notna(category_group) and category_group != '' else '(빈값)'
                 elif '거래유형' in groupby_columns:
                     item['거래유형'] = str(category_group) if pd.notna(category_group) and category_group != '' else '(빈값)'
-                elif '거래방법' in groupby_columns:
-                    item['거래방법'] = str(category_group) if pd.notna(category_group) and category_group != '' else '(빈값)'
-                elif '거래지점' in groupby_columns:
-                    item['거래지점'] = str(category_group) if pd.notna(category_group) and category_group != '' else '(빈값)'
+                elif '카테고리' in groupby_columns:
+                    item['카테고리'] = str(category_group) if pd.notna(category_group) and category_group != '' else '(빈값)'
             
             category_final.append(item)
         
@@ -1057,7 +1175,7 @@ def get_analysis_by_month():
         # 카테고리 필터 (여러 필터 지원)
         classification_filter = request.args.get('입출금', '')
         transaction_type_filter = request.args.get('거래유형', '')
-        transaction_target_filter = request.args.get('거래방법', '')
+        category_filter = request.args.get('카테고리', '')
         
         # 기존 방식 지원 (하위 호환성)
         category_type = request.args.get('category_type', '')
@@ -1071,8 +1189,8 @@ def get_analysis_by_month():
             df = df[df['입출금'] == classification_filter]
         if transaction_type_filter and '거래유형' in df.columns:
             df = df[df['거래유형'] == transaction_type_filter]
-        if transaction_target_filter and '거래방법' in df.columns:
-            df = df[df['거래방법'] == transaction_target_filter]
+        if category_filter and '카테고리' in df.columns:
+            df = df[df['카테고리'] == category_filter]
         
         df['거래일'] = pd.to_datetime(df['거래일'], errors='coerce')
         df = df[df['거래일'].notna()]
@@ -1128,20 +1246,17 @@ def get_analysis_by_category_monthly():
         if bank_filter:
             df = df[df['은행명'] == bank_filter]
         
-        # 카테고리 필터 (입출금/거래유형/거래방법/거래지점)
+        # 카테고리 필터 (입출금/거래유형/카테고리)
         입출금_filter = request.args.get('입출금', '')
         거래유형_filter = request.args.get('거래유형', '')
-        거래방법_filter = request.args.get('거래방법', '')
-        거래지점_filter = request.args.get('거래지점', '')
+        category_filter = request.args.get('카테고리', '')
         
         if 입출금_filter and '입출금' in df.columns:
             df = df[df['입출금'] == 입출금_filter]
         if 거래유형_filter and '거래유형' in df.columns:
             df = df[df['거래유형'] == 거래유형_filter]
-        if 거래방법_filter and '거래방법' in df.columns:
-            df = df[df['거래방법'] == 거래방법_filter]
-        if 거래지점_filter and '거래지점' in df.columns:
-            df = df[df['거래지점'] == 거래지점_filter]
+        if category_filter and '카테고리' in df.columns:
+            df = df[df['카테고리'] == category_filter]
         
         # 날짜 처리
         df['거래일'] = pd.to_datetime(df['거래일'], errors='coerce')
@@ -1154,10 +1269,8 @@ def get_analysis_by_category_monthly():
             groupby_columns.append('입출금')
         if '거래유형' in df.columns:
             groupby_columns.append('거래유형')
-        if '거래방법' in df.columns:
-            groupby_columns.append('거래방법')
-        if '거래지점' in df.columns:
-            groupby_columns.append('거래지점')
+        if '카테고리' in df.columns:
+            groupby_columns.append('카테고리')
         
         if not groupby_columns:
             return jsonify({'months': [], 'categories': []})
@@ -1174,18 +1287,16 @@ def get_analysis_by_category_monthly():
         # 카테고리별 데이터 구성
         categories_data = []
         for category_group, group_df in monthly_by_category.groupby(groupby_columns):
-            # 카테고리 라벨 생성 (거래유형_거래방법_거래지점만 포함)
+            # 카테고리 라벨 생성 (거래유형/카테고리만 포함)
             category_label_parts = []
             if isinstance(category_group, tuple):
                 # 튜플인 경우 (여러 컬럼으로 그룹화된 경우)
                 for i, col in enumerate(groupby_columns):
-                    # 입출금은 제외하고 거래유형, 거래방법, 거래지점만 포함
-                    if col in ['거래유형', '거래방법', '거래지점']:
+                    if col in ['거래유형', '카테고리']:
                         value = category_group[i] if i < len(category_group) else None
                         if pd.notna(value) and value != '':
                             category_label_parts.append(str(value))
             else:
-                # 단일 값인 경우 (거래유형/거래방법/거래지점 중 하나)
                 if pd.notna(category_group) and category_group != '':
                     category_label_parts.append(str(category_group))
             
@@ -1288,35 +1399,27 @@ def get_analysis_by_division():
 @app.route('/api/analysis/by-bank')
 @ensure_working_directory
 def get_analysis_by_bank():
-    """은행/계좌별 분석 (카테고리 파일 사용)"""
+    """계좌별 분석 (카테고리 파일 사용). bank 필터 시 해당 은행 계좌만 반환."""
     try:
         df = load_category_file()
         if df.empty:
             return jsonify({'bank': [], 'account': []})
-        
-        # 은행별 통계
-        bank_stats = df.groupby('은행명').agg({
-            '입금액': 'sum',
-            '출금액': 'sum'
-        }).reset_index()
-        bank_data = [{
-            'bank': row['은행명'],
-            'deposit': int(row['입금액']),
-            'withdraw': int(row['출금액'])
-        } for _, row in bank_stats.iterrows()]
-        
-        # 계좌별 통계
-        account_stats = df.groupby(['은행명', '계좌번호']).agg({
-            '입금액': 'sum',
-            '출금액': 'sum'
-        }).reset_index()
+        bank_filter = request.args.get('bank', '').strip()
+        if bank_filter and '은행명' in df.columns:
+            df = df[df['은행명'].astype(str).str.strip() == bank_filter]
+        if '계좌번호' not in df.columns:
+            df['계좌번호'] = ''
+        # 은행별 통계 (필터 드롭다운용)
+        bank_stats = df.groupby('은행명').agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
+        bank_data = [{'bank': row['은행명'], 'deposit': int(row['입금액']), 'withdraw': int(row['출금액'])} for _, row in bank_stats.iterrows()]
+        # 계좌별 통계 (테이블·비율·집계 차트용)
+        account_stats = df.groupby(['은행명', '계좌번호']).agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
         account_data = [{
-            'bank': row['은행명'],
-            'account': row['계좌번호'],
+            'bank': row['은행명'] if pd.notna(row['은행명']) else '',
+            'account': str(row['계좌번호']).strip() if pd.notna(row['계좌번호']) else '',
             'deposit': int(row['입금액']),
             'withdraw': int(row['출금액'])
         } for _, row in account_stats.iterrows()]
-        
         response = jsonify({
             'bank': bank_data,
             'account': account_data
@@ -1368,20 +1471,21 @@ def get_transactions_by_content():
 @app.route('/api/analysis/transactions')
 @ensure_working_directory
 def get_analysis_transactions():
-    """적요별 상세 거래 내역 반환 (카테고리 파일 사용)"""
+    """카테고리별 상세 거래 내역 반환 (bank_after 기준)"""
     try:
         df = load_category_file()
         if df.empty:
             return jsonify({'data': [], 'deposit_total': 0, 'withdraw_total': 0, 'balance': 0, 'deposit_count': 0, 'withdraw_count': 0})
         
-        transaction_type = request.args.get('type', 'deposit') # 'deposit' or 'withdraw'
-        category_filter = request.args.get('category', '')  # 적요 필터
-        content_filter = request.args.get('content', '')  # 거래처 필터 (하위 호환성)
+        transaction_type = request.args.get('type', 'deposit')
+        category_filter = request.args.get('category', '')  # 카테고리 필터
+        content_filter = request.args.get('content', '')   # 거래처 필터 (하위 호환성)
         bank_filter = request.args.get('bank', '')
         
-        # 적요 필터 우선, 없으면 거래처 필터 사용 (하위 호환성)
+        # 카테고리 필터 우선, 없으면 거래처 필터 사용 (하위 호환성)
         if category_filter:
-            filtered_df = df[df['적요'] == category_filter].copy()
+            filter_col = '카테고리' if '카테고리' in df.columns else '적요'
+            filtered_df = df[df[filter_col].fillna('').astype(str).str.strip() == category_filter].copy()
         elif content_filter:
             filtered_df = df[df['내용'] == content_filter].copy()
         else:
@@ -1398,7 +1502,7 @@ def get_analysis_transactions():
             if category_type in filtered_df.columns:
                 filtered_df = filtered_df[filtered_df[category_type] == category_value].copy()
         
-        # 적요별 입금/출금 합계 및 건수 계산
+        # 카테고리별 입금/출금 합계 및 건수 계산
         deposit_total = filtered_df['입금액'].sum() if not filtered_df.empty else 0
         withdraw_total = filtered_df['출금액'].sum() if not filtered_df.empty else 0
         balance = deposit_total - withdraw_total
@@ -1463,19 +1567,18 @@ def get_analysis_transactions():
 @app.route('/api/analysis/content-by-category')
 @ensure_working_directory
 def get_content_by_category():
-    """적요별 거래처 목록 반환 (bank_after.xlsx 사용)"""
+    """카테고리별 거래처 목록 반환 (bank_after.xlsx 사용)"""
     try:
         df = load_category_file()
         if df.empty:
             return jsonify({'data': []})
         
         category_filter = request.args.get('category', '')
-        
         if not category_filter:
             return jsonify({'data': []})
         
-        # 적요별 입금 거래처 집계
-        filtered_df = df[(df['적요'] == category_filter) & (df['입금액'] > 0)].copy()
+        filter_col = '카테고리' if '카테고리' in df.columns else '적요'
+        filtered_df = df[(df[filter_col].fillna('').astype(str).str.strip() == category_filter) & (df['입금액'] > 0)].copy()
         
         if filtered_df.empty:
             return jsonify({'data': []})
@@ -1530,22 +1633,30 @@ def get_date_range():
         traceback.print_exc()
         return jsonify({'error': str(e), 'min_date': None, 'max_date': None}), 500
 
+def _json_500(obj):
+    """500 응답도 JSON으로 통일 (Content-Type 설정)."""
+    r = jsonify(obj)
+    r.headers['Content-Type'] = 'application/json; charset=utf-8'
+    return r, 500
+
 @app.route('/api/generate-category', methods=['POST'])
 @ensure_working_directory
 def generate_category():
-    """카테고리 자동 생성 실행"""
+    """카테고리 자동 생성 실행. 항상 JSON 반환."""
     try:
         # process_bank_data.py 같은 프로세스에서 실행 (subprocess 시 debugpy/venv 오류 방지)
         script_path = Path(SCRIPT_DIR) / 'process_bank_data.py'
         if not script_path.exists():
-            return jsonify({
+            return _json_500({
                 'success': False,
                 'error': f'process_bank_data.py 파일을 찾을 수 없습니다. 경로: {script_path}'
-            }), 500
+            })
         
-        print("process_bank_data.py (classify) 실행 시작...")
+        print("process_bank_data.py (classify) 실행 시작...", flush=True)
         _orig_cwd = os.getcwd()
         _path_added = False
+        detail = None
+        success = False
         try:
             os.chdir(SCRIPT_DIR)
             _dir_str = str(SCRIPT_DIR)
@@ -1554,50 +1665,48 @@ def generate_category():
                 _path_added = True
             import process_bank_data as _pbd
             success = _pbd.classify_and_save()
+            if not success:
+                detail = getattr(_pbd, 'LAST_CLASSIFY_ERROR', None)
+        except Exception as e:
+            success = False
+            detail = str(e)
+            traceback.print_exc()
         finally:
             os.chdir(_orig_cwd)
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
         
         if not success:
-            return jsonify({
-                'success': False,
-                'error': '카테고리 분류 중 오류가 발생했습니다.'
-            }), 500
+            err_msg = '카테고리 분류 중 오류가 발생했습니다.'
+            if detail:
+                err_msg += '\n[원인] ' + detail
+            return _json_500({'success': False, 'error': err_msg})
         
-        # bank_after.xlsx 파일 확인 (MyInfo/.source)
-        output_path = Path(SOURCE_DATA_DIR) / 'bank_after.xlsx'
+        # bank_after.xlsx 파일 확인 (MyBank 아래)
+        output_path = Path(BANK_AFTER_PATH)
         if output_path.exists():
-            try:
-                df = pd.read_excel(str(output_path), engine='openpyxl')
-                return jsonify({
-                    'success': True,
-                    'message': f'카테고리 생성 완료: {len(df)}건',
-                    'count': len(df)
-                })
-            except Exception as e:
-                return jsonify({
-                    'success': False,
-                    'error': f'bank_after.xlsx 파일을 읽을 수 없습니다: {str(e)}'
-                }), 500
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'bank_after.xlsx 파일이 생성되지 않았습니다. 경로: {output_path}'
-            }), 500
-            
-    except FileNotFoundError as e:
-        return jsonify({
+            df = safe_read_excel(output_path, default_empty=True)
+            count = len(df) if df is not None else 0
+            resp = jsonify({
+                'success': True,
+                'message': f'카테고리 생성 완료: {count}건',
+                'count': count
+            })
+            resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+            return resp
+        return _json_500({
             'success': False,
-            'error': f'파일을 찾을 수 없습니다: {str(e)}'
-        }), 500
+            'error': f'bank_after.xlsx 파일이 생성되지 않았습니다. 경로: {output_path}'
+        })
+    except FileNotFoundError as e:
+        return _json_500({'success': False, 'error': f'파일을 찾을 수 없습니다: {str(e)}'})
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"카테고리 생성 오류: {error_trace}")
-        return jsonify({
+        print(f"카테고리 생성 오류: {error_trace}", flush=True)
+        return _json_500({
             'success': False,
             'error': f'{str(e)}\n상세 정보는 서버 로그를 확인하세요.'
-        }), 500
+        })
 
 @app.route('/help')
 def help():

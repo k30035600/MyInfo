@@ -17,7 +17,8 @@
 - **MyBank**: 은행 거래 전처리·분석
 - **MyCard**: 카드 거래 전처리·분석
 - **MyCash**: 금융정보 종합분석
-- 데이터 보관: `MyInfo/.source/` (은행·카드 원본 및 *_before·*_after·*_category.xlsx). `.source/`는 `.gitignore`에 포함되어 GitHub에 올라가지 않습니다.
+- **.source/** 아래 xls/xlsx: **클라이언트용** 원본·업로드 데이터. Git/GitHub 제외 (`.gitignore`에 `.source/` 포함).
+- **category·before·after** 관련 xlsx: **서버에서 사용**. 카테고리는 **MyInfo/info_category.xlsx** 하나만 사용. before→after 생성 시 category의 전처리/후처리를 적용.
 
 ---
 

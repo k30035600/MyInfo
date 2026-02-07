@@ -1516,7 +1516,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0;">카테고리 테이블</h2>
-                        <div class="path-filename-text" style="margin-left: 10px;"><span>cash_category.xlsx</span></div>
+                        <div class="path-filename-text" style="margin-left: 10px;"><span>info_category.xlsx</span></div>
                     </div>
                     <button id="export-bank_category-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
                 </div>
@@ -1534,8 +1534,6 @@
                                     <option value="">전체</option>
                                     <option value="전처리">전처리</option>
                                     <option value="후처리">후처리</option>
-                                    <option value="거래방법">거래방법</option>
-                                    <option value="거래지점">거래지점</option>
                                     <option value="입력">입력</option>
                                     <option value="수정">수정</option>
                                     <option value="삭제">삭제</option>
@@ -1554,7 +1552,7 @@
                         </tr>
                         <tr style="background-color: #f9f9f9;">
                             <td style="border: 1px solid #ddd; padding: 2px 8px;">
-                                <input type="text" id="new-category-chasu-input" placeholder="전처리/후처리/거래방법/거래지점" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box;">
+                                <input type="text" id="new-category-chasu-input" placeholder="전처리/후처리/계정과목" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box;">
                             </td>
                             <td style="border: 1px solid #ddd; padding: 2px 8px;">
                                 <input type="text" id="new-category-keyword-input" placeholder="키워드 직접 입력" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box;">
@@ -2733,29 +2731,6 @@
             }
             html += '</div>';
             
-            // 거래지점이 없는 레코드
-            html += '<div class="modal-section">';
-            html += '<h3>거래지점이 없는 레코드 (' + (missingRecords.missing_branch?.length || 0) + '건)</h3>';
-            if (missingRecords.missing_branch && missingRecords.missing_branch.length > 0) {
-                html += '<table class="modal-table">';
-                html += '<thead><tr><th>거래일</th><th>은행명</th><th>적요</th><th>내용</th><th>입금액</th><th>출금액</th></tr></thead>';
-                html += '<tbody>';
-                missingRecords.missing_branch.forEach(record => {
-                    html += '<tr>';
-                    html += '<td>' + (record.거래일 || '') + '</td>';
-                    html += '<td>' + (record.은행명 || '') + '</td>';
-                    html += '<td>' + (record.적요 || '') + '</td>';
-                    html += '<td>' + (record.내용 || '') + '</td>';
-                    html += '<td style="text-align: right;">' + formatAmount(record.입금액 || 0) + '</td>';
-                    html += '<td style="text-align: right;">' + formatAmount(record.출금액 || 0) + '</td>';
-                    html += '</tr>';
-                });
-                html += '</tbody></table>';
-            } else {
-                html += '<div class="modal-empty">누락된 레코드가 없습니다.</div>';
-            }
-            html += '</div>';
-            
             content.innerHTML = html;
             modal.style.display = 'block';
         }
@@ -2806,8 +2781,7 @@
                 { label: '송금메모', key: '송금메모' },
                 { label: '입출금', key: '입출금' },
                 { label: '거래유형', key: '거래유형' },
-                { label: '거래방법', key: '거래방법' },
-                { label: '거래지점', key: '거래지점' },
+                { label: '카테고리', key: '카테고리' },
                 { label: '기타거래', key: '기타거래' }
             ];
             
@@ -2866,8 +2840,7 @@
         const CATEGORY_CHASU_MAPPING = {
             '입출금': '1차',
             '거래유형': '2차',
-            '거래방법': '3차',
-            '거래지점': '4차',
+            '카테고리': '3차',
             '기타거래': '5차'
         };
         
@@ -2875,8 +2848,7 @@
         const CHASU_COLUMN_MAPPING = {
             '1차': '입출금',
             '2차': '거래유형',
-            '3차': '거래방법',
-            '4차': '거래지점',
+            '3차': '카테고리',
             '5차': '기타거래'
         };
         
@@ -2919,7 +2891,7 @@
                         updatedBtn.style.background = '#FF9800';
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
-                    const fileErr = (data.error || 'cash_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -2979,7 +2951,7 @@
             }
         }
         
-        // cash_category.xlsx 파일 생성 함수
+        // info_category.xlsx 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-bank_category-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -3001,10 +2973,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`cash_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'cash_category.xlsx 파일 생성 실패'}`);
+                    alert(`오류: ${result.error || 'info_category.xlsx 파일 생성 실패'}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -3013,7 +2985,7 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('cash_category.xlsx 파일 생성 중 오류가 발생했습니다.');
+                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다.');
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -3148,12 +3120,12 @@
             updateDropdownOptions();
         }
 
-        // 분류 입력 검증 (전처리/후처리/거래방법/거래지점만 허용)
+        // 분류 입력 검증 (전처리/후처리/계정과목만, 거래방법/거래지점 미사용)
         function validateChasuInput(input) {
             const value = input.value.trim();
-            const validValues = ['전처리', '후처리', '거래방법', '거래지점'];
+            const validValues = ['전처리', '후처리', '계정과목'];
             if (value && !validValues.includes(value)) {
-                alert('분류는 전처리, 후처리, 거래방법, 거래지점만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목만 입력할 수 있습니다.');
                 input.value = '';
                 return false;
             }
@@ -3268,9 +3240,9 @@
                 return;
             }
             
-            const validValues = ['전처리', '후처리', '거래방법', '거래지점'];
+            const validValues = ['전처리', '후처리', '계정과목'];
             if (!validValues.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 거래방법, 거래지점만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -3471,7 +3443,7 @@
             
             const columns = [
                 '거래일', '은행명', '입금액', '출금액', '구분', '적요', '내용', 
-                '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래점', '송금메모', '입출금', '거래유형', '카테고리', '기타거래'
             ];
             
             if (data[0] && data[0].hasOwnProperty('카테고리분류') && !data[0].hasOwnProperty('입출금')) {
@@ -3497,9 +3469,7 @@
                 '거래점': 0.8,
                 '송금메모': 0.8,
                 '입출금': 0.7,
-                '거래유형': 1.5,
-                '거래방법': 1.5,
-                '거래지점': 1.5,
+                '거래유형': 1.5, '카테고리': 1.5,
                 '기타거래': 1.5
             };
             
@@ -3514,9 +3484,7 @@
                 '거래점': 'rgba(33, 150, 243, 0.1)',
                 '송금메모': 'rgba(33, 150, 243, 0.1)',
                 '입출금': 'rgba(255, 152, 0, 0.1)',
-                '거래유형': 'rgba(255, 152, 0, 0.1)',
-                '거래방법': 'rgba(255, 152, 0, 0.1)',
-                '거래지점': 'rgba(255, 152, 0, 0.1)',
+                '거래유형': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)',
                 '기타거래': 'rgba(255, 152, 0, 0.1)'
             };
             
@@ -3543,8 +3511,7 @@
             
             const columnDisplayNames = {
                 '거래유형': '거래유형 (2차)',
-                '거래방법': '거래방법',
-                '거래지점': '거래지점',
+                '카테고리': '카테고리',
                 '기타거래': '기타거래'
             };
             
@@ -3687,7 +3654,7 @@
             const rows = tbody.querySelectorAll('tr');
             const columns = [
                 '은행명', '입금액', '출금액', '구분', '적요', '내용', 
-                '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래점', '송금메모', '입출금', '거래유형', '카테고리', '기타거래'
             ];
             
             const filteredData = [];
@@ -3843,7 +3810,6 @@
             while (selectedData.length < maxRows) {
                 selectedData.push({
                     '거래유형': '',
-                    '거래방법': '',
                     '입금액': 0,
                     '출금액': 0
                 });
@@ -3851,17 +3817,7 @@
             
             const labels = selectedData.map((item, index) => {
                 const 거래유형 = item['거래유형'] || '';
-                const 거래방법 = item['거래방법'] || '';
-                let 라벨 = '';
-                if (거래유형 && 거래방법) {
-                    라벨 = `${거래유형}/${거래방법}`;
-                } else if (거래유형) {
-                    라벨 = 거래유형;
-                } else if (거래방법) {
-                    라벨 = 거래방법;
-                } else {
-                    라벨 = `행${index + 1}`;
-                }
+                const 라벨 = 거래유형 || `행${index + 1}`;
                 return 라벨.length > 10 ? 라벨.substring(0, 10) + '...' : 라벨;
             });
             

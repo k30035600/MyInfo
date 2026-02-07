@@ -611,7 +611,7 @@
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
                     // 테이블에 에러 메시지 표시
-                    const fileErr = (data.error || 'bank_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -676,7 +676,7 @@
             }
         }
         
-        // bank_category.xlsx 파일 생성 함수
+        // info_category.xlsx 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-bank_category-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -699,11 +699,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`bank_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     // 카테고리 테이블 다시 로드 (파일 존재 시 버튼이 "출력"으로 변경됨)
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'bank_category.xlsx 파일 생성 실패'}`);
+                    alert(`오류: ${result.error || 'info_category.xlsx 파일 생성 실패'}`);
                     // 실패 시 버튼 다시 활성화
                     if (btn) {
                         btn.disabled = false;
@@ -713,7 +713,7 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('bank_category.xlsx 파일 생성 중 오류가 발생했습니다.');
+                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다.');
                 // 오류 발생 시 버튼 다시 활성화
                 if (btn) {
                     btn.disabled = false;
@@ -835,12 +835,12 @@
             updateDropdownOptions();
         }
 
-        // 분류 입력 검증 (전처리/후처리/거래방법/거래지점만 허용)
+        // 분류 입력 검증 (전처리/후처리/계정과목만 허용, 거래방법/거래지점 미사용)
         function validateChasuInput(input) {
             const value = input.value.trim();
-            const validValues = ['전처리', '후처리', '거래방법', '거래지점'];
+            const validValues = ['전처리', '후처리', '계정과목'];
             if (value && !validValues.includes(value)) {
-                alert('분류는 전처리, 후처리, 거래방법, 거래지점만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목만 입력할 수 있습니다.');
                 input.value = '';
                 return false;
             }
@@ -920,10 +920,10 @@
                 return;
             }
             
-            // 분류 검증 (전처리/후처리/거래방법/거래지점만)
-            const validValues = ['전처리', '후처리', '거래방법', '거래지점'];
+            // 분류 검증 (전처리/후처리/계정과목만)
+            const validValues = ['전처리', '후처리', '계정과목'];
             if (!validValues.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 거래방법, 거래지점만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -1106,7 +1106,7 @@
             const columns = [
                 '거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액', '구분',
                 '적요', '내용', '거래점', '송금메모',
-                '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '입출금', '거래유형', '카테고리', '기타거래'
             ];
             
             // 카테고리분류를 입출금으로 매핑
@@ -1159,8 +1159,7 @@
                 '송금메모': (1.0 / 20.0 * 100).toFixed(2),
                 '입출금': (0.5 / 20.0 * 100).toFixed(2),
                 '거래유형': (1.5 / 20.0 * 100).toFixed(2),
-                '거래방법': (1.5 / 20.0 * 100).toFixed(2),
-                '거래지점': (1.5 / 20.0 * 100).toFixed(2),
+                '카테고리': (1.5 / 20.0 * 100).toFixed(2),
                 '기타거래': (1.5 / 20.0 * 100).toFixed(2)
             };
             
@@ -1180,8 +1179,7 @@
                 '송금메모': 'rgba(33, 150, 243, 0.1)',
                 '입출금': 'rgba(255, 152, 0, 0.1)',
                 '거래유형': 'rgba(255, 152, 0, 0.1)',
-                '거래방법': 'rgba(255, 152, 0, 0.1)',
-                '거래지점': 'rgba(255, 152, 0, 0.1)',
+                '카테고리': 'rgba(255, 152, 0, 0.1)',
                 '기타거래': 'rgba(255, 152, 0, 0.1)'
             };
             
@@ -1254,7 +1252,7 @@
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     } else if (col === '입출금') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '거래유형' || col === '거래방법' || col === '거래지점' || col === '기타거래') {
+                    } else if (col === '거래유형' || col === '카테고리' || col === '기타거래') {
                         cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     }
                     
@@ -1710,7 +1708,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             // 지정된 컬럼만 사용
             const columns = [
                 '거래일', '은행명', '입금액', '출금액', '구분', '적요', '내용', 
-                '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래점', '송금메모', '입출금', '거래유형', '카테고리', '기타거래'
             ];
             
             // 카테고리분류를 입출금으로 매핑
@@ -1740,8 +1738,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 '송금메모': 0.8,
                 '입출금': 0.7,
                 '거래유형': 1.5,
-                '거래방법': 1.5,
-                '거래지점': 1.5,
+                '카테고리': 1.5,
                 '기타거래': 1.5
             };
             
@@ -1760,8 +1757,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 '송금메모': 'rgba(33, 150, 243, 0.1)',    // 전처리전 테이블 색상
                 '입출금': 'rgba(255, 152, 0, 0.1)',       // 전처리후 테이블 색상
                 '거래유형': 'rgba(255, 152, 0, 0.1)',     // 전처리후 테이블 색상
-                '거래방법': 'rgba(255, 152, 0, 0.1)',     // 전처리후 테이블 색상
-                '거래지점': 'rgba(255, 152, 0, 0.1)',     // 전처리후 테이블 색상
+                '카테고리': 'rgba(255, 152, 0, 0.1)',     // 전처리후 테이블 색상
                 '기타거래': 'rgba(255, 152, 0, 0.1)'      // 전처리후 테이블 색상
             };
             
@@ -1794,8 +1790,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             // 컬럼명 표시용 매핑 (차수 표시)
             const columnDisplayNames = {
                 '거래유형': '거래유형 (2차)',
-                '거래방법': '거래방법',
-                '거래지점': '거래지점',
+                '카테고리': '카테고리',
                 '기타거래': '기타거래'
             };
             
@@ -1965,7 +1960,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const rows = tbody.querySelectorAll('tr');
             const columns = [
                 '은행명', '입금액', '출금액', '구분', '적요', '내용', 
-                '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래점', '송금메모', '입출금', '거래유형', '카테고리', '기타거래'
             ];
             
             // 필터링된 데이터 수집 (그래프 업데이트용)
@@ -2144,10 +2139,10 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             }
             const columns = [
                 '거래일', '은행명', '입금액', '출금액', '구분', '적요', '내용',
-                '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래점', '송금메모', '입출금', '거래유형', '카테고리', '기타거래'
             ];
             // 컬럼 너비 비율 (거래점/송금메모 1.0, 은행명/입출금 가운데 정렬)
-            const exportColWidths = { 거래일:1, 은행명:1, 입금액:1.3, 출금액:1.3, 구분:0.5, 적요:2.0, 내용:2.5, 거래점:1.0, 송금메모:1.0, 입출금:0.8, 거래유형:1, 거래방법:1.0, 거래지점:2.5, 기타거래:2.5 };
+            const exportColWidths = { 거래일:1, 은행명:1, 입금액:1.3, 출금액:1.3, 구분:0.5, 적요:2.0, 내용:2.5, 거래점:1.0, 송금메모:1.0, 입출금:0.8, 거래유형:1, 카테고리:1.5, 기타거래:2.5 };
             let availableColumns = columns.filter(col => data[0] && data[0].hasOwnProperty(col));
             if (availableColumns.length === 0 && data[0]) {
                 availableColumns = Object.keys(data[0]).filter(k => k && typeof data[0][k] !== 'object');
@@ -2159,7 +2154,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 return 'left';
             };
             // 너비 부족 시 ... 처리할 컬럼 (문자열 긴 컬럼)
-            const ellipsisCols = ['적요', '내용', '거래점', '송금메모', '거래유형', '거래방법', '거래지점', '기타거래'];
+            const ellipsisCols = ['적요', '내용', '거래점', '송금메모', '거래유형', '카테고리', '기타거래'];
             const theadCells = availableColumns.map(col => {
                 const w = ((exportColWidths[col] != null ? exportColWidths[col] : 1) / totalRatio * 100).toFixed(2);
                 const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';

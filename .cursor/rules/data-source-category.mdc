@@ -1,0 +1,36 @@
+---
+description: .source=클라이언트, category/before/after=서버, category는 info_category.xlsx만 사용
+alwaysApply: true
+---
+
+# 데이터·카테고리 구분
+
+## .source 폴더 (클라이언트)
+
+- **.source/** 아래의 **xls, xlsx**는 **클라이언트에서 사용**하는 원본/업로드 데이터입니다.
+- **Git/GitHub에는 포함하지 않습니다.** (`.gitignore`에 `.source/` 포함)
+
+## 서버에서 사용하는 xlsx (경로)
+
+- **카테고리**: **MyInfo/info_category.xlsx** 한 파일만 사용 (은행·신용카드·금융정보 공통).
+- **before / after** 파일은 **각 앱 폴더**에 둡니다.
+  - **은행거래**: `MyBank/` — `bank_before.xlsx`, `bank_after.xlsx`
+  - **신용카드**: `MyCard/` — `card_before.xlsx`, `card_after.xlsx`
+  - **금융정보**: `MyCash/` — `cash_before.xlsx`, `cash_after.xlsx`
+- **원본 업로드용** xls/xlsx 폴더:
+  - 은행거래: **.source/Bank**
+  - 신용카드: **.source/Card**
+  - 금융정보: **.source/Cash**
+  - Git에는 **.source/** 전체를 포함하지 않습니다.
+
+## 카테고리 파일 (상세)
+
+- **구분(은행거래/신용카드) 컬럼은 사용하지 않습니다.** 은행·신용카드·금융정보가 동일한 카테고리 테이블(분류·키워드·카테고리)을 공유합니다.
+- **거래방법·거래지점 분류는 사용하지 않습니다.** 분류는 전처리, 후처리, 계정과목 등만 사용합니다.
+- `bank_category.xlsx`, `card_category.xlsx`, `cash_category.xlsx`는 사용하지 않습니다.
+
+## before → after 생성 시
+
+- **before에서 after 파일을 만들 때는 반드시 category의 전처리/후처리를 수행**합니다.
+- MyBank·MyCash: `classify_and_save()`에서 `load_category_table()`(info_category.xlsx 은행거래/금융정보) 로드 후 `classify_2_chasu` 등으로 전처리·후처리 적용.
+- MyCard: card_after 생성 시 info_category.xlsx(신용카드) 규칙으로 가맹점명 기반 카테고리 적용.

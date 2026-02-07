@@ -10,15 +10,15 @@ process_card_data.py — 카드 전용. (은행 관련 역할 없음)
   → 행의 컬럼이 모두 공백이면 skip
   → HEADER_TO_STANDARD에 해당하는 행은 헤더 행으로 간주, 해당 행에서 인덱스 취득 후 다음 헤더 행이 나올 때까지 그 인덱스로 card_before 컬럼에 매핑
   → 카드사는 파일명에서 취득, 할부 0은 공백 처리
-  → 카테고리는 card_category.xlsx 키워드로 분류 (파일 없으면 생성)
+  → 카테고리는 info_category.xlsx(신용카드 구분) 키워드로 분류
 
 [기능]
 - integrate_card_excel(): Source 루트 *.xls/*.xlsx만 모아 card_before.xlsx 생성
-- create_category_table: card_category.xlsx 생성·갱신 (분류 규칙)
+- create_category_table: info_category.xlsx(신용카드 구분) 생성·갱신
 
 [카테고리 테이블 분류 구분]
 - 은행거래(bank_category): 분류 = 전처리, 후처리, 거래방법, 거래지점
-- 신용카드(card_category): 분류 = 계정과목, 업종분류 (본 모듈)
+- 신용카드(info_category 구분): 분류 = 계정과목, 업종분류 (본 모듈)
 
 .source는 .xls, .xlsx만 취급.
 """
@@ -52,14 +52,13 @@ SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
 SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
 
 CARD_BEFORE_FILE = "card_before.xlsx"
-CATEGORY_FILE = "card_category.xlsx"
-# card_before.xlsx 컬럼 8개 (카테고리는 가맹점명 기반 card_category.xlsx로 분류)
+# card_before.xlsx 컬럼 8개 (카테고리는 info_category.xlsx 신용카드 구분으로 분류)
 CARD_BEFORE_COLUMNS = [
     '카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리'
 ]
 EXCEL_EXTENSIONS = ('*.xls', '*.xlsx')
 SEARCH_COLUMNS = ['적요', '내용', '거래점', '송금메모', '가맹점명']
-# .source 헤더명 → card_before.xlsx 표준 컬럼 (카테고리는 card_category.xlsx 키워드로 분류)
+# .source 헤더명 → card_before.xlsx 표준 컬럼 (카테고리는 info_category 신용카드 규칙으로 분류)
 # 헤더 행에서 인덱스를 취득하고, 다음 헤더 행이 나올 때까지 해당 인덱스로 매핑
 HEADER_TO_STANDARD = {
     '카드사': ['카드사', '카드명'],
@@ -252,7 +251,7 @@ def _normalize_header_string(s):
 
 
 def _map_source_header_to_standard(source_header):
-    """Source 엑셀 헤더명 → card_before 표준 컬럼 (카테고리는 card_category로 채움)."""
+    """Source 엑셀 헤더명 → card_before 표준 컬럼 (카테고리는 info_category 신용카드 규칙으로 채움)."""
     sh = _normalize_header_string(source_header)
     if not sh:
         return None
@@ -499,15 +498,15 @@ def _postprocess_combined_df(df):
 
 
 def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
-    """MyInfo/.source/Card 의 카드 엑셀을 모아 MyInfo/.source/card_before.xlsx 생성.
+    """MyInfo/.source/Card 의 카드 엑셀을 모아 MyCard/card_before.xlsx 생성.
 
     - 테이블 헤더: 카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리 (card_before.xlsx 8컬럼)
     - skip_write=True 이면 파일 쓰지 않고 DataFrame만 반환.
 
-    base_dir: 무시됨. 원본은 .source/Card, 출력은 Source/ 사용.
+    base_dir: 무시됨. 원본: .source/Card, 출력: MyCard 폴더.
     """
     source_dir = Path(SOURCE_CARD_DIR)
-    output_path = Path(SOURCE_DATA_DIR) / (output_file or CARD_BEFORE_FILE)
+    output_path = Path(_SCRIPT_DIR) / (output_file or CARD_BEFORE_FILE)
 
     all_rows = []
     for file_path in _card_excel_files(source_dir):
@@ -532,6 +531,7 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
 
     if not skip_write:
         try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             if combined_df.empty:
                 combined_df.to_excel(output_path, index=False, engine='openpyxl')
             else:
@@ -542,10 +542,10 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
 
 
 # =========================================================
-# 2. 카테고리 테이블 생성: card_before.xlsx 내용을 보고 card_category.xlsx 생성
+# 2. 카테고리 테이블: info_category.xlsx(신용카드 구분) 생성·갱신
 # =========================================================
 
-# card_category.xlsx 기본 규칙: 가맹점명 키워드로 계정과목 분류 (분류, 키워드, 카테고리)
+# info_category(신용카드) 기본 규칙: 가맹점명 키워드로 계정과목 분류 (분류, 키워드, 카테고리)
 # 계정과목 기준 정렬(가나다). 선매칭(파리바게뜨/베이커리, 씨유, 이마트/롯데마트)은 병원·기타잡비(마트)보다 먼저 적용.
 _PRECEDENCE_RULES = [  # 병원 등보다 먼저 매칭 (파리바게뜨 국제성모병원점, 씨유 국제성모병원, 이마트/롯데마트는 주식비/부식비)
     {'분류': '계정과목', '키워드': '파리바게뜨/베이커리', '카테고리': '외식/회식/간식'},
@@ -644,10 +644,8 @@ DEFAULT_CARD_CATEGORY_ROWS = [
 
 
 def create_category_table(df=None, category_filepath=None):
-    """card_category.xlsx 생성 (신용카드 전용). 분류 = 계정과목, 업종분류. MyInfo/.source에 저장.
-    df 없어도 기본 규칙으로 생성. category_filepath: 저장 경로. None이면 .source/card_category.xlsx."""
+    """info_category.xlsx 생성·갱신 (구분 없음). 분류 = 계정과목, 업종분류. category_filepath: None이면 MyInfo/info_category.xlsx."""
     category_data = list(DEFAULT_CARD_CATEGORY_ROWS)
-
     seen_all = set()
     unique_category_data = []
     for item in category_data:
@@ -657,43 +655,38 @@ def create_category_table(df=None, category_filepath=None):
         key = (분류, 키워드, 카테고리)
         if key not in seen_all:
             seen_all.add(key)
-            unique_category_data.append({
-                '분류': 분류,
-                '키워드': 키워드,
-                '카테고리': 카테고리
-            })
-
-    category_df = pd.DataFrame(unique_category_data)
-    category_df = category_df.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
-
-    if category_filepath:
-        out_path = str(Path(category_filepath).resolve())
-    else:
-        out_path = str(Path(SOURCE_DATA_DIR) / CATEGORY_FILE)
+            unique_category_data.append({'분류': 분류, '키워드': 키워드, '카테고리': 카테고리})
+    category_df = pd.DataFrame(unique_category_data).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
+    _root = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+    default_info = os.path.join(_root, 'info_category.xlsx')
+    out_path = str(Path(category_filepath).resolve()) if category_filepath else default_info
     try:
         parent_dir = os.path.dirname(out_path)
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
         if len(category_df) == 0:
             category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-
-        category_df.to_excel(out_path, index=False, engine='openpyxl')
-
+        out = category_df[['분류', '키워드', '카테고리']].copy()
+        if os.path.exists(out_path):
+            full = pd.read_excel(out_path, engine='openpyxl').fillna('')
+            if '구분' in full.columns:
+                full = full.drop(columns=['구분'], errors='ignore')
+            if all(c in full.columns for c in ['분류', '키워드', '카테고리']):
+                out = pd.concat([full[['분류', '키워드', '카테고리']], out], ignore_index=True).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
+        out.to_excel(out_path, index=False, engine='openpyxl')
         if not os.path.exists(out_path):
             raise FileNotFoundError(f"오류: 파일 생성 후에도 {out_path} 파일이 존재하지 않습니다.")
-
     except PermissionError as e:
         print(f"오류: 파일 쓰기 권한이 없습니다 - {out_path}")
         raise
     except Exception as e:
-        print(f"오류: card_category.xlsx 파일 생성 실패 - {e}")
+        print(f"오류: info_category 생성 실패 - {e}")
         raise
-
     return category_df
 
 
 def apply_category_from_merchant(df, category_df):
-    """가맹점명을 기초로 card_category 규칙(분류, 키워드, 카테고리)을 적용해 df['카테고리'] 채움.
+    """가맹점명을 기초로 info_category(신용카드) 규칙(분류, 키워드, 카테고리)을 적용해 df['카테고리'] 채움.
     계정과목 분류를 먼저 적용하고, 키워드(슬래시 구분)가 가맹점명에 포함되면 해당 카테고리 할당.
     벡터화로 행 단위 iterrows 제거하여 대용량에서 속도 개선."""
     if df is None or df.empty or category_df is None or category_df.empty:

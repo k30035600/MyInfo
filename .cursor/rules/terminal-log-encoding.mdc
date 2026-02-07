@@ -1,0 +1,44 @@
+---
+description: 터미널 로그·텍스트 파일 읽을 때 한글 깨짐 방지 (UTF-8 사용)
+alwaysApply: true
+---
+
+# 터미널 로그 / 텍스트 파일 한글 인코딩
+
+## 원인
+
+- 터미널 출력 파일(`terminals/*.txt`)이나 로그는 보통 **UTF-8**로 저장됩니다.
+- PowerShell에서 `Get-Content`를 **인코딩 없이** 쓰면 기본 코드페이지로 읽어 한글이 깨져 보입니다 (예: `??거???합?보`).
+- Windows 콘솔 기본 코드페이지(CP949)로 Python이 한글을 출력하면 `怨꾩젙怨쇰ぉ` 같은 깨짐이 납니다.
+
+## 규칙
+
+- **터미널 로그 파일**이나 한글이 포함된 텍스트 파일을 읽을 때는 반드시 **UTF-8**로 읽습니다.
+
+### PowerShell
+
+```powershell
+# 올바른 예: UTF-8 지정
+Get-Content "경로\terminals\747788.txt" -Tail 25 -Encoding UTF8
+
+# 또는
+Get-Content "경로\파일.txt" -Encoding utf8
+```
+
+- `-Encoding UTF8` 또는 `-Encoding utf8`을 붙이지 않으면 한글이 깨질 수 있습니다.
+
+### Python 한글 출력 (Windows)
+
+- **프로젝트 진입점**: `bank_app.py`, `process_bank_data.py` 등은 로드 시 Windows에서 **콘솔 코드페이지를 65001(UTF-8)**로 설정한 뒤 stdout/stderr를 UTF-8로 래핑합니다. 서버 실행·스크립트 실행 시 한글 출력이 깨지지 않도록 합니다.
+- **수동으로 한 줄 실행할 때**: 터미널에서 `python -c "print('계정과목')"` 등이 깨지면, **먼저** `chcp 65001` 실행 후 Python 실행. 또는 PowerShell에서:
+  ```powershell
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  chcp 65001
+  python -c "print('계정과목')"
+  ```
+- 파일 읽기/쓰기: `open(path, encoding='utf-8')` 사용.
+
+## 참고
+
+- 터미널에서 직접 한글 출력이 깨지면: `chcp 65001` 후 재시도 또는 터미널 설정에서 UTF-8 사용.
+- 상세: `Railway_가입_배포_도메인.md` 5장.

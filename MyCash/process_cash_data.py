@@ -4,8 +4,8 @@ process_cash_data.py — 금융정보(MyCash) 전용. (카드 관련 역할 없�
 
 [역할]
 - 금융(은행) 파일 통합: .source 폴더의 은행 엑셀을 모아 cash_before.xlsx 생성
-- 카테고리 테이블 생성: cash_before 기반 cash_category.xlsx 생성 및 분류
-- 분류·저장: cash_before → cash_after.xlsx (입출금, 거래방법, 거래지점, 기타거래)
+- 카테고리: MyInfo/info_category.xlsx(금융정보 구분) 사용
+- 분류·저장: cash_before → cash_after.xlsx (입출금, 카테고리, 기타거래)
 
 .source는 .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)
 """
@@ -15,6 +15,8 @@ import re
 import sys
 import time
 from pathlib import Path
+
+from MyBank.process_bank_data import apply_category_from_bank
 
 # Windows 콘솔 인코딩 설정 (한글 출력을 위한 UTF-8 설정)
 if sys.platform == 'win32':
@@ -34,40 +36,57 @@ if sys.platform == 'win32':
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
-SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
-SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
+# 금융정보 원본 업로드용: .source/Cash
+SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
+INFO_CATEGORY_FILE = os.path.join(os.environ.get('MYINFO_ROOT', PROJECT_ROOT), 'info_category.xlsx')
+CASH_CATEGORY_LABEL = '금융정보'
 
 INPUT_FILE = "cash_before.xlsx"
-CATEGORY_FILE = "cash_category.xlsx"
 OUTPUT_FILE = "cash_after.xlsx"
 
 
 def ensure_all_cash_files():
-    """cash_before, cash_category, cash_after 파일이 없으면 생성 (MyInfo/.source)."""
-    input_path = os.path.join(SOURCE_DATA_DIR, INPUT_FILE)
-    category_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
-    output_path = os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE)
+    """cash_before, info_category(금융정보), cash_after 파일이 없으면 생성. before/after는 MyCash 폴더."""
+    input_path = os.path.join(_SCRIPT_DIR, INPUT_FILE)
+    output_path = os.path.join(_SCRIPT_DIR, OUTPUT_FILE)
 
     if not os.path.exists(input_path) or (os.path.exists(input_path) and os.path.getsize(input_path) == 0):
         integrate_cash_transactions()
         return
 
-    if not os.path.exists(category_path):
+    need_cash_section = not (INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE))
+
+    if need_cash_section:
         try:
             df = pd.read_excel(input_path, engine='openpyxl')
             if not df.empty:
                 create_category_table(df)
             else:
-                empty_cat = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-                empty_cat.to_excel(category_path, index=False, engine='openpyxl')
+                _append_empty_cash_section(INFO_CATEGORY_FILE)
         except Exception as e:
-            print(f"오류: cash_category.xlsx 생성 실패 - {e}")
+            print(f"오류: info_category(금융정보) 생성 실패 - {e}")
 
     if not os.path.exists(output_path):
         try:
             classify_and_save()
         except Exception as e:
             print(f"오류: cash_after.xlsx 생성 실패 - {e}")
+
+
+def _append_empty_cash_section(info_path):
+    """info_category.xlsx에 빈 [분류, 키워드, 카테고리] 추가 (구분 없음)"""
+    try:
+        empty = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
+        if os.path.exists(info_path):
+            full = pd.read_excel(info_path, engine='openpyxl').fillna('')
+            if '구분' in full.columns:
+                full = full.drop(columns=['구분'], errors='ignore')
+            out = full[['분류', '키워드', '카테고리']].copy() if all(c in full.columns for c in ['분류', '키워드', '카테고리']) else empty
+        else:
+            out = empty
+        out.to_excel(info_path, index=False, engine='openpyxl')
+    except Exception:
+        pass
 
 
 # =========================================================
@@ -394,10 +413,10 @@ def _cash_excel_files(source_dir):
     return sorted(set(out), key=lambda p: (p.name, str(p)))
 
 def integrate_cash_transactions(output_file=None):
-    """MyInfo/.source/Bank 의 은행 파일을 통합하여 MyInfo/.source/cash_before.xlsx 생성."""
+    """MyInfo/.source/Cash 의 은행 파일을 통합하여 MyCash/cash_before.xlsx 생성."""
     if output_file is None:
-        output_file = os.path.join(SOURCE_DATA_DIR, INPUT_FILE)
-    source_dir = Path(SOURCE_BANK_DIR)
+        output_file = os.path.join(_SCRIPT_DIR, INPUT_FILE)
+    source_dir = Path(SOURCE_CASH_DIR)
     all_data = []
     bank_files = _cash_excel_files(source_dir)
 
@@ -422,17 +441,15 @@ def integrate_cash_transactions(output_file=None):
             print(f"오류: {name} 처리 실패 - {e}")
 
     if not all_data:
-        # 빈 DataFrame 생성하여 파일 저장
         combined_df = pd.DataFrame(columns=['거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
                                            '구분', '적요', '내용', '거래점', '송금메모', '메모', '카테고리'])
         combined_df.to_excel(output_file, index=False, engine='openpyxl')
         try:
-            empty_cat = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-            empty_cat.to_excel(os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE), index=False, engine='openpyxl')
+            _append_empty_cash_section(INFO_CATEGORY_FILE)
         except Exception as e:
-            print(f"오류: 빈 cash_category.xlsx 생성 실패 - {e}")
+            print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
         try:
-            classify_and_save(input_file=output_file, output_file=os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE))
+            classify_and_save(input_file=output_file, output_file=os.path.join(_SCRIPT_DIR, OUTPUT_FILE))
         except Exception as e:
             print(f"오류: cash_after.xlsx 생성 실패 (빈 통합) - {e}")
         return combined_df
@@ -509,21 +526,19 @@ def integrate_cash_transactions(output_file=None):
     # 파일 저장
     combined_df.to_excel(output_file, index=False, engine='openpyxl')
 
-    # cash_category.xlsx 자동 생성 (데이터가 있는 경우에만)
     if not combined_df.empty:
         try:
             create_category_table(combined_df)
         except Exception as e:
-            print(f"오류: cash_category.xlsx 생성 실패 - {e}")
+            print(f"오류: info_category(금융정보) 생성 실패 - {e}")
     else:
         try:
-            empty_category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-            empty_category_df.to_excel(os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE), index=False, engine='openpyxl')
+            _append_empty_cash_section(INFO_CATEGORY_FILE)
         except Exception as e:
-            print(f"오류: 빈 cash_category.xlsx 생성 실패 - {e}")
+            print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
 
     try:
-        classify_and_save(input_file=output_file, output_file=os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE))
+        classify_and_save(input_file=output_file, output_file=os.path.join(_SCRIPT_DIR, OUTPUT_FILE))
     except Exception as e:
         print(f"오류: cash_after.xlsx 생성 실패 - {e}")
 
@@ -535,7 +550,7 @@ def integrate_cash_transactions(output_file=None):
 # =========================================================
 
 def create_category_table(df):
-    """cash_before.xlsx 데이터를 기반으로 cash_category.xlsx 생성"""
+    """cash_before 데이터를 기반으로 info_category.xlsx(금융정보 구분) 생성"""
     category_data = []
 
     # 1. 전처리/후처리 생성
@@ -547,124 +562,7 @@ def create_category_table(df):
     category_data.append({'분류': '후처리', '키워드': '))', '카테고리': ')'})
     category_data.append({'분류': '후처리', '키워드': '[]', '카테고리': 'space'})
 
-    # 2. 거래방법 분류
-    기본_거래방법_카테고리 = ["ATM", "CMS", "뱅킹", "스마트", "인터넷", "지로", "카드", "현금", "대출", "취소", "기타"]
-    추출된_키워드_set = set()
-    검색_컬럼 = ['적요', '내용', '거래점', '송금메모']
-
-    모바일_키워드 = ["모바일", "스마트폰"]
-
-    for idx, row in df.iterrows():
-        for 컬럼명 in 검색_컬럼:
-            if 컬럼명 not in df.columns:
-                continue
-
-            셀_값 = safe_str(row.get(컬럼명, ''))
-            if not 셀_값 or not 셀_값.strip():
-                continue
-
-            셀_값_upper = 셀_값.upper()
-            키워드 = 셀_값.strip()
-            매칭됨 = False
-
-            for 모바일_키워드_항목 in 모바일_키워드:
-                모바일_키워드_upper = 모바일_키워드_항목.upper()
-                if 모바일_키워드_항목 in 셀_값 or 모바일_키워드_upper in 셀_값_upper:
-                    추출된_키워드_set.add((키워드, "스마트"))
-                    매칭됨 = True
-                    break
-
-            if not 매칭됨:
-                for 카테고리 in 기본_거래방법_카테고리:
-                    카테고리_upper = 카테고리.upper()
-
-                    if 카테고리 in 셀_값 or 카테고리_upper in 셀_값_upper:
-                        if 키워드:
-                            추출된_키워드_set.add((키워드, 카테고리))
-                        break
-
-    for 키워드, 카테고리 in 추출된_키워드_set:
-        category_data.append({
-            '분류': '거래방법',
-            '키워드': 키워드,
-            '카테고리': 카테고리
-        })
-
-    for 카테고리 in 기본_거래방법_카테고리:
-        category_data.append({
-            '분류': '거래방법',
-            '키워드': 카테고리,
-            '카테고리': 카테고리
-        })
-
-    # 3. 거래지점 생성 (은행명(거래점) 형식)
-    def normalize_brackets(text):
-        if not text:
-            return text
-        text = text.replace('((', '(')
-        text = text.replace('))', ')')
-        open_count = text.count('(')
-        close_count = text.count(')')
-        if open_count > close_count:
-            text = text + ')' * (open_count - close_count)
-        elif close_count > open_count:
-            text = '(' * (close_count - open_count) + text
-        return text
-
-    def remove_numbers(text):
-        if not text:
-            return text
-        return re.sub(r'\d+', '', text)
-
-    거래지점_데이터_set = set()
-
-    for idx, row in df.iterrows():
-        은행명 = safe_str(row.get("은행명", "")).strip()
-        거래점 = safe_str(row.get("거래점", "")).strip()
-
-        키워드 = ""
-        if 은행명 and 거래점:
-            키워드 = f"{은행명}({거래점})"
-        elif 은행명:
-            키워드 = 은행명
-        elif 거래점:
-            키워드 = f"({거래점})"
-
-        if not 키워드:
-            continue
-
-        은행명_정규화 = remove_numbers(은행명) if 은행명 else ""
-        은행명_정규화 = normalize_brackets(은행명_정규화) if 은행명_정규화 else ""
-
-        거래점_정규화 = ""
-        if 거래점:
-            거래점_정규화 = 거래점.replace('(', '').replace(')', '').strip()
-            거래점_정규화 = remove_numbers(거래점_정규화)
-            거래점_정규화 = normalize_brackets(거래점_정규화)
-
-        카테고리 = ""
-        if 은행명_정규화 and 거래점_정규화:
-            카테고리 = f"{은행명_정규화}({거래점_정규화})"
-        elif 은행명_정규화:
-            카테고리 = 은행명_정규화
-        elif 거래점_정규화:
-            카테고리 = f"({거래점_정규화})"
-
-        if 카테고리:
-            카테고리 = remove_numbers(카테고리)
-            카테고리 = normalize_brackets(카테고리)
-            카테고리 = 카테고리.strip()
-            if 카테고리:
-                거래지점_데이터_set.add((키워드, 카테고리))
-
-    for 키워드, 카테고리 in 거래지점_데이터_set:
-        category_data.append({
-            '분류': '거래지점',
-            '키워드': 키워드,
-            '카테고리': 카테고리
-        })
-
-    # 4. 중복 제거 및 DataFrame 생성
+    # 2. 중복 제거 및 DataFrame 생성 (거래방법/거래지점 미사용)
     seen_all = set()
     unique_category_data = []
     for item in category_data:
@@ -683,19 +581,24 @@ def create_category_table(df):
     category_df = pd.DataFrame(unique_category_data)
     category_df = category_df.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
 
-    out_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
     try:
         if len(category_df) == 0:
             category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        category_df.to_excel(out_path, index=False, engine='openpyxl')
-        if not os.path.exists(out_path):
-            raise FileNotFoundError(f"오류: 파일 생성 후에도 {out_path} 파일이 존재하지 않습니다.")
-
+        out = category_df[['분류', '키워드', '카테고리']].copy()
+        if INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE):
+            full = pd.read_excel(INFO_CATEGORY_FILE, engine='openpyxl').fillna('')
+            if '구분' in full.columns:
+                full = full.drop(columns=['구분'], errors='ignore')
+            if all(c in full.columns for c in ['분류', '키워드', '카테고리']):
+                out = pd.concat([full[['분류', '키워드', '카테고리']], out], ignore_index=True).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
+        out.to_excel(INFO_CATEGORY_FILE, index=False, engine='openpyxl')
+        if INFO_CATEGORY_FILE and not os.path.exists(INFO_CATEGORY_FILE):
+            raise FileNotFoundError(f"오류: 파일 생성 후에도 {INFO_CATEGORY_FILE} 파일이 존재하지 않습니다.")
     except PermissionError as e:
-        print(f"오류: 파일 쓰기 권한이 없습니다 - {out_path}")
+        print(f"오류: 파일 쓰기 권한이 없습니다 - {INFO_CATEGORY_FILE}")
         raise
     except Exception as e:
-        print(f"오류: cash_category.xlsx 파일 생성 실패 - {e}")
+        print(f"오류: info_category 생성 실패 - {e}")
         raise
     return category_df
 
@@ -968,19 +871,17 @@ def classify_etc(row_idx, df, category_tables):
 # =========================================================
 
 def load_category_table():
-    """cash_category.xlsx 로드 및 category_tables 구성 (MyInfo/.source)"""
-    category_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
-    if not os.path.exists(category_path):
+    """info_category.xlsx 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용)"""
+    if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
         return None
-    category_df = pd.read_excel(category_path, engine='openpyxl')
-
+    category_df = pd.read_excel(INFO_CATEGORY_FILE, engine='openpyxl').fillna('')
+    if '구분' in category_df.columns:
+        category_df = category_df.drop(columns=['구분'], errors='ignore')
     category_tables = {}
     분류_컬럼명 = '분류' if '분류' in category_df.columns else '차수'
     차수_분류_매핑 = {
         '1차': '입출금',
         '2차': '전처리',
-        '3차': '거래방법',
-        '5차': '거래지점',
         '6차': '기타거래'
     }
 
@@ -996,47 +897,47 @@ def load_category_table():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """cash_before.xlsx를 읽어 분류 후 cash_after.xlsx로 저장 (MyInfo/.source)"""
+    """cash_before → cash_after 생성. info_category의 전처리/후처리·기타거래 적용 (거래방법/거래지점 미사용). before/after는 MyCash 폴더."""
     if input_file is None:
-        input_file = os.path.join(SOURCE_DATA_DIR, INPUT_FILE)
+        input_file = os.path.join(_SCRIPT_DIR, INPUT_FILE)
     if output_file is None:
-        output_file = os.path.join(SOURCE_DATA_DIR, OUTPUT_FILE)
-    category_path = os.path.join(SOURCE_DATA_DIR, CATEGORY_FILE)
-
+        output_file = os.path.join(_SCRIPT_DIR, OUTPUT_FILE)
     try:
         df = pd.read_excel(input_file, engine='openpyxl')
     except Exception as e:
         print(f"오류: {input_file} 읽기 실패 - {e}")
         return False
 
-    if not os.path.exists(category_path):
+    if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
         try:
             if not df.empty:
                 create_category_table(df)
             else:
-                empty_category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-                empty_category_df.to_excel(category_path, index=False, engine='openpyxl')
+                _append_empty_cash_section(INFO_CATEGORY_FILE)
         except Exception as e:
-            print(f"오류: cash_category.xlsx 생성 실패 - {e}")
+            print(f"오류: info_category(금융정보) 생성 실패 - {e}")
             return False
 
     category_tables = load_category_table()
     if category_tables is None:
-        print(f"오류: {CATEGORY_FILE} 로드 실패")
+        print(f"오류: {INFO_CATEGORY_FILE} 로드 실패")
         return False
 
     df["before_text"] = df.apply(create_before_text, axis=1)
 
     df["입출금"] = df.apply(classify_1st_category, axis=1)
     df.index.to_series().apply(lambda idx: classify_2_chasu(idx, df, category_tables, create_before_text))
-    df["거래방법"] = df.index.to_series().apply(lambda idx: classify_transaction_type(idx, df, category_tables))
-    df["거래지점"] = df.index.to_series().apply(lambda idx: classify_branch(idx, df, category_tables))
+    if '계정과목' in category_tables:
+        apply_category_from_bank(df, category_tables['계정과목'])
+    else:
+        if '카테고리' not in df.columns:
+            df['카테고리'] = '미분류'
     df["기타거래"] = df.index.to_series().apply(lambda idx: classify_etc(idx, df, category_tables))
 
     output_columns = [
         '거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
         '구분', '적요', '내용', '거래점', '송금메모',
-        '입출금', '거래방법', '거래지점', '기타거래'
+        '입출금', '카테고리', '기타거래'
     ]
 
     available_columns = [col for col in output_columns if col in df.columns]
@@ -1100,9 +1001,6 @@ def classify_and_save(input_file=None, output_file=None):
                     break
         return text
 
-    if '거래지점' in result_df.columns:
-        result_df['거래지점'] = result_df['거래지점'].apply(normalize_branch)
-
     if '기타거래' in result_df.columns:
         result_df['기타거래'] = result_df['기타거래'].apply(normalize_etc)
 
@@ -1153,7 +1051,8 @@ def main():
                 print("카테고리 분류 중 오류가 발생했습니다.")
             return
 
-    if not os.path.exists(INPUT_FILE) or os.path.getsize(INPUT_FILE) == 0:
+    cash_before_path = os.path.join(_SCRIPT_DIR, INPUT_FILE)
+    if not os.path.exists(cash_before_path) or os.path.getsize(cash_before_path) == 0:
         integrate_cash_transactions()
     else:
         classify_and_save()

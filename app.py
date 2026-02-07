@@ -21,7 +21,20 @@ os.environ.setdefault("LANG", "en_US.UTF-8")
 os.environ.setdefault("LC_ALL", "en_US.UTF-8")
 os.environ.setdefault("PYTHONUTF8", "1")
 
+# Windows: 콘솔 한글 깨짐 방지 (코드페이지만 UTF-8로 설정, stdout 교체 시 버퍼 닫힘 주의)
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+    except Exception:
+        pass
+
+from datetime import datetime
 from flask import Flask, render_template, render_template_string, redirect, make_response
+
+# 서버 프로세스 기동 시각 (등록 시점 구분용)
+SERVER_START_TIME = None
 
 
 def _get_version():
@@ -67,18 +80,57 @@ warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT.*')
 warnings.filterwarnings('ignore', message='.*Cannot parse header or footer.*')
 
 app = Flask(__name__)
+SERVER_START_TIME = datetime.now()
 
 # JSON 인코딩 설정 (한글 지원)
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
 
+# MyInfo 프로젝트 루트 및 통합 카테고리 파일 (은행/카드/금융 공통)
+_root = os.path.dirname(os.path.abspath(__file__))
+INFO_CATEGORY_PATH = os.path.join(_root, 'info_category.xlsx')
+os.environ['MYINFO_ROOT'] = _root
+
 # Railway 등 배포 환경: .source는 gitignore되어 없음 → 빈 폴더 생성해 오류 방지
 try:
-    _root = os.path.dirname(os.path.abspath(__file__))
     for _d in (os.path.join(_root, '.source'), os.path.join(_root, '.source', 'Bank'), os.path.join(_root, '.source', 'Card')):
         os.makedirs(_d, exist_ok=True)
 except Exception:
     pass
+
+
+def _clear_startup_caches():
+    """서버 기동 시 캐시·임시파일 초기화. 이전 실행의 상태가 남지 않도록 한다."""
+    # 1) 로드된 모듈 내 캐시 변수 초기화 (예: MyCard process_card_data._HEADER_LIKE_STRINGS)
+    for _mod_name in list(sys.modules):
+        try:
+            _mod = sys.modules.get(_mod_name)
+            if _mod is not None and hasattr(_mod, '_HEADER_LIKE_STRINGS'):
+                setattr(_mod, '_HEADER_LIKE_STRINGS', None)
+        except Exception:
+            pass
+    # 2) 이전 실행에서 남은 임시 파일 삭제 (OneDrive 대체 읽기용 myinfo_subapp_*.txt)
+    try:
+        _tmp_dir = tempfile.gettempdir()
+        for _f in os.listdir(_tmp_dir):
+            if _f.startswith('myinfo_subapp_') and _f.endswith('.txt'):
+                try:
+                    os.unlink(os.path.join(_tmp_dir, _f))
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+
+def _ensure_info_category_file():
+    """info_category.xlsx가 없으면 빈 파일(분류·키워드·카테고리 컬럼) 생성."""
+    if os.path.isfile(INFO_CATEGORY_PATH):
+        return
+    try:
+        import pandas as pd
+        pd.DataFrame(columns=['분류', '키워드', '카테고리']).to_excel(INFO_CATEGORY_PATH, index=False, engine='openpyxl')
+    except Exception:
+        pass
 
 
 @app.after_request
@@ -221,18 +273,23 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
         subapp_module.__file__ = app_file
         if hasattr(subapp_module, 'SCRIPT_DIR'):
             subapp_module.SCRIPT_DIR = subapp_dir
+        _ensure_info_category_file()
+        if hasattr(subapp_module, 'INFO_CATEGORY_PATH'):
+            subapp_module.INFO_CATEGORY_PATH = INFO_CATEGORY_PATH
+        if subapp_path == 'MyBank':
+            import os as _os
+            subapp_module.BANK_BEFORE_PATH = _os.path.join(subapp_dir, 'bank_before.xlsx')
+            subapp_module.BANK_AFTER_PATH = _os.path.join(subapp_dir, 'bank_after.xlsx')
         if subapp_path == 'MyCard':
             from pathlib import Path
             mycard_path = Path(subapp_dir)
-            if hasattr(subapp_module, 'CATEGORY_PATH'):
-                subapp_module.CATEGORY_PATH = mycard_path / 'card_category.xlsx'
             if hasattr(subapp_module, 'CARD_AFTER_PATH'):
                 subapp_module.CARD_AFTER_PATH = mycard_path / 'card_after.xlsx'
             if hasattr(subapp_module, '_ensure_card_category_file'):
                 try:
                     subapp_module._ensure_card_category_file()
                 except Exception as e:
-                    print(f"[app] card_category.xlsx 자동 생성 실패: {e}")
+                    print(f"[app] info_category.xlsx 신용카드 섹션 준비 실패: {e}")
         
         # 서브 앱 로드 후 즉시 stdout/stderr를 sys.__stdout__/__stderr__로 복원
         sys.stdout = sys.__stdout__
@@ -365,6 +422,13 @@ for _path, _prefix, _app_file, _name in SUBAPP_CONFIG:
         app.add_url_rule(_prefix + '/', endpoint='fallback_' + _prefix.strip('/'), view_func=_view, strict_slashes=False)
         app.add_url_rule(_prefix, endpoint='fallback_' + _prefix.strip('/') + '_root', view_func=lambda: redirect(_prefix + '/'), methods=('GET',))
 
+# 서버 기동 시 캐시·임시파일 초기화 (이전 실행 상태 제거)
+_clear_startup_caches()
+try:
+    print("[INFO] 서버 기동: 캐시·임시파일 초기화 완료", flush=True)
+except Exception:
+    pass
+
 @app.route('/bank')
 def redirect_bank():
     """은행거래 전처리: 끝 슬래시 없이 접속 시 /bank/ 로 리다이렉트"""
@@ -394,8 +458,11 @@ def _no_cache_headers():
 @app.route('/')
 def index():
     """메인 홈페이지"""
-    resp = make_response(render_template('index.html', version=_get_version()))
+    start_time_str = SERVER_START_TIME.strftime('%H:%M:%S') if SERVER_START_TIME else ''
+    resp = make_response(render_template('index.html', version=_get_version(), server_start_time=start_time_str))
     resp.headers.update(_no_cache_headers())
+    if start_time_str:
+        resp.headers['X-Server-Start'] = start_time_str  # 새 서버 응답 여부 확인용 (F12 → Network → 응답 헤더)
     return resp
 
 

@@ -1450,7 +1450,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0;">카테고리 테이블</h2>
-                        <div style="font-size: 14px; opacity: 0.5; margin-left: 10px;"><span>card_category.xlsx</span></div>
+                        <div style="font-size: 14px; opacity: 0.5; margin-left: 10px;"><span id="category-table-filename">info_category.xlsx</span></div>
                     </div>
                     <button id="export-category-table-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
                 </div>
@@ -2191,29 +2191,6 @@
             }
             html += '</div>';
             
-            // 거래지점이 없는 레코드
-            html += '<div class="modal-section">';
-            html += '<h3>거래지점이 없는 레코드 (' + (missingRecords.missing_branch?.length || 0) + '건)</h3>';
-            if (missingRecords.missing_branch && missingRecords.missing_branch.length > 0) {
-                html += '<table class="modal-table">';
-                html += '<thead><tr><th>거래일</th><th>은행명</th><th>적요</th><th>내용</th><th>입금액</th><th>출금액</th></tr></thead>';
-                html += '<tbody>';
-                missingRecords.missing_branch.forEach(record => {
-                    html += '<tr>';
-                    html += '<td>' + (record.거래일 || '') + '</td>';
-                    html += '<td>' + (record.은행명 || '') + '</td>';
-                    html += '<td>' + (record.적요 || '') + '</td>';
-                    html += '<td>' + (record.내용 || '') + '</td>';
-                    html += '<td style="text-align: right;">' + formatAmount(record.입금액 || 0) + '</td>';
-                    html += '<td style="text-align: right;">' + formatAmount(record.출금액 || 0) + '</td>';
-                    html += '</tr>';
-                });
-                html += '</tbody></table>';
-            } else {
-                html += '<div class="modal-empty">누락된 레코드가 없습니다.</div>';
-            }
-            html += '</div>';
-            
             content.innerHTML = html;
             modal.style.display = 'block';
         }
@@ -2264,8 +2241,6 @@
                 { label: '송금메모', key: '송금메모' },
                 { label: '입출금', key: '입출금' },
                 { label: '거래유형', key: '거래유형' },
-                { label: '거래방법', key: '거래방법' },
-                { label: '거래지점', key: '거래지점' },
                 { label: '기타거래', key: '기타거래' }
             ];
             
@@ -2309,6 +2284,10 @@
         
         // 페이지 로드 시 필터 배경색 초기화
         window.addEventListener('DOMContentLoaded', () => {
+            // 카테고리 테이블 옆 파일명을 항상 info_category.xlsx로 표시 (캐시/구버전 대응)
+            const catFileEl = document.getElementById('category-table-filename');
+            if (catFileEl) catFileEl.textContent = 'info_category.xlsx';
+            else document.querySelectorAll('span').forEach(s => { if (s.textContent.trim() === 'card_category.xlsx') s.textContent = 'info_category.xlsx'; });
             updateWorkspacePath();
             setupFilterBackgrounds();
             loadSourceFiles();
@@ -2326,8 +2305,6 @@
         const CATEGORY_CHASU_MAPPING = {
             '입출금': '1차',
             '거래유형': '2차',
-            '거래방법': '3차',
-            '거래지점': '4차',
             '기타거래': '5차'
         };
         
@@ -2335,8 +2312,6 @@
         const CHASU_COLUMN_MAPPING = {
             '1차': '입출금',
             '2차': '거래유형',
-            '3차': '거래방법',
-            '4차': '거래지점',
             '5차': '기타거래'
         };
         
@@ -2380,7 +2355,7 @@
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
                     document.getElementById('category-definition-table-body').innerHTML = 
-                        `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${(data.error || 'card_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td></tr>`;
+                        `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${(data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td></tr>`;
                     allCategoryTableData = [];
                     return;
                 }
@@ -2438,7 +2413,7 @@
             }
         }
         
-        // card_category.xlsx 파일 생성 함수
+        // info_category.xlsx 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-category-table-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -2460,10 +2435,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`card_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'card_category.xlsx 파일 생성 실패'}`);
+                    alert(`오류: ${result.error || 'info_category.xlsx 파일 생성 실패'}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -2472,7 +2447,7 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('card_category.xlsx 파일 생성 중 오류가 발생했습니다.');
+                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다.');
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -2928,7 +2903,7 @@
             const cardColumns = ['카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리', '분류코드', '업종분류'];
             const bankColumns = [
                 '거래일', '은행명', '입금액', '출금액', '구분', '적요', '내용', 
-                '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'
+                '거래점', '송금메모', '입출금', '거래유형', '기타거래'
             ];
             
             const isCardData = data[0] && data[0].hasOwnProperty('카드사');
@@ -2953,7 +2928,7 @@
             const columnWidthsBank = {
                 '거래일': 0.7, '은행명': 0.7, '입금액': 0.9, '출금액': 0.9, '구분': 0.7,
                 '적요': 1.5, '내용': 1.5, '거래점': 0.8, '송금메모': 0.8, '입출금': 0.7,
-                '거래유형': 1.5, '거래방법': 1.5, '거래지점': 1.5, '기타거래': 1.5
+                '거래유형': 1.5, '기타거래': 1.5
             };
             const columnWidths = isCardData
                 ? columnWidthsCard
@@ -2965,8 +2940,7 @@
                 '구분': 'rgba(33, 150, 243, 0.1)', '적요': 'rgba(33, 150, 243, 0.1)',
                 '내용': 'rgba(33, 150, 243, 0.1)', '거래점': 'rgba(33, 150, 243, 0.1)',
                 '송금메모': 'rgba(33, 150, 243, 0.1)', '입출금': 'rgba(255, 152, 0, 0.1)',
-                '거래유형': 'rgba(255, 152, 0, 0.1)', '거래방법': 'rgba(255, 152, 0, 0.1)',
-                '거래지점': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)',
+                '거래유형': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)',
                 '카드사': 'rgba(33, 150, 243, 0.1)', '카드번호': 'rgba(33, 150, 243, 0.1)',
                 '이용일': 'rgba(33, 150, 243, 0.1)', '이용금액': 'rgba(33, 150, 243, 0.1)',
                 '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)',
@@ -3042,8 +3016,6 @@
             
             const columnDisplayNames = {
                 '거래유형': '거래유형 (2차)',
-                '거래방법': '거래방법',
-                '거래지점': '거래지점',
                 '기타거래': '기타거래'
             };
             
@@ -3205,7 +3177,7 @@
             const rows = tbody.querySelectorAll('tr');
             const columns = categoryQueryDataOriginal.length > 0
                 ? Object.keys(categoryQueryDataOriginal[0])
-                : ['은행명', '입금액', '출금액', '구분', '적요', '내용', '거래점', '송금메모', '입출금', '거래유형', '거래방법', '거래지점', '기타거래'];
+                : ['은행명', '입금액', '출금액', '구분', '적요', '내용', '거래점', '송금메모', '입출금', '거래유형', '기타거래'];
             
             const filteredData = [];
             let sumRow = null;
@@ -3408,16 +3380,15 @@
                 withdraws = categoryOrder.map(c => aggWith[c] || 0);
                 balances = categoryOrder.map(c => aggBal[c] || 0);
             } else {
-                // 은행 데이터: 기존 방식 (거래유형/거래방법)
+                // 은행 데이터: 거래유형 기준 (거래방법/거래지점 미사용)
                 const maxRows = 14;
                 const selectedData = filteredData.slice(0, maxRows);
                 while (selectedData.length < maxRows) {
-                    selectedData.push({ '거래유형': '', '거래방법': '', '입금액': 0, '출금액': 0 });
+                    selectedData.push({ '거래유형': '', '입금액': 0, '출금액': 0 });
                 }
                 labels = selectedData.map((item, i) => {
                     const 거래유형 = item['거래유형'] || '';
-                    const 거래방법 = item['거래방법'] || '';
-                    const 라벨 = 거래유형 && 거래방법 ? `${거래유형}/${거래방법}` : (거래유형 || 거래방법 || `행${i+1}`);
+                    const 라벨 = 거래유형 || `행${i+1}`;
                     return 라벨.length > 10 ? 라벨.substring(0, 10) + '...' : 라벨;
                 });
                 deposits = selectedData.map(item => parseFloat(item['입금액']) || 0);
