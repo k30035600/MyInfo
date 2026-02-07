@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>은행거래 기본분석 보고서</title>
+    <style>
+        @media print {
+            @page { size: A4 portrait; margin: 5mm; }
+            body { margin: 0; padding: 0; }
+            .page-break { page-break-after: always; }
+            .no-print { display: none; }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', sans-serif; font-size: 10pt; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 2px solid #333; margin-bottom: 8px; }
+        .header h1 { font-size: 16pt; margin: 0; flex: 1; text-align: center; }
+        .header .date { font-size: 10pt; color: #666; flex: 0 0 auto; text-align: left; }
+        .header .bank-info { font-size: 10pt; color: #666; flex: 0 0 auto; text-align: right; }
+        .section { margin-bottom: 10px; }
+        .section-title { font-size: 11pt; font-weight: bold; background: #f0f0f0; padding: 4px 6px; margin-bottom: 4px; border-left: 4px solid #FF9800; }
+        table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 6px; }
+        table th { background: #f5f5f5; padding: 4px 5px; border: 1px solid #ddd; text-align: left; font-weight: bold; }
+        table td { padding: 3px 5px; border: 1px solid #ddd; }
+        table tr:nth-child(even) { background: #f9f9f9; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .row-half { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; border: 1px solid #ddd; padding: 8px 12px; background: #f9f9f9; font-size: 9pt; }
+        .stats-grid .stat-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border: 1px solid #eee; background: #fff; }
+        .stats-grid .stat-item .label { color: #333; font-weight: bold; }
+        .stats-grid .stat-item .value { font-size: 11pt; font-weight: bold; }
+        .stats-grid .stat-item.deposit .value { color: #0000FF; }
+        .stats-grid .stat-item.withdraw .value { color: #FF0000; }
+        table.transaction-detail, table.transaction-detail th, table.transaction-detail td { font-size: 8pt; }
+        table.transaction-detail thead th { text-align: center; }
+        table.transaction-detail { table-layout: auto; }
+        table.transaction-detail td:first-child, table.transaction-detail th:first-child { white-space: nowrap; width: 1%; min-width: 56px; }
+        table.transaction-detail th:nth-child(4), table.transaction-detail td:nth-child(4), table.transaction-detail th:nth-child(5), table.transaction-detail td:nth-child(5) { min-width: 72px; width: 22%; }
+        .merchant-cell { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pie-section { display: flex; align-items: center; gap: 16px; margin-top: 20px; margin-bottom: 20px; flex-wrap: wrap; overflow: visible; }
+        .section-pie-wrap { overflow: visible; page-break-inside: avoid; }
+        .pie-chart { flex-shrink: 0; width: 200px; height: 200px; min-width: 200px; min-height: 200px; aspect-ratio: 1/1; border-radius: 50%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .section-category-pie .pie-section { justify-content: flex-end; }
+        .pie-legend { font-size: 8pt; line-height: 1.6; }
+        .pie-legend span { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: middle; border-radius: 1px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .bar-v-wrap { display: flex; align-items: flex-end; gap: 8px; margin-top: 10px; height: 200px; padding: 0 4px; }
+        .bar-v-group { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+        .bar-v-bars { display: flex; gap: 6px; align-items: flex-end; height: 160px; width: 100%; justify-content: center; }
+        .bar-v { width: 20px; min-height: 2px; border-radius: 2px 2px 0 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .bar-v.bar-deposit { background: #0000FF; }
+        .bar-v.bar-withdraw { background: #FF0000; }
+        .bar-v-label { font-size: 7pt; margin-top: 4px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+        .monthly-vertical-wrap { border: 1px solid #ddd; background: #fafafa; padding: 10px; margin-top: 8px; margin-bottom: 12px; font-size: 9pt; }
+        .monthly-vertical-title { font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; justify-content: flex-end; }
+        .monthly-vertical-legend { font-size: 8pt; color: #666; }
+        .monthly-vertical-legend .legend-item { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
+        .monthly-vertical-legend .legend-color { width: 12px; height: 10px; border-radius: 1px; display: inline-block; vertical-align: middle; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .monthly-vertical-legend .legend-color.legend-deposit { background: rgba(0,0,255,0.6); }
+        .monthly-vertical-legend .legend-color.legend-withdraw { background: rgba(255,0,0,0.6); }
+        .monthly-vertical-chart-row { display: flex; align-items: stretch; height: 200px; }
+        .monthly-vertical-yaxis { width: 78px; min-width: 78px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; padding-right: 6px; text-align: right; font-size: 7pt; color: #333; border-right: 1px solid #eee; }
+        .monthly-vertical-bars-area { flex: 1; display: flex; align-items: flex-end; gap: 4px; padding: 0 4px; min-width: 0; }
+        .monthly-vertical-group { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+        .monthly-vertical-bar-container { height: 160px; width: 100%; display: flex; gap: 4px; align-items: flex-end; justify-content: center; }
+        .monthly-vertical-bar { width: 10px; max-width: 18px; min-height: 2px; border-radius: 2px 2px 0 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .monthly-vertical-bar.bar-deposit { background: rgba(0,0,255,0.5); }
+        .monthly-vertical-bar.bar-withdraw { background: rgba(255,0,0,0.5); }
+        .monthly-vertical-xaxis-row { display: flex; align-items: flex-end; gap: 4px; padding-left: 78px; padding-right: 8px; margin-top: 4px; min-height: 48px; }
+        .monthly-vertical-xaxis-cell { flex: 1; min-width: 0; font-size: 4.5pt; text-align: center; -webkit-transform: rotate(-45deg); transform: rotate(-45deg); transform-origin: top center; padding-top: 4px; }
+        table.bank-table th:first-child, table.bank-table td:first-child { white-space: nowrap; width: 1%; min-width: 56px; }
+        table.bank-table th:nth-child(2), table.bank-table td:nth-child(2), table.bank-table th:nth-child(3), table.bank-table td:nth-child(3), table.bank-table th:nth-child(4), table.bank-table td:nth-child(4) { min-width: 72px; width: 26%; }
+        @media print { .bar-v, .pie-chart, .pie-legend span, .monthly-vertical-bar, .monthly-vertical-legend .legend-color { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    <script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 500); });</script>
+    <div class="page">
+        <div class="header">
+            <div class="date">출력일: {{ report_date }}</div>
+            <h1>은행거래 기본분석 보고서</h1>
+            <div class="bank-info">은행: {{ bank_filter }}</div>
+        </div>
+        <div class="row-half">
+            <div class="section">
+                <div class="section-title">적요별 입출금 내역</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50%;">적요</th>
+                            <th style="width: 25%;" class="text-right">입금액</th>
+                            <th style="width: 25%;" class="text-right">출금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in category_stats[:15] %}
+                        <tr>
+                            <td>{{ item['카테고리'] }}</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}원</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}원</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background: #f0f0f0;">
+                            <td>합계</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(category_stats|sum(attribute='입금액')|int) }}원</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(category_stats|sum(attribute='출금액')|int) }}원</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="section">
+                <div class="section-title">적요별 거래내역{% if selected_category %} ({{ selected_category }}){% endif %}</div>
+                <table class="transaction-detail">
+                    <thead>
+                        <tr>
+                            <th>은행명</th>
+                            <th>거래일</th>
+                            <th>내용</th>
+                            <th>입금액</th>
+                            <th>출금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in transactions %}
+                        {% set d = (item.get('거래일') or '')[:10] if item.get('거래일') else '' %}
+                        {% set yy = d[2:4] if d|length >= 10 else '' %}
+                        {% set mm = d[5:7] if d|length >= 10 else '' %}
+                        {% set dd = d[8:10] if d|length >= 10 else '' %}
+                        {% set date_yy = yy ~ '/' ~ mm ~ '/' ~ dd if yy else (item.get('거래일') or '') %}
+                        <tr>
+                            <td>{{ item.get('은행명', '') }}</td>
+                            <td class="text-center">{{ date_yy }}</td>
+                            <td class="merchant-cell" title="{{ item.get('내용', '') or item.get('적요', '') }}">{{ item.get('내용', '') or item.get('적요', '') }}</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item.get('입금액', 0)|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item.get('출금액', 0)|int) }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if transaction_total_count > 20 %}
+                        <tr><td colspan="3" class="text-center" style="color: #666; font-style: italic;">외 {{ transaction_total_count - 20 }}건</td><td colspan="2"></td></tr>
+                        {% endif %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background: #f0f0f0;">
+                            <td colspan="3">합계</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(transaction_deposit_total) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(transaction_withdraw_total) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        <div class="row-half">
+            <div class="section">
+                <div class="section-title">은행별 집계</div>
+                <table class="bank-table">
+                    <thead>
+                        <tr>
+                            <th>은행명</th>
+                            <th class="text-right">입금액</th>
+                            <th class="text-right">출금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in bank_stats %}
+                        <tr>
+                            <td>{{ item[bank_col] }}</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}원</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}원</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background: #f0f0f0;">
+                            <td>합계</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(bank_stats|sum(attribute='입금액')|int) }}원</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(bank_stats|sum(attribute='출금액')|int) }}원</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="section">
+                <div class="section-title">계좌별 집계</div>
+                <table class="bank-table">
+                    <thead>
+                        <tr>
+                            <th>은행명</th>
+                            <th style="width: 48%;">계좌번호</th>
+                            <th class="text-right">입금액</th>
+                            <th class="text-right">출금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in account_stats[:10] %}
+                        <tr>
+                            <td>{{ item[bank_col] }}</td>
+                            <td>{{ item[account_col] }}</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background: #f0f0f0;">
+                            <td colspan="2">합계</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(account_stats[:10]|sum(attribute='입금액')|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(account_stats[:10]|sum(attribute='출금액')|int) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-item"><span class="label">거래건수</span><span class="value">{{ "{:,}".format(total_count) }}건</span></div>
+            <div class="stat-item deposit"><span class="label">입금건수</span><span class="value">{{ "{:,}".format(deposit_count) }}건</span></div>
+            <div class="stat-item withdraw"><span class="label">출금건수</span><span class="value">{{ "{:,}".format(withdraw_count) }}건</span></div>
+            <div class="stat-item"><span class="label">순잔액</span><span class="value">{{ "{:,}".format(net_balance) }}원</span></div>
+            <div class="stat-item deposit"><span class="label">입금합계</span><span class="value">{{ "{:,}".format(total_deposit) }}원</span></div>
+            <div class="stat-item withdraw"><span class="label">출금합계</span><span class="value">{{ "{:,}".format(total_withdraw) }}원</span></div>
+        </div>
+    </div>
+    <div class="page-break"></div>
+    <div class="page">
+        <div class="header">
+            <div class="date">출력일: {{ report_date }}</div>
+            <h1>은행거래 기본분석 보고서</h1>
+            <div class="bank-info">은행: {{ bank_filter }}</div>
+        </div>
+        <div class="section section-monthly-trend">
+            <div class="section-title">월별 입출금 추이 그래프</div>
+            <div class="monthly-vertical-wrap">
+                <div class="monthly-vertical-title">
+                    <span class="monthly-vertical-legend">
+                        <span class="legend-item"><span class="legend-color legend-deposit"></span>입금액</span>
+                        <span class="legend-item"><span class="legend-color legend-withdraw"></span>출금액</span>
+                    </span>
+                </div>
+                <div class="monthly-vertical-chart-row">
+                    <div class="monthly-vertical-yaxis">
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format(max_monthly_both) }}원{% else %}0원{% endif %}</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both * 3 / 4)|int) }}원{% else %}0원{% endif %}</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both / 2)|int) }}원{% else %}0원{% endif %}</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both / 4)|int) }}원{% else %}0원{% endif %}</span>
+                        <span>0원</span>
+                    </div>
+                    <div class="monthly-vertical-bars-area">
+                        {% for row in monthly_totals_list %}
+                        {% set pct_deposit = (100.0 * (row['입금액']|int) / max_monthly_both) if max_monthly_both > 0 else 0 %}
+                        {% set pct_withdraw = (100.0 * (row['출금액']|int) / max_monthly_both) if max_monthly_both > 0 else 0 %}
+                        <div class="monthly-vertical-group">
+                            <div class="monthly-vertical-bar-container">
+                                <div class="monthly-vertical-bar bar-deposit" style="height: {{ pct_deposit }}%;"></div>
+                                <div class="monthly-vertical-bar bar-withdraw" style="height: {{ pct_withdraw }}%;"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="monthly-vertical-xaxis-row">
+                    {% for row in monthly_totals_list %}
+                    {% set month_str = (row['월']|string) if row['월'] is not none else '' %}
+                    {% set label_yy = month_str[2:4] if month_str|length >= 4 else '' %}
+                    {% set label_mm = month_str[5:7] if month_str|length >= 7 else month_str %}
+                    {% set label_yy_mm = (label_yy ~ '/' ~ label_mm) if (label_yy and label_mm) else month_str %}
+                    <div class="monthly-vertical-xaxis-cell" title="{{ month_str }}">{{ label_yy_mm }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="section section-pie-wrap section-category-pie">
+            <div class="section-title">적요별 원그래프</div>
+            {% set category_total_amount = category_stats|sum(attribute='입금액')|int + category_stats|sum(attribute='출금액')|int %}
+            {% set cat_pie_colors = ['#0000FF', '#00AA00', '#FF8000', '#9C27B0', '#00BCD4', '#E91E63', '#009688'] %}
+            {% set ns_cat = namespace(cum=0, segs=[]) %}
+            {% for item in category_stats[:15] %}
+                {% set cat_total = (item['입금액']|int) + (item['출금액']|int) %}
+                {% set pct = (100.0 * cat_total / category_total_amount) if category_total_amount > 0 else 0 %}
+                {% if pct > 0 %}
+                    {% set start = ns_cat.cum %}
+                    {% set ns_cat.cum = ns_cat.cum + pct %}
+                    {% set end = ns_cat.cum %}
+                    {% set seg = cat_pie_colors[loop.index0 % 7] ~ ' ' ~ start|string ~ '% ' ~ end|string ~ '%' %}
+                    {% set ns_cat.segs = ns_cat.segs + [seg] %}
+                {% endif %}
+            {% endfor %}
+            <div class="pie-section">
+                {% if ns_cat.segs %}
+                <div class="pie-chart" style="background: conic-gradient({{ ns_cat.segs|join(', ') }});"></div>
+                {% else %}
+                <div class="pie-chart" style="background: #e0e0e0;"></div>
+                {% endif %}
+                <div class="pie-legend">
+                    {% for item in category_stats[:15] %}
+                    {% set cat_total = (item['입금액']|int) + (item['출금액']|int) %}
+                    {% set pct = (100.0 * cat_total / category_total_amount) if category_total_amount > 0 else 0 %}
+                    {% if pct > 0 %}
+                    <div><span style="background: {{ cat_pie_colors[loop.index0 % 7] }};"></span> {{ item['카테고리'] }} {{ "%.1f"|format(pct) }}%</div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="row-half">
+            <div class="section section-pie-wrap">
+                <div class="section-title">은행별 비율</div>
+                {% set total_amount = bank_stats|sum(attribute='입금액') + bank_stats|sum(attribute='출금액') %}
+                <table class="bank-table">
+                    <thead>
+                        <tr>
+                            <th>은행명</th>
+                            <th class="text-right">총거래액</th>
+                            <th class="text-right">비율</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in bank_stats %}
+                        {% set bank_total = item['입금액'] + item['출금액'] %}
+                        <tr>
+                            <td>{{ item[bank_col] }}</td>
+                            <td class="text-right">{{ "{:,}".format(bank_total|int) }}원</td>
+                            <td class="text-right">{{ "%.1f"|format((bank_total / total_amount * 100) if total_amount > 0 else 0) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% set bank_pie_colors = ['#0000FF', '#00FF00', '#FF8000', '#9C27B0', '#00BCD4'] %}
+                {% set ns_bank = namespace(cum=0, segs=[]) %}
+                {% for item in bank_stats %}
+                    {% set bank_total = item['입금액'] + item['출금액'] %}
+                    {% set pct = (bank_total / total_amount * 100) if total_amount > 0 else 0 %}
+                    {% if pct > 0 %}
+                        {% set start = ns_bank.cum %}
+                        {% set ns_bank.cum = ns_bank.cum + pct %}
+                        {% set end = ns_bank.cum %}
+                        {% set seg = bank_pie_colors[loop.index0 % 5] ~ ' ' ~ start|string ~ '% ' ~ end|string ~ '%' %}
+                        {% set ns_bank.segs = ns_bank.segs + [seg] %}
+                    {% endif %}
+                {% endfor %}
+                <div class="pie-section">
+                    {% if ns_bank.segs %}
+                    <div class="pie-chart" style="background: conic-gradient({{ ns_bank.segs|join(', ') }});"></div>
+                    {% else %}
+                    <div class="pie-chart" style="background: #e0e0e0;"></div>
+                    {% endif %}
+                    <div class="pie-legend">
+                        {% for item in bank_stats %}
+                        {% set bank_total = item['입금액'] + item['출금액'] %}
+                        {% set pct = (bank_total / total_amount * 100) if total_amount > 0 else 0 %}
+                        {% if pct > 0 %}
+                        <div><span style="background: {{ bank_pie_colors[loop.index0 % 5] }};"></span> {{ item[bank_col] }} {{ "%.1f"|format(pct) }}%</div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">은행별 집계</div>
+                <table class="bank-table">
+                    <thead>
+                        <tr>
+                            <th>은행명</th>
+                            <th class="text-right">입금액</th>
+                            <th class="text-right">출금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in bank_stats %}
+                        <tr>
+                            <td>{{ item[bank_col] }}</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}원</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}원</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background: #f0f0f0;">
+                            <td>합계</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(bank_stats|sum(attribute='입금액')|int) }}원</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(bank_stats|sum(attribute='출금액')|int) }}원</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="bar-v-wrap">
+                    {% for item in bank_stats %}
+                    <div class="bar-v-group">
+                        <div class="bar-v-bars">
+                            <div class="bar-v bar-deposit" style="height: {{ (item['입금액'] / max_deposit * 100) if max_deposit > 0 else 0 }}%;"></div>
+                            <div class="bar-v bar-withdraw" style="height: {{ (item['출금액'] / max_withdraw * 100) if max_withdraw > 0 else 0 }}%;"></div>
+                        </div>
+                        <span class="bar-v-label">{{ item[bank_col] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

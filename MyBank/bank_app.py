@@ -654,17 +654,124 @@ def analysis_basic():
     return render_template('analysis_basic.html')
 
 @app.route('/analysis/print')
-def print_analysis_redirect():
-    """구 URL 호환: /analysis/print → /analysis/basic 리다이렉트"""
-    return redirect('/bank/analysis/basic', code=302)
+@ensure_working_directory
+def print_analysis():
+    """은행거래 기본분석 인쇄용 페이지 (bank_after.xlsx 사용, 신용카드 기본분석과 동일 양식)"""
+    try:
+        bank_filter = request.args.get('bank', '')
+        category_filter = request.args.get('category', '')  # 선택한 적요 (출력 시 사용)
+
+        df = load_category_file()
+        if df.empty:
+            return "데이터가 없습니다.", 400
+
+        if bank_filter and '은행명' in df.columns:
+            df = df[df['은행명'].astype(str).str.strip() == bank_filter]
+
+        total_count = len(df)
+        deposit_count = len(df[df['입금액'] > 0])
+        withdraw_count = len(df[df['출금액'] > 0])
+        total_deposit = int(df['입금액'].sum())
+        total_withdraw = int(df['출금액'].sum())
+        net_balance = total_deposit - total_withdraw
+
+        # 적요별 입출금 내역 (카테고리 컬럼명을 적요로)
+        category_col = '적요' if '적요' in df.columns else '카테고리'
+        if category_col not in df.columns:
+            df[category_col] = '(빈값)'
+        category_stats = df.groupby(category_col).agg({
+            '입금액': 'sum',
+            '출금액': 'sum'
+        }).reset_index()
+        category_stats = category_stats.rename(columns={category_col: '카테고리'})
+        category_stats = category_stats.sort_values('출금액', ascending=False)
+
+        top_category = category_stats.iloc[0]['카테고리'] if not category_stats.empty else ''
+        selected_category = category_filter if category_filter else top_category
+        if selected_category:
+            trans_all = df[df[category_col] == selected_category]
+            transaction_total_count = len(trans_all)
+            transactions = trans_all.head(20)
+            transaction_deposit_total = int(trans_all['입금액'].sum())
+            transaction_withdraw_total = int(trans_all['출금액'].sum())
+        else:
+            transaction_total_count = 0
+            transactions = pd.DataFrame()
+            transaction_deposit_total = 0
+            transaction_withdraw_total = 0
+
+        bank_col = '은행명'
+        bank_stats = df.groupby(bank_col).agg({
+            '입금액': 'sum',
+            '출금액': 'sum'
+        }).reset_index()
+
+        account_col = '계좌번호'
+        if account_col in df.columns:
+            account_stats = df.groupby([bank_col, account_col]).agg({
+                '입금액': 'sum',
+                '출금액': 'sum'
+            }).reset_index()
+        else:
+            account_stats = pd.DataFrame()
+
+        max_deposit = int(bank_stats['입금액'].max()) if not bank_stats.empty else 1
+        max_withdraw = int(bank_stats['출금액'].max()) if not bank_stats.empty else 1
+
+        date_col = '거래일'
+        if date_col in df.columns:
+            df_print = df.copy()
+            df_print['_dt'] = pd.to_datetime(df_print[date_col], errors='coerce')
+            df_print = df_print[df_print['_dt'].notna()]
+            df_print['월'] = df_print['_dt'].dt.to_period('M').astype(str)
+            monthly_totals = df_print.groupby('월').agg({'입금액': 'sum', '출금액': 'sum'}).reset_index()
+            monthly_totals = monthly_totals.sort_values('월')
+            months_list = monthly_totals['월'].tolist()
+            monthly_totals_list = monthly_totals.to_dict('records')
+            max_monthly_withdraw = int(monthly_totals['출금액'].max()) if not monthly_totals.empty else 1
+            max_monthly_both = int(max(monthly_totals['입금액'].max(), monthly_totals['출금액'].max())) if not monthly_totals.empty else 1
+        else:
+            months_list = []
+            monthly_totals_list = []
+            max_monthly_withdraw = 1
+            max_monthly_both = 1
+
+        return render_template('print_analysis.html',
+                             report_date=datetime.now().strftime('%Y-%m-%d'),
+                             bank_filter=bank_filter or '전체',
+                             total_count=total_count,
+                             deposit_count=deposit_count,
+                             withdraw_count=withdraw_count,
+                             total_deposit=total_deposit,
+                             total_withdraw=total_withdraw,
+                             net_balance=net_balance,
+                             category_stats=category_stats.to_dict('records'),
+                             transactions=transactions.to_dict('records'),
+                             bank_stats=bank_stats.to_dict('records'),
+                             account_stats=account_stats.to_dict('records'),
+                             bank_col=bank_col,
+                             account_col=account_col,
+                             selected_category=selected_category,
+                             max_deposit=max_deposit,
+                             max_withdraw=max_withdraw,
+                             transaction_total_count=transaction_total_count,
+                             transaction_deposit_total=transaction_deposit_total,
+                             transaction_withdraw_total=transaction_withdraw_total,
+                             months_list=months_list,
+                             monthly_totals_list=monthly_totals_list,
+                             max_monthly_withdraw=max_monthly_withdraw,
+                             max_monthly_both=max_monthly_both)
+    except Exception as e:
+        traceback.print_exc()
+        return f"오류 발생: {str(e)}", 500
 
 # 분석 API 라우트
 @app.route('/api/analysis/summary')
 @ensure_working_directory
 def get_analysis_summary():
-    """전체 통계 요약"""
+    """전체 통계 요약 (bank_after.xlsx 사용)"""
     try:
-        df = load_processed_file()
+        df = load_category_file()
         if df.empty:
             return jsonify({
                 'total_deposit': 0,
@@ -1129,9 +1236,9 @@ def get_analysis_by_category_monthly():
 @app.route('/api/analysis/by-content')
 @ensure_working_directory
 def get_analysis_by_content():
-    """내용별 분석"""
+    """내용별 분석 (bank_after.xlsx 사용)"""
     try:
-        df = load_processed_file()
+        df = load_category_file()
         if df.empty:
             return jsonify({'deposit': [], 'withdraw': []})
         
@@ -1155,9 +1262,9 @@ def get_analysis_by_content():
 @app.route('/api/analysis/by-division')
 @ensure_working_directory
 def get_analysis_by_division():
-    """구분별 분석"""
+    """구분별 분석 (bank_after.xlsx 사용)"""
     try:
-        df = load_processed_file()
+        df = load_category_file()
         if df.empty:
             return jsonify({'data': []})
         
@@ -1222,9 +1329,9 @@ def get_analysis_by_bank():
 @app.route('/api/analysis/transactions-by-content')
 @ensure_working_directory
 def get_transactions_by_content():
-    """거래처(내용)별 거래 내역"""
+    """거래처(내용)별 거래 내역 (bank_after.xlsx 사용)"""
     try:
-        df = load_processed_file()
+        df = load_category_file()
         if df.empty:
             return jsonify({'deposit': [], 'withdraw': []})
         
@@ -1356,9 +1463,9 @@ def get_analysis_transactions():
 @app.route('/api/analysis/content-by-category')
 @ensure_working_directory
 def get_content_by_category():
-    """적요별 거래처 목록 반환"""
+    """적요별 거래처 목록 반환 (bank_after.xlsx 사용)"""
     try:
-        df = load_processed_file()
+        df = load_category_file()
         if df.empty:
             return jsonify({'data': []})
         
@@ -1393,9 +1500,9 @@ def get_content_by_category():
 @app.route('/api/analysis/date-range')
 @ensure_working_directory
 def get_date_range():
-    """전처리후 데이터의 최소/최대 거래일 반환"""
+    """bank_after.xlsx 데이터의 최소/최대 거래일 반환"""
     try:
-        df = load_processed_file()
+        df = load_category_file()
         if df.empty:
             return jsonify({'min_date': None, 'max_date': None})
         
