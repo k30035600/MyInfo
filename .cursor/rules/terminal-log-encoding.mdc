@@ -14,6 +14,7 @@ alwaysApply: true
 ## 규칙
 
 - **터미널 로그 파일**이나 한글이 포함된 텍스트 파일을 읽을 때는 반드시 **UTF-8**로 읽습니다.
+- **Windows CMD 명령어**: `timeout` 등 CMD 내장 명령은 한글 오류 메시지를 CP949로 출력해 깨짐이 발생합니다. **PowerShell cmdlet 사용 권장**: `timeout /t 2` 대신 `Start-Sleep -Seconds 2` 사용.
 
 ### PowerShell
 
@@ -35,6 +36,10 @@ Get-Content "경로\파일.txt" -Encoding utf8
   [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
   chcp 65001
   python -c "print('계정과목')"
+  ```
+- **에이전트가 Python 한글 출력 명령 실행 시 (필수)**: Python으로 한글을 출력하는 명령을 실행할 때는 **같은 명령 블록에서 먼저** 터미널 인코딩을 UTF-8로 설정한 뒤 `python`을 실행합니다. 그렇지 않으면 터미널 출력(terminals/*.txt)이 CP949로 저장되어 한글이 깨져 보입니다.
+  ```powershell
+  chcp 65001 | Out-Null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Set-Location "d:\OneDrive\Cursor\MyInfo"; python -c "print('한글')"
   ```
 - 파일 읽기/쓰기: `open(path, encoding='utf-8')` 사용.
 

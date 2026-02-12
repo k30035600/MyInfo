@@ -12,6 +12,7 @@ process_cash_data.py — 금융정보(MyCash) 전용. (카드 관련 역할 없�
 import pandas as pd
 import os
 import re
+import unicodedata
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,42 @@ PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
 SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
 INFO_CATEGORY_FILE = os.path.join(os.environ.get('MYINFO_ROOT', PROJECT_ROOT), 'info_category.xlsx')
 CASH_CATEGORY_LABEL = '금융정보'
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+try:
+    from info_category_defaults import get_default_rules
+except ImportError:
+    get_default_rules = None
+try:
+    from info_category_io import (
+        safe_write_info_category_xlsx,
+        load_info_category,
+        create_empty_info_category,
+        normalize_category_df,
+        normalize_주식회사_for_match,
+        INFO_CATEGORY_COLUMNS,
+    )
+except ImportError:
+    def safe_write_info_category_xlsx(path, df, engine='openpyxl'):
+        df.to_excel(path, index=False, engine=engine)
+    def load_info_category(path, default_empty=True):
+        if not path or not os.path.exists(path): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
+        return pd.read_excel(path, engine='openpyxl')
+    def create_empty_info_category(path):
+        pd.DataFrame(columns=['분류', '키워드', '카테고리']).to_excel(path, index=False, engine='openpyxl')
+    def normalize_category_df(df):
+        if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
+        df = df.fillna(''); df = df.drop(columns=['구분'], errors='ignore')
+        for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
+        return df[['분류', '키워드', '카테고리']].copy()
+    def normalize_주식회사_for_match(text):
+        if text is None or (isinstance(text, str) and not str(text).strip()): return '' if text is None else str(text).strip()
+        val = str(text).strip()
+        val = re.sub(r'[\s/]*주식회사[\s/]*', '(주)', val)
+        val = re.sub(r'[\s/]*㈜[\s/]*', '(주)', val)
+        val = re.sub(r'(\(주\)[\s/]*)+', '(주)', val)
+        return val
+    INFO_CATEGORY_COLUMNS = ['분류', '키워드', '카테고리']
 
 INPUT_FILE = "cash_before.xlsx"
 OUTPUT_FILE = "cash_after.xlsx"
@@ -62,7 +99,7 @@ def ensure_all_cash_files():
             if not df.empty:
                 create_category_table(df)
             else:
-                _append_empty_cash_section(INFO_CATEGORY_FILE)
+                create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: info_category(금융정보) 생성 실패 - {e}")
 
@@ -73,47 +110,28 @@ def ensure_all_cash_files():
             print(f"오류: cash_after.xlsx 생성 실패 - {e}")
 
 
-def _append_empty_cash_section(info_path):
-    """info_category.xlsx에 빈 [분류, 키워드, 카테고리] 추가 (구분 없음)"""
-    try:
-        empty = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        if os.path.exists(info_path):
-            full = pd.read_excel(info_path, engine='openpyxl').fillna('')
-            if '구분' in full.columns:
-                full = full.drop(columns=['구분'], errors='ignore')
-            out = full[['분류', '키워드', '카테고리']].copy() if all(c in full.columns for c in ['분류', '키워드', '카테고리']) else empty
-        else:
-            out = empty
-        out.to_excel(info_path, index=False, engine='openpyxl')
-    except Exception:
-        pass
-
-
 # =========================================================
 # 유틸리티 함수
 # =========================================================
 
 def safe_str(value):
-    """NaN 값 처리 및 안전한 문자열 변환"""
+    """NaN 값 처리 및 안전한 문자열 변환. 전처리/후처리 매칭용으로 주식회사·㈜ → (주) 통일."""
     if pd.isna(value) or value is None:
         return ""
     val = str(value).strip()
     if val.lower() in ['nan', 'na', 'n', 'none', '']:
         return ""
-    
+    val = normalize_주식회사_for_match(val)
     val = val.replace('((', '(')
     val = val.replace('))', ')')
     val = val.replace('__', '_')
     val = val.replace('{}', '')
     val = val.replace('[]', '')
-    val = val.replace('주식회사', '(주)')
-    
     if val.count('(') != val.count(')'):
         if val.count('(') > val.count(')'):
             val = val.replace('(', '')
         elif val.count(')') > val.count('('):
             val = val.replace(')', '')
-    
     return val
 
 def normalize_text(text):
@@ -445,7 +463,7 @@ def integrate_cash_transactions(output_file=None):
                                            '구분', '적요', '내용', '거래점', '송금메모', '메모', '카테고리'])
         combined_df.to_excel(output_file, index=False, engine='openpyxl')
         try:
-            _append_empty_cash_section(INFO_CATEGORY_FILE)
+            create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
         try:
@@ -533,7 +551,7 @@ def integrate_cash_transactions(output_file=None):
             print(f"오류: info_category(금융정보) 생성 실패 - {e}")
     else:
         try:
-            _append_empty_cash_section(INFO_CATEGORY_FILE)
+            create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
 
@@ -550,48 +568,23 @@ def integrate_cash_transactions(output_file=None):
 # =========================================================
 
 def create_category_table(df):
-    """cash_before 데이터를 기반으로 info_category.xlsx(금융정보 구분) 생성"""
-    category_data = []
-
-    # 1. 전처리/후처리 생성
-    category_data.append({'분류': '전처리', '키워드': 'NH', '카테고리': '농협'})
-    category_data.append({'분류': '전처리', '키워드': 'KB', '카테고리': '국민'})
-    category_data.append({'분류': '전처리', '키워드': '한국주택은행', '카테고리': '국민은행'})
-    category_data.append({'분류': '전처리', '키워드': '주금공', '카테고리': '주택금융공사'})
-    category_data.append({'분류': '후처리', '키워드': '((', '카테고리': '('})
-    category_data.append({'분류': '후처리', '키워드': '))', '카테고리': ')'})
-    category_data.append({'분류': '후처리', '키워드': '[]', '카테고리': 'space'})
-
-    # 2. 중복 제거 및 DataFrame 생성 (거래방법/거래지점 미사용)
-    seen_all = set()
-    unique_category_data = []
-    for item in category_data:
-        분류 = str(item.get('분류', '')).strip()
-        키워드 = str(item.get('키워드', '')).strip()
-        카테고리 = str(item.get('카테고리', '')).strip()
-        key = (분류, 키워드, 카테고리)
-        if key not in seen_all:
-            seen_all.add(key)
-            unique_category_data.append({
-                '분류': 분류,
-                '키워드': 키워드,
-                '카테고리': 카테고리
-            })
-
+    """cash_before 데이터를 기반으로 info_category.xlsx(금융정보 구분) 생성. category_create.md 파싱 또는 기본값 사용."""
+    fn = get_default_rules if get_default_rules else (lambda d: __import__('info_category_defaults').get_default_rules(d))
+    unique_category_data = fn('cash')
     category_df = pd.DataFrame(unique_category_data)
     category_df = category_df.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
 
     try:
         if len(category_df) == 0:
-            category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        out = category_df[['분류', '키워드', '카테고리']].copy()
+            category_df = pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
+        out = category_df[INFO_CATEGORY_COLUMNS].copy()
         if INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE):
-            full = pd.read_excel(INFO_CATEGORY_FILE, engine='openpyxl').fillna('')
-            if '구분' in full.columns:
-                full = full.drop(columns=['구분'], errors='ignore')
-            if all(c in full.columns for c in ['분류', '키워드', '카테고리']):
-                out = pd.concat([full[['분류', '키워드', '카테고리']], out], ignore_index=True).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
-        out.to_excel(INFO_CATEGORY_FILE, index=False, engine='openpyxl')
+            full = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
+            if full is not None and not full.empty:
+                full = normalize_category_df(full)
+                if not full.empty:
+                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
+        safe_write_info_category_xlsx(INFO_CATEGORY_FILE, out)
         if INFO_CATEGORY_FILE and not os.path.exists(INFO_CATEGORY_FILE):
             raise FileNotFoundError(f"오류: 파일 생성 후에도 {INFO_CATEGORY_FILE} 파일이 존재하지 않습니다.")
     except PermissionError as e:
@@ -644,7 +637,7 @@ def classify_1st_category(row):
     return "입금"
 
 def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
-    """전처리 분류 (계좌번호 등)"""
+    """전처리 분류 (계좌번호 등). 카테고리 키워드도 주식회사→(주) 정규화해 매칭."""
     row = df.iloc[row_idx]
     before_text_raw = row.get("before_text", "")
     before_text = normalize_text(before_text_raw)
@@ -660,8 +653,9 @@ def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
                 continue
 
             keyword = normalize_text(keyword_raw)
+            keyword_norm = normalize_주식회사_for_match(keyword)
 
-            if keyword and before_text and keyword in before_text:
+            if keyword_norm and before_text and keyword_norm in before_text:
                 category_raw = cat_row.get("카테고리", "")
                 if pd.notna(category_raw):
                     category_str = str(category_raw).strip()
@@ -669,41 +663,14 @@ def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
                         for col in ['적요', '내용', '거래점', '송금메모']:
                             if col in df.columns:
                                 cell_value = safe_str(df.iloc[row_idx].get(col, ""))
-                                if keyword in normalize_text(cell_value):
+                                if keyword_norm in normalize_text(cell_value):
                                     df.at[row_idx, col] = category_str
                                     break
                         df.at[row_idx, "before_text"] = create_before_text_func(df.iloc[row_idx])
                         updated_text = normalize_text(df.iloc[row_idx].get("before_text", ""))
-                        updated_text = updated_text.replace(keyword, "").strip()
+                        updated_text = updated_text.replace(keyword_norm, "").strip()
                         df.at[row_idx, "before_text"] = updated_text
                 break
-
-    # 계좌번호 처리
-    account_columns = ['적요', '내용']
-    for col in account_columns:
-        if col not in df.columns:
-            continue
-
-        cell_value = safe_str(df.iloc[row_idx].get(col, ""))
-        if not cell_value:
-            continue
-
-        if re.search(r'\[\d{8,}\]', cell_value):
-            continue
-
-        def wrap_account_numbers(text):
-            pattern = r'(?<!\[)[A-Za-z]?\d{8,}(?!\])'
-            matches = re.findall(pattern, text)
-            for match in matches:
-                wrapped = f'[{match}]'
-                text = text.replace(match, wrapped, 1)
-                break
-            return text
-
-        updated_value = wrap_account_numbers(cell_value)
-        if updated_value != cell_value:
-            df.at[row_idx, col] = updated_value
-            df.at[row_idx, "before_text"] = create_before_text_func(df.iloc[row_idx])
 
 def classify_transaction_type(row_idx, df, category_tables):
     """거래방법 분류"""
@@ -874,9 +841,10 @@ def load_category_table():
     """info_category.xlsx 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용)"""
     if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
         return None
-    category_df = pd.read_excel(INFO_CATEGORY_FILE, engine='openpyxl').fillna('')
-    if '구분' in category_df.columns:
-        category_df = category_df.drop(columns=['구분'], errors='ignore')
+    category_df = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
+    if category_df is None or category_df.empty:
+        return None
+    category_df = normalize_category_df(category_df)
     category_tables = {}
     분류_컬럼명 = '분류' if '분류' in category_df.columns else '차수'
     차수_분류_매핑 = {
@@ -913,7 +881,7 @@ def classify_and_save(input_file=None, output_file=None):
             if not df.empty:
                 create_category_table(df)
             else:
-                _append_empty_cash_section(INFO_CATEGORY_FILE)
+                create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: info_category(금융정보) 생성 실패 - {e}")
             return False
@@ -924,6 +892,11 @@ def classify_and_save(input_file=None, output_file=None):
         return False
 
     df["before_text"] = df.apply(create_before_text, axis=1)
+
+    # 전처리/후처리 매칭 전에 적요·내용·거래점·송금메모를 주식회사→(주) 등으로 정규화
+    for col in ['적요', '내용', '거래점', '송금메모']:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda v: safe_str(v))
 
     df["입출금"] = df.apply(classify_1st_category, axis=1)
     df.index.to_series().apply(lambda idx: classify_2_chasu(idx, df, category_tables, create_before_text))
@@ -979,7 +952,7 @@ def classify_and_save(input_file=None, output_file=None):
             text = '(' * (close_count - open_count) + text
         text = re.sub(r'\s*\(주\)\s*', '(주)', text)
         text = re.sub(r'\s*㈜\s*', '(주)', text)
-        words = text.split()
+        words = [w for w in re.split(r'[\s_]+', text) if w]
         seen = set()
         result_words = []
         for word in words:
@@ -1012,6 +985,8 @@ def classify_and_save(input_file=None, output_file=None):
         s = str(value)
         if not s:
             return ''
+        # 전각(Fullwidth) 문자 → 반각(Halfwidth)으로 변환 (예: ＳＫＴ５３２２ → SKT5322)
+        s = unicodedata.normalize('NFKC', s)
         # 모든 종류의 공백(반각, 전각, 탭 등) 1개 이상 → 공백 1개로 치환 후 trim
         s = re.sub(r'[\s\u3000\u00a0\u2002\u2003\u2009]+', ' ', s)
         return s.strip()

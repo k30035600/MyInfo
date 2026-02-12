@@ -318,7 +318,7 @@
             overflow-y: auto;
             overflow-x: hidden;
         }
-        /* 카테고리별 입출금 내역 합계: 카드사별 집계 합계와 동일한 스타일 (grid + span) */
+        /* 카테고리별 입출금 내역 합계: 테이블과 동일 열 폭(50%:25%:25%), 스크롤 영역 안에 있어 컬럼 정렬 */
         .category-table-footer-wrap {
             flex-shrink: 0;
             background-color: #f5f5f5;
@@ -326,9 +326,11 @@
             padding: 3px;
             font-weight: bold;
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr; /* 50% : 25% : 25% */
+            grid-template-columns: 2fr 1fr 1fr; /* 50% : 25% : 25% - 입금액/출금액 테이블과 정렬 */
             gap: 0;
             font-size: 11px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         /* 카테고리별 입출금 내역 (헤더/행 25px, 셀 패딩 2px) */
@@ -368,7 +370,7 @@
         #category-table th:nth-child(2), #category-table td:nth-child(2) { width: 25%; }
         #category-table th:nth-child(3), #category-table td:nth-child(3) { width: 25%; }
 
-        /* 카테고리별 거래내역: 헤더/행 25px, 셀 패딩 2px */
+        /* 카테고리 거래내역: 헤더/행 25px, 셀 패딩 2px */
         #transaction-table {
             border-collapse: collapse;
             font-size: 11px;
@@ -408,33 +410,12 @@
             white-space: nowrap;
         }
 
-        /* 컬럼 너비 비율: 0.8 : 0.8 : 2.5 : 1.2 : 1.2 (총 6.5) - 순서: 카드사, 이용일, 거래점명, 입금액, 출금액 */
-        #transaction-table th:nth-child(1),
-        #transaction-table td:nth-child(1) {
-            width: 12.31%; /* 카드사 - 0.8/6.5 */
-        }
-
-        #transaction-table th:nth-child(2),
-        #transaction-table td:nth-child(2) {
-            width: 12.31%; /* 이용일 - 0.8/6.5 */
-        }
-
-        #transaction-table th:nth-child(3),
-        #transaction-table td:nth-child(3) {
-            width: 38.46%; /* 거래점명 - 2.5/6.5 */
-            white-space: normal;
-            word-wrap: break-word;
-        }
-
-        #transaction-table th:nth-child(4),
-        #transaction-table td:nth-child(4) {
-            width: 18.46%; /* 입금액 - 1.2/6.5 */
-        }
-
-        #transaction-table th:nth-child(5),
-        #transaction-table td:nth-child(5) {
-            width: 18.46%; /* 출금액 - 1.2/6.5 */
-        }
+        /* 컬럼: 카드사, 이용일, 거래점명, 입금액, 출금액 (이용시간 제거) */
+        #transaction-table th:nth-child(1), #transaction-table td:nth-child(1) { width: 14%; }
+        #transaction-table th:nth-child(2), #transaction-table td:nth-child(2) { width: 14%; }
+        #transaction-table th:nth-child(3), #transaction-table td:nth-child(3) { width: 38%; white-space: normal; word-wrap: break-word; }
+        #transaction-table th:nth-child(4), #transaction-table td:nth-child(4) { width: 17%; }
+        #transaction-table th:nth-child(5), #transaction-table td:nth-child(5) { width: 17%; }
 
         /* 카드사별 집계 / 카드별 집계: 헤더/행 25px, 셀 패딩 2px */
         #bank-table,
@@ -831,23 +812,23 @@
                             </tr>
                         </tbody>
                     </table>
-                </div>
-                <div id="category-table-footer" class="category-table-footer-wrap" style="display: none;">
-                    <span>합계</span><span id="total-deposit-category" style="text-align:right;color:#0000FF;">0</span><span id="total-withdraw-category" style="text-align:right;color:#FF0000;">0</span>
+                    <div id="category-table-footer" class="category-table-footer-wrap" style="display: none;">
+                        <span>합계</span><span id="total-deposit-category" style="text-align:right;color:#0000FF;">0</span><span id="total-withdraw-category" style="text-align:right;color:#FF0000;">0</span>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 id="transaction-section-title" style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리별 거래내역</h2>
+            <h2 id="transaction-section-title" style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 거래내역</h2>
             <div class="transaction-table-container" style="min-width: 0;">
                 <table id="transaction-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                     <thead>
                         <tr id="transaction-table-header" style="background-color: #f5f5f5; position: sticky; top: 0;">
-                            <th style="width: 12.31%; text-align: left; border-bottom: 2px solid #ddd;">카드사</th>
-                            <th style="width: 12.31%; text-align: center; border-bottom: 2px solid #ddd;">이용일</th>
-                            <th style="width: 38.46%; text-align: left; border-bottom: 2px solid #ddd;">거래점명</th>
-                            <th style="width: 18.46%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
-                            <th style="width: 18.46%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
+                            <th style="width: 14%; text-align: left; border-bottom: 2px solid #ddd;">카드사</th>
+                            <th style="width: 14%; text-align: center; border-bottom: 2px solid #ddd;">이용일</th>
+                            <th style="width: 38%; text-align: left; border-bottom: 2px solid #ddd;">거래점명</th>
+                            <th style="width: 17%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
+                            <th style="width: 17%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
                         </tr>
                     </thead>
                     <tbody id="transaction-table-body">
@@ -867,10 +848,13 @@
                 </table>
             </div>
         </div>
-        <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
+        <div class="chart-card category-pie-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
             <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리별 원그래프</h2>
-            <div class="chart-container" style="flex: 1; min-height: 0; height: auto; max-height: none;">
-                <canvas id="category-combined-chart"></canvas>
+            <div class="category-pie-row" style="display: flex; flex-direction: row; align-items: stretch; flex: 1; min-height: 0; gap: 12px;">
+                <div class="chart-container" style="flex: 1; min-width: 0; min-height: 0; height: auto; max-height: none;">
+                    <canvas id="category-combined-chart"></canvas>
+                </div>
+                <div id="category-chart-legend" class="category-legend-grid category-legend-right" style="display: grid; grid-template-columns: 1fr; grid-auto-rows: min-content; gap: 6px 0; font-size: 11px; align-content: start; flex-shrink: 0; max-width: 200px;"></div>
             </div>
         </div>
     </div>
@@ -1043,6 +1027,41 @@
             }
         };
 
+        // 카테고리 원그래프: 범례를 우측 div에 렌더 (은행거래 기본분석과 동일)
+        const categoryLegendPlugin = {
+            id: 'categoryLegend',
+            afterUpdate(chart, args, options) {
+                const container = document.getElementById(options.containerID);
+                if (!container || !chart.options.plugins?.legend?.labels?.generateLabels) return;
+                const items = chart.options.plugins.legend.labels.generateLabels(chart);
+                container.innerHTML = '';
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'align-items:center;cursor:pointer;display:flex;gap:4px;';
+                    div.onclick = () => {
+                        if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
+                            chart.toggleDataVisibility(item.index);
+                        } else {
+                            chart.setDatasetVisibility(item.datasetIndex, !chart.isDatasetVisible(item.datasetIndex));
+                        }
+                        chart.update();
+                    };
+                    const boxSpan = document.createElement('span');
+                    boxSpan.style.cssText = 'background:' + item.fillStyle + ';border:1px solid ' + (item.strokeStyle || '#ccc') + ';flex-shrink:0;height:10px;width:10px;border-radius:2px;';
+                    const textSpan = document.createElement('span');
+                    textSpan.style.color = item.fontColor || '#333';
+                    textSpan.style.textDecoration = item.hidden ? 'line-through' : '';
+                    textSpan.style.overflow = 'hidden';
+                    textSpan.style.textOverflow = 'ellipsis';
+                    textSpan.style.whiteSpace = 'nowrap';
+                    textSpan.textContent = item.text;
+                    div.appendChild(boxSpan);
+                    div.appendChild(textSpan);
+                    container.appendChild(div);
+                });
+            }
+        };
+
         // 카드사 목록 로드
         async function loadBankList() {
             try {
@@ -1102,7 +1121,7 @@
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        return context.dataset.label + ': ' + formatNumber(context.parsed.y) + '원';
+                                        return context.dataset.label + ': ' + formatNumber(context.parsed.y);
                                     }
                                 }
                             }
@@ -1115,7 +1134,7 @@
                                 beginAtZero: true,
                                 ticks: {
                                     font: { size: 10 },
-                                    callback: function(value) { return formatNumber(value) + '원'; }
+                                    callback: function(value) { return formatNumber(value); }
                                 }
                             }
                         }
@@ -1139,7 +1158,7 @@
                         labels: data.bank.map(item => item.bank),
                         datasets: [{
                             data: data.bank.map(item => item.deposit + item.withdraw),
-                            backgroundColor: ['rgba(0, 0, 255, 0.5)', 'rgba(0, 255, 0, 0.5)', 'rgba(255, 128, 0, 0.5)']
+                            backgroundColor: ['rgba(0, 0, 255, 0.5)', 'rgba(0, 255, 0, 0.5)', 'rgba(255, 128, 0, 0.5)', 'rgba(255, 99, 132, 0.5)', 'rgba(153, 102, 255, 0.5)', 'rgba(75, 192, 192, 0.5)']
                         }]
                     },
                     options: {
@@ -1155,7 +1174,7 @@
                                         const bank = data.bank[index];
                                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                         const percentage = total ? ((context.parsed / total) * 100).toFixed(1) : '0';
-                                        return bank.bank + ': ' + formatNumber(context.parsed) + '원 (' + percentage + '%)';
+                                        return bank.bank + ': ' + formatNumber(context.parsed) + ' (' + percentage + '%)';
                                     }
                                 }
                             }
@@ -1170,7 +1189,7 @@
                     bDep += item.deposit;
                     bWith += item.withdraw;
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${item.bank}</td><td class="text-right" style="color:#0000FF;">${formatNumber(item.deposit)}원</td><td class="text-right" style="color:#FF0000;">${formatNumber(item.withdraw)}원</td>`;
+                    row.innerHTML = `<td>${item.bank}</td><td class="text-right" style="color:#0000FF;">${formatNumber(item.deposit)}</td><td class="text-right" style="color:#FF0000;">${formatNumber(item.withdraw)}</td>`;
                     bankTableBody.appendChild(row);
                 });
                 const bankFooter = document.getElementById('bank-table-footer');
@@ -1178,8 +1197,8 @@
                     const spans = bankFooter.querySelectorAll('span');
                     if (spans.length >= 3) {
                         spans[0].textContent = '합계';
-                        spans[1].textContent = formatNumber(bDep) + '원';
-                        spans[2].textContent = formatNumber(bWith) + '원';
+                        spans[1].textContent = formatNumber(bDep);
+                        spans[2].textContent = formatNumber(bWith);
                     }
                 }
                 const accountTableBody = document.querySelector('#account-table tbody');
@@ -1189,13 +1208,13 @@
                     aDep += item.deposit;
                     aWith += item.withdraw;
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${item.bank}</td><td>${item.account}</td><td class="text-right" style="color:#0000FF;">${formatNumber(item.deposit)}원</td><td class="text-right" style="color:#FF0000;">${formatNumber(item.withdraw)}원</td>`;
+                    row.innerHTML = `<td>${item.bank}</td><td>${item.account}</td><td class="text-right" style="color:#0000FF;">${formatNumber(item.deposit)}</td><td class="text-right" style="color:#FF0000;">${formatNumber(item.withdraw)}</td>`;
                     accountTableBody.appendChild(row);
                 });
                 const accTotalDep = document.getElementById('account-table-total-deposit');
                 const accTotalWith = document.getElementById('account-table-total-withdraw');
-                if (accTotalDep) accTotalDep.textContent = formatNumber(aDep) + '원';
-                if (accTotalWith) accTotalWith.textContent = formatNumber(aWith) + '원';
+                if (accTotalDep) accTotalDep.textContent = formatNumber(aDep);
+                if (accTotalWith) accTotalWith.textContent = formatNumber(aWith);
             } catch (error) {
                 console.error('Error loading bank analysis:', error);
             }
@@ -1240,7 +1259,7 @@
                         borderWidth: 1
                     }]
                 },
-                plugins: [{
+                plugins: [categoryLegendPlugin, {
                     id: 'doughnutCenterText',
                     afterDraw: function(chart) {
                         if (chart.config.type === 'doughnut' && chart.data.datasets[0]) {
@@ -1252,7 +1271,7 @@
                             ctx.textBaseline = 'middle';
                             ctx.font = 'bold 16px Malgun Gothic';
                             ctx.fillStyle = '#333';
-                            ctx.fillText(formatNumber(total) + '원', centerX, centerY - 10);
+                            ctx.fillText(formatNumber(total), centerX, centerY - 10);
                             ctx.font = '12px Malgun Gothic';
                             ctx.fillStyle = '#666';
                             ctx.fillText('총 출금액', centerX, centerY + 12);
@@ -1265,17 +1284,14 @@
                     maintainAspectRatio: false,
                     cutout: '30%',
                     plugins: {
-                        legend: {
-                            display: true,
-                            position: 'right',
-                            labels: { padding: 14 }
-                        },
+                        legend: { display: false },
+                        categoryLegend: { containerID: 'category-chart-legend' },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
                                     const value = context.parsed;
                                     const pct = ((value / total) * 100).toFixed(1);
-                                    return context.label + ': ' + formatNumber(value) + '원 (' + pct + '%)';
+                                    return context.label + ': ' + formatNumber(value) + ' (' + pct + '%)';
                                 }
                             }
                         }
@@ -1373,18 +1389,16 @@
                 // 카테고리별 원그래프 업데이트 (전체 데이터)
                 updateCategoryChart(allCategoryData);
                 
-                // 스크롤 이벤트 리스너 추가
-                const container = document.querySelector('.category-table-container');
-                if (container) {
-                    // 기존 스크롤 이벤트 리스너 제거 (이전에 추가된 것이 있다면)
-                    if (container._scrollHandler) {
-                        container.removeEventListener('scroll', container._scrollHandler);
+                // 스크롤 이벤트 리스너 추가 (category-table-scroll에 스크롤 발생)
+                const scrollEl = document.querySelector('.category-table-container .category-table-scroll');
+                if (scrollEl) {
+                    if (scrollEl._scrollHandler) {
+                        scrollEl.removeEventListener('scroll', scrollEl._scrollHandler);
                     }
-                    // 새로운 스크롤 핸들러 생성 및 저장
-                    container._scrollHandler = () => {
+                    scrollEl._scrollHandler = () => {
                         updateChartFromTable();
                     };
-                    container.addEventListener('scroll', container._scrollHandler);
+                    scrollEl.addEventListener('scroll', scrollEl._scrollHandler);
                 }
             } catch (error) {
                 console.error('Error loading category analysis:', error);
@@ -1428,10 +1442,10 @@
             if (!selectedCategory) {
                 tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">카테고리를 선택하세요.</td></tr>';
                 setFooterSums(0, 0);
-                if (titleEl) titleEl.textContent = '카테고리별 거래내역';
+                if (titleEl) titleEl.textContent = '카테고리 거래내역';
                 return;
             }
-            if (titleEl) titleEl.textContent = '카테고리별 거래내역 (' + selectedCategory + ')';
+            if (titleEl) titleEl.textContent = '카테고리 거래내역 (' + selectedCategory + ')';
             tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td></tr>';
             try {
                 const bankFilter = document.getElementById('bank-filter').value;

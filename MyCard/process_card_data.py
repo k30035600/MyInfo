@@ -22,10 +22,12 @@ process_card_data.py — 카드 전용. (은행 관련 역할 없음)
 
 .source는 .xls, .xlsx만 취급.
 """
+import numpy as np
 import pandas as pd
 import os
 import re
 import sys
+import unicodedata
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -52,9 +54,12 @@ SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
 SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
 
 CARD_BEFORE_FILE = "card_before.xlsx"
-# card_before.xlsx 컬럼 8개 (카테고리는 info_category.xlsx 신용카드 구분으로 분류)
+# card_before.xlsx 컬럼 (추출 시 이용금액 사용 → 저장 전 입금액/출금액/취소로 변환)
+_EXTRACT_COLUMNS = [
+    '카드사', '카드번호', '이용일', '이용시간', '이용금액', '가맹점명', '사업자번호', '할부', '취소여부'
+]
 CARD_BEFORE_COLUMNS = [
-    '카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리'
+    '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '사업자번호', '할부'
 ]
 EXCEL_EXTENSIONS = ('*.xls', '*.xlsx')
 SEARCH_COLUMNS = ['적요', '내용', '거래점', '송금메모', '가맹점명']
@@ -64,7 +69,9 @@ HEADER_TO_STANDARD = {
     '카드사': ['카드사', '카드명'],
     '카드번호': ['카드번호'],
     '이용일': ['이용일', '이용일자', '승인일', '승인일자', '거래일', '거래일자', '매출일', '매출일자', '확정일', '확정일자'],
+    '이용시간': ['이용시간', '승인시간', '거래시간', '승인시각', '이용시각'],
     '이용금액': ['이용금액', '승인금액', '매출금액', '거래금액'],
+    '취소여부': ['취소여부', '취소'],
     '가맹점명': ['가맹점명', '이용처', '승인가맹점'],
     '사업자번호': ['사업자번호', '가맹점사업자번호', '가맹점 사업자번호', '사업자등록번호'],
     '할부': ['할부', '할부기간'],
@@ -76,27 +83,37 @@ AMOUNT_COLUMN_KEYWORDS = ('금액', '입금', '출금', '잔액')
 # 유틸리티 함수
 # =========================================================
 
+try:
+    from info_category_io import normalize_주식회사_for_match
+except ImportError:
+    def normalize_주식회사_for_match(text):
+        if text is None or (isinstance(text, str) and not str(text).strip()):
+            return '' if text is None else str(text).strip()
+        val = str(text).strip()
+        val = re.sub(r'[\s/]*주식회사[\s/]*', '(주)', val)
+        val = re.sub(r'[\s/]*㈜[\s/]*', '(주)', val)
+        val = re.sub(r'(\(주\)[\s/]*)+', '(주)', val)
+        return val
+
+
 def safe_str(value):
-    """NaN 값 처리 및 안전한 문자열 변환"""
+    """NaN 값 처리 및 안전한 문자열 변환. 전처리/후처리 매칭용으로 주식회사·㈜ → (주) 통일."""
     if pd.isna(value) or value is None:
         return ""
     val = str(value).strip()
     if val.lower() in ['nan', 'na', 'n', 'none', '']:
         return ""
-    
+    val = normalize_주식회사_for_match(val)
     val = val.replace('((', '(')
     val = val.replace('))', ')')
     val = val.replace('__', '_')
     val = val.replace('{}', '')
     val = val.replace('[]', '')
-    val = val.replace('주식회사', '(주)')
-    
     if val.count('(') != val.count(')'):
         if val.count('(') > val.count(')'):
             val = val.replace('(', '')
         elif val.count(')') > val.count('('):
             val = val.replace(')', '')
-    
     return val
 
 def clean_amount(value):
@@ -273,7 +290,7 @@ def _get_header_like_strings():
     global _HEADER_LIKE_STRINGS
     if _HEADER_LIKE_STRINGS is not None:
         return _HEADER_LIKE_STRINGS
-    s = set(CARD_BEFORE_COLUMNS)
+    s = set(_EXTRACT_COLUMNS) | set(CARD_BEFORE_COLUMNS)
     for keywords in HEADER_TO_STANDARD.values():
         for kw in keywords:
             s.add(str(kw).strip())
@@ -342,8 +359,8 @@ def _row_as_dict(row_tuple, num_cols):
 
 
 def _row_from_mapping(row, idx_to_std, card_company_from_file):
-    """인덱스 매핑으로 한 행을 표준 8컬럼 dict로 변환. 카드사는 파일명에서, 할부 0은 공백."""
-    new_row = {col: '' for col in CARD_BEFORE_COLUMNS}
+    """인덱스 매핑으로 한 행을 추출용 컬럼 dict로 변환. 카드사는 파일명에서, 할부 0은 공백."""
+    new_row = {col: '' for col in _EXTRACT_COLUMNS}
     for i in sorted(idx_to_std.keys()):
         std_col = idx_to_std[i]
         if new_row[std_col]:
@@ -362,9 +379,18 @@ def _row_from_mapping(row, idx_to_std, card_company_from_file):
     return _normalize_row_values(new_row)
 
 
+def _normalize_fullwidth(val):
+    """전각(Fullwidth) 문자 → 반각(Halfwidth) 변환 (예: ＳＫＴ５３２２ → SKT5322)."""
+    if pd.isna(val) or val == '':
+        return val
+    return unicodedata.normalize('NFKC', str(val).strip())
+
 def _normalize_row_values(new_row):
     """표준 행의 이용금액·사업자번호·할부·이용일 값을 정규화."""
-    for col in CARD_BEFORE_COLUMNS:
+    for col in ['카드사', '카드번호', '가맹점명']:
+        if new_row.get(col):
+            new_row[col] = _normalize_fullwidth(new_row[col])
+    for col in _EXTRACT_COLUMNS:
         if col == '이용금액' and new_row.get(col) and str(new_row[col]).replace(',', '').replace('-', '').strip():
             try:
                 new_row[col] = clean_amount(new_row[col])
@@ -375,7 +401,10 @@ def _normalize_row_values(new_row):
         elif col == '할부':
             new_row[col] = _normalize_할부(new_row[col])
         elif col == '이용일' and new_row.get(col):
-            new_row[col] = _normalize_date_value(new_row[col])
+            date_part, time_part = _split_datetime_value(new_row[col])
+            new_row[col] = _normalize_date_value(date_part) if date_part else _normalize_date_value(new_row[col])
+            if time_part and not (new_row.get('이용시간') and str(new_row.get('이용시간', '')).strip()):
+                new_row['이용시간'] = _normalize_time_value(time_part)
     return new_row
 
 
@@ -409,6 +438,40 @@ def _normalize_date_value(val):
         return str(val).strip()
 
 
+def _split_datetime_value(val):
+    """이용일 컬럼에 'yy/mm/dd'만 있거나 'yy/mm/dd hh:mm:ss' 등이 섞인 경우 날짜/시간 분리.
+    반환: (date_str, time_str). 시간이 없으면 time_str은 ''."""
+    if pd.isna(val) or val == '' or (isinstance(val, str) and not str(val).strip()):
+        return ('', '')
+    s = str(val).strip()
+    if not s:
+        return ('', '')
+    # 공백 또는 T로 구분된 날짜+시간 패턴
+    if ' ' in s:
+        parts = s.split(None, 1)
+        if len(parts) == 2 and re.search(r'\d{1,2}:\d{1,2}', parts[1]):
+            return (parts[0].strip(), parts[1].strip())
+    if 'T' in s and re.search(r'\d{1,2}:\d{1,2}', s):
+        idx = s.index('T')
+        return (s[:idx].strip(), s[idx + 1:].strip())
+    return (s, '')
+
+
+def _normalize_time_value(val):
+    """시간 문자열을 hh:mm 또는 hh:mm:ss 형식으로 정규화."""
+    if pd.isna(val) or val == '' or (isinstance(val, str) and not str(val).strip()):
+        return ''
+    s = str(val).strip()
+    m = re.match(r'^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?', s)
+    if m:
+        h, mi = m.group(1).zfill(2), m.group(2).zfill(2)
+        sec = m.group(3)
+        if sec is not None:
+            return f'{h}:{mi}:{sec.zfill(2)}'
+        return f'{h}:{mi}:00'
+    return s
+
+
 def _is_date_like_value(val):
     """이용일로 쓸 만한 값인지 판별. 0/1 같은 코드·순번은 False."""
     if pd.isna(val) or val == '':
@@ -435,8 +498,8 @@ def _is_date_like_value(val):
 
 
 def _row_to_standard_columns(row, source_columns):
-    """.source 한 행(Series)을 표준 8컬럼 dict로 변환."""
-    new_row = {col: '' for col in CARD_BEFORE_COLUMNS}
+    """.source 한 행(Series)을 추출용 컬럼 dict로 변환."""
+    new_row = {col: '' for col in _EXTRACT_COLUMNS}
     for src_col in source_columns:
         std_col = _map_source_header_to_standard(src_col)
         if std_col is None:
@@ -452,7 +515,7 @@ def _row_to_standard_columns(row, source_columns):
 
 
 def _extract_rows_from_sheet(df, card_company_from_file):
-    """시트 DataFrame에서 표준 8컬럼 행 리스트 추출."""
+    """시트 DataFrame에서 추출용 행 리스트 추출 (이용금액 포함)."""
     rows = []
     num_cols = len(df.columns)
     idx_to_std = None
@@ -464,7 +527,12 @@ def _extract_rows_from_sheet(df, card_company_from_file):
             idx_to_std = _build_mapping_from_header_row(row)
             continue
         if _looks_like_header_row(row, range(num_cols)):
-            idx_to_std = _build_mapping_from_header_row(row)
+            new_map = _build_mapping_from_header_row(row)
+            # 이전 매핑 유지: 새 헤더에서 매핑되지 않은 인덱스는 기존 idx_to_std 보존 (국민카드 등 2행 헤더에서 취소여부 누락 방지)
+            for idx, std_col in list(idx_to_std.items()):
+                if idx not in new_map:
+                    new_map[idx] = std_col
+            idx_to_std = new_map
             continue
         new_row = _row_from_mapping(row, idx_to_std, card_company_from_file)
         if all(not v or (isinstance(v, str) and not str(v).strip()) for v in new_row.values()):
@@ -474,6 +542,71 @@ def _extract_rows_from_sheet(df, card_company_from_file):
             continue
         rows.append(new_row)
     return rows
+
+
+def _load_prepost_rules(category_path=None):
+    """info_category.xlsx에서 전처리/후처리 규칙만 로드. 반환: (전처리_list, 후처리_list), 각 항목은 {'키워드': str, '카테고리': str}."""
+    path = Path(category_path or os.path.join(PROJECT_ROOT, 'info_category.xlsx'))
+    if not path.exists():
+        return [], []
+    try:
+        from info_category_io import load_info_category, normalize_category_df
+        full = load_info_category(str(path), default_empty=True)
+        if full is None or full.empty:
+            return [], []
+        full = normalize_category_df(full).fillna('')
+        full.columns = [str(c).strip() for c in full.columns]
+        if '분류' not in full.columns or '키워드' not in full.columns or '카테고리' not in full.columns:
+            return [], []
+        전처리 = []
+        후처리 = []
+        for _, row in full.iterrows():
+            분류 = str(row.get('분류', '')).strip()
+            키워드 = str(row.get('키워드', '')).strip()
+            카테고리 = str(row.get('카테고리', '')).strip()
+            if not 키워드:
+                continue
+            if 분류 == '전처리':
+                전처리.append({'키워드': 키워드, '카테고리': 카테고리})
+            elif 분류 == '후처리':
+                후처리.append({'키워드': 키워드, '카테고리': 카테고리})
+        # 긴 키워드 먼저 적용 (부분 치환 방지)
+        전처리.sort(key=lambda x: len(x['키워드']), reverse=True)
+        후처리.sort(key=lambda x: len(x['키워드']), reverse=True)
+        return 전처리, 후처리
+    except Exception as e:
+        print(f"전처리/후처리 규칙 로드 실패: {e}", flush=True)
+        return [], []
+
+
+def _apply_prepost_to_columns(df, columns_to_apply):
+    """DataFrame의 지정 컬럼에 info_category 전처리·후처리 규칙 적용 (키워드 → 카테고리 치환).
+    적용 전에 해당 컬럼을 주식회사→(주) 등으로 정규화해 category 키워드 매칭을 확실히 함."""
+    if df is None or df.empty or not columns_to_apply:
+        return df
+    전처리, 후처리 = _load_prepost_rules()
+    if not 전처리 and not 후처리:
+        return df
+    df = df.copy()
+    for col in columns_to_apply:
+        if col not in df.columns:
+            continue
+        # 전처리/후처리 키워드 매칭 전에 컬럼 값을 주식회사→(주) 등으로 정규화
+        df[col] = df[col].fillna('').astype(str).apply(lambda v: safe_str(v))
+    for col in columns_to_apply:
+        if col not in df.columns:
+            continue
+        for rule_list in (전처리, 후처리):
+            for rule in rule_list:
+                kw = rule['키워드']
+                cat = rule['카테고리']
+                if not kw:
+                    continue
+                kw_norm = normalize_주식회사_for_match(kw)
+                if not kw_norm:
+                    continue
+                df[col] = df[col].fillna('').astype(str).str.replace(re.escape(kw_norm), cat, regex=True)
+    return df
 
 
 def _postprocess_combined_df(df):
@@ -490,6 +623,12 @@ def _postprocess_combined_df(df):
             df['이용금액'].notna() & empty_merchant
         )
         df.loc[has_card, '가맹점명'] = df.loc[has_card, '카드사']
+        # 신한카드에서 가맹점명이 '신한카드'인 경우(카드론 등): '신한카드_카드론'으로 수정
+        sh_mask = (
+            df['카드사'].fillna('').astype(str).str.strip().str.contains('신한', na=False) &
+            (df['가맹점명'].fillna('').astype(str).str.strip() == '신한카드')
+        )
+        df.loc[sh_mask, '가맹점명'] = '신한카드_카드론'
     if '할부' in df.columns:
         df['할부'] = df['할부'].apply(
             lambda v: '' if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ('', '0', '일시불') else v
@@ -500,7 +639,7 @@ def _postprocess_combined_df(df):
 def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
     """MyInfo/.source/Card 의 카드 엑셀을 모아 MyCard/card_before.xlsx 생성.
 
-    - 테이블 헤더: 카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리 (card_before.xlsx 8컬럼)
+    - 테이블 헤더: 카드사, 카드번호, 이용일, 이용시간, 입금액, 출금액, 취소, 가맹점명, 사업자번호, 할부
     - skip_write=True 이면 파일 쓰지 않고 DataFrame만 반환.
 
     base_dir: 무시됨. 원본: .source/Card, 출력: MyCard 폴더.
@@ -526,8 +665,63 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
         except Exception as e:
             print(f"오류: {name} 처리 실패 - {e}")
 
-    combined_df = pd.DataFrame(all_rows, columns=CARD_BEFORE_COLUMNS) if all_rows else pd.DataFrame(columns=CARD_BEFORE_COLUMNS)
-    combined_df = _postprocess_combined_df(combined_df)
+    extract_df = pd.DataFrame(all_rows, columns=_EXTRACT_COLUMNS) if all_rows else pd.DataFrame(columns=_EXTRACT_COLUMNS)
+    extract_df = _postprocess_combined_df(extract_df)
+
+    # 이용금액 → 입금액/출금액/취소 변환 (card_before 저장용)
+    # - 취소여부 "Y"/"취소" → 취소, 입금액=절대값, 출금액=0
+    # - 신한카드(취소여부 컬럼 없음) + 이용금액 음수 → 취소로 간주
+    # - 그 외 음수 → 포인트/할인(입금): 취소 없음, 입금액=절대값, 출금액=0
+    if extract_df.empty:
+        combined_df = pd.DataFrame(columns=CARD_BEFORE_COLUMNS)
+    else:
+        if '이용금액' in extract_df.columns:
+            amt = pd.to_numeric(extract_df['이용금액'], errors='coerce').fillna(0)
+            has_cancel_col = '취소여부' in extract_df.columns
+            if has_cancel_col:
+                cancel_flag = extract_df['취소여부'].astype(str).str.strip()
+                is_cancel_by_flag = (cancel_flag.str.upper() == 'Y') | (cancel_flag == '취소')
+            else:
+                is_cancel_by_flag = pd.Series(False, index=extract_df.index)
+            # 신한카드: 취소여부 없을 때만 음수면 취소
+            is_cancel_shinhan = ~has_cancel_col & (amt < 0)
+            is_cancel = is_cancel_by_flag | is_cancel_shinhan
+            # 입금액: 취소면 절대값, 취소 아닌데 음수면 포인트/할인 절대값, 나머지 0
+            extract_df['취소'] = np.where(is_cancel, '취소', '')
+            # 취소 컬럼은 문자만: 0/NaN이 들어가지 않도록 문자열로 통일 (Excel에 0으로 보이는 것 방지)
+            extract_df['취소'] = extract_df['취소'].astype(str).replace('nan', '').replace('0', '')
+            extract_df['입금액'] = np.where(is_cancel, amt.abs(), np.where(amt < 0, amt.abs(), 0))
+            extract_df['출금액'] = np.where(is_cancel, 0, np.where(amt > 0, amt, 0))
+            extract_df = extract_df.drop(columns=['이용금액'], errors='ignore')
+            extract_df = extract_df.drop(columns=['취소여부'], errors='ignore')
+        else:
+            if '입금액' not in extract_df.columns:
+                extract_df['입금액'] = 0
+            if '출금액' not in extract_df.columns:
+                extract_df['출금액'] = 0
+            if '취소' not in extract_df.columns:
+                extract_df['취소'] = ''
+        combined_df = extract_df[[c for c in CARD_BEFORE_COLUMNS if c in extract_df.columns]].reindex(columns=CARD_BEFORE_COLUMNS).copy()
+
+        # 이용시간 없으면 00:00:00으로 채움
+        if '이용시간' in combined_df.columns:
+            def _fill_이용시간(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)): return '00:00:00'
+                s = str(v).strip()
+                return '00:00:00' if not s else s
+            combined_df['이용시간'] = combined_df['이용시간'].apply(_fill_이용시간)
+
+        # 가맹점명 "신한카드_카드론": 출금액(상환)을 입금액으로 옮기고 출금액 0
+        if '가맹점명' in combined_df.columns and '입금액' in combined_df.columns and '출금액' in combined_df.columns:
+            cardron = (combined_df['가맹점명'].fillna('').astype(str).str.strip() == '신한카드_카드론')
+            if cardron.any():
+                combined_df.loc[cardron, '입금액'] = combined_df.loc[cardron, '출금액']
+                combined_df.loc[cardron, '출금액'] = 0
+
+        # card_before에는 전처리/후처리 적용하지 않음 (전처리/후처리는 card_after 생성 시에만 적용)
+        # card_before.xlsx 저장 시 입금액은 절대값으로 보장
+        if '입금액' in combined_df.columns:
+            combined_df['입금액'] = pd.to_numeric(combined_df['입금액'], errors='coerce').fillna(0).abs()
 
     if not skip_write:
         try:
@@ -545,117 +739,20 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
 # 2. 카테고리 테이블: info_category.xlsx(신용카드 구분) 생성·갱신
 # =========================================================
 
-# info_category(신용카드) 기본 규칙: 가맹점명 키워드로 계정과목 분류 (분류, 키워드, 카테고리)
-# 계정과목 기준 정렬(가나다). 선매칭(파리바게뜨/베이커리, 씨유, 이마트/롯데마트)은 병원·기타잡비(마트)보다 먼저 적용.
-_PRECEDENCE_RULES = [  # 병원 등보다 먼저 매칭 (파리바게뜨 국제성모병원점, 씨유 국제성모병원, 이마트/롯데마트는 주식비/부식비)
-    {'분류': '계정과목', '키워드': '파리바게뜨/베이커리', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '씨유/CU', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '(주)이마트/롯데마트/식자재/이마트', '카테고리': '주식비/부식비'},
-]
-DEFAULT_CARD_CATEGORY_ROWS = [
-    *_PRECEDENCE_RULES,
-    # 계정과목 기준 정렬 (가나다순)
-    # 가전/가구/의류/생필품
-    {'분류': '계정과목', '키워드': '가전/의류/가구/023/나눔과어울림', '카테고리': '가전/가구/의류/생필품'},
-    {'분류': '계정과목', '키워드': '비와이씨/삼성전자/현대아울렛/나무다움/어패럴', '카테고리': '가전/가구/의류/생필품'},
-    {'분류': '계정과목', '키워드': '스퀘어/자라/공영쇼핑/스퀘어/쇼핑/에이비씨/이랜드', '카테고리': '가전/가구/의류/생필품'},
-    {'분류': '계정과목', '키워드': '몰테일/이케아/버킷/신세계/올리브영', '카테고리': '가전/가구/의류/생필품'},
-    # 차량유지/교통비
-    {'분류': '계정과목', '키워드': '버스/택시/차량유지/자동차/지하철/칼텍스/자동차보험/차량보험', '카테고리': '차량유지/교통비'},
-    {'분류': '계정과목', '키워드': '북서울에너지/피킹/도로공사/티머니/에이티씨', '카테고리': '차량유지/교통비'},
-    {'분류': '계정과목', '키워드': '인천30/인천32/시설공단/문학터널/문학개발/주유소', '카테고리': '차량유지/교통비'},
-    {'분류': '계정과목', '키워드': '만월산/선학현대/후불교통/로드801/에너지/시설안전', '카테고리': '차량유지/교통비'},
-    {'분류': '계정과목', '키워드': '파킹/현대오일/태리/코레일/철도', '카테고리': '차량유지/교통비'},
-    {'분류': '계정과목', '키워드': '시설관리/기아오토큐/시설공단/국민오일', '카테고리': '차량유지/교통비'},
-    # 귀금속
-    {'분류': '계정과목', '키워드': '금은방/귀금속/거래소', '카테고리': '귀금속'},
-    # 기타잡비
-    {'분류': '계정과목', '키워드': '클락에이/CU/GS/마트/쿠팡/네이버/후이즈/타이거', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '토스/쇼핑몰/쇼핑/보타나/공공기관/결재대행/결제대행', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': 'NICE/SMS/면세점/에이치/제이디/라프/씨유/플라워', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '엠에스/세탁소/세븐일레븐/법원/미앤미/헤어/지에스', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '예스이십사/코리아세븐/건설기술/티몬/에이스', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '다온나/아이지/미니스톱/우체국/월드/이투유/나이스', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '더에덴/옥션/나래/로그인/메트로/홈엔/ARS/카카오', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '와이에스/다날/홈마트/슈퍼/로웰/유니윌/코페이', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '스테이지/이마트24/부경/에스씨/부경/목욕탕/구글', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '다이소/빈티지/마이리얼/홈쇼핑/올댓/그릇/로스', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '컬리페이/키오스크/에스지씨/에델/크린토피아/미성', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '블랙벤자민/LIVING/슬립/세탁/만물/그릇/유진/두찜', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '티무/황실/KICC/KCP/마이/플래티넘/몽실/가위', '카테고리': '기타잡비'},
-    {'분류': '계정과목', '키워드': '이니시스/메머드', '카테고리': '기타잡비'},
-    # 레저/휴양/취미/오락
-    {'분류': '계정과목', '키워드': '오락/취미/레저/휴양/교보문고', '카테고리': '레저/휴양/취미/오락'},
-    {'분류': '계정과목', '키워드': '중국동방/CGV', '카테고리': '레저/휴양/취미/오락'},
-    # 외식/회식/간식
-    {'분류': '계정과목', '키워드': '외식/회식/간식/호치킨/콩닭/모밀방/상회/필/삼계탕', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '제주도/애월/바이/해장국/족발/연쭈/모미락/도미노', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '맛있는죽/맥도날드/새록/칼국수/순대/식당/롯데리아', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '오구본가/연탄/파리바게뜨/타이거/김치/수산/국수', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '선학사골/천상/메가/스타벅스/엔제리너스/리너스/추어탕', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '더달달/컴포즈/닭집/할매/동태촌/왕냉면/통닭/아구', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '추어탕/부대/부대찌게/보리밥/본죽/카페/안스/식당/이학', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '아방궁/돈풀/카페온/부원집/능허대/옹진/상사/국밥', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '뜰아래/솔도갈매기/미두야/소바/포베이/10월/조개', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '오케이/웨이업/산자락에/막국수/공간븟/굴사냥', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '닭곰탕/메밀국수/저푸른/닭소리/사계절/두루담채', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '콩세알/지에스/바로/손만두/멕시카나/청량산/연어', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '빽다방/패류/씨푸드/해장국/김밥/이디야/어시장', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '장수마을/어부장/동춘옥/푸드/공차/이학/두부/모밀', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '반점/닭강정/생오리/떡방아/마장동/자판기/민영', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '조개/불닭발/직화/던킨/얼음/다정이네/올댓/메고', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '미스터/스마일/투썸/대신기업/손만두/휴게소/매반', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '만강홍/페리카나/최부자네/부대/부대찌게/공간븟/야래향/송도갈매기', '카테고리': '외식/회식/간식'},
-    {'분류': '계정과목', '키워드': '엔제리너스/리너스/물고기/낙지', '카테고리': '외식/회식/간식'},
-    # 의료비
-    {'분류': '계정과목', '키워드': '병원/의원/치과/약국/건강보험/나사렛/레푸스/메디컬', '카테고리': '의료비'},
-    {'분류': '계정과목', '키워드': '이비인후과/신경외과/정형외과/엄마손/워너독', '카테고리': '의료비'},
-    {'분류': '계정과목', '키워드': '견생냥품/동물의료/안과', '카테고리': '의료비'},
-    # 제세공과금
-    {'분류': '계정과목', '키워드': '국세/지방세/세외/주민세/행정안전부/연수구청', '카테고리': '제세공과금'},
-    {'분류': '계정과목', '키워드': '소득세/교육청/소액합산/행정복지/자동차세/취득세', '카테고리': '제세공과금'},
-    {'분류': '계정과목', '키워드': '지자체/곡공기관/인천광역시/부가가치세/전몰', '카테고리': '제세공과금'},
-    # 주거비/통신비
-    {'분류': '계정과목', '키워드': '수도/전기/한국전력/가스/통신/관리비/케이티/SK/수신료', '카테고리': '주거비/통신비'},
-    # 주식비/부식비 (이마트/롯데마트/식자재는 _PRECEDENCE_RULES에서 선매칭)
-    {'분류': '계정과목', '키워드': '주식/부식/반찬/농산물/SSG/건어물/씨푸드/웅이/과일/야채/코스트코/홈플러스', '카테고리': '주식비/부식비'},
-    {'분류': '계정과목', '키워드': '정육점/세계로/생선/푸줏간/우아한/성필립보', '카테고리': '주식비/부식비'},
-    # 현금처리
-    {'분류': '계정과목', '키워드': '현금/서비스/대출', '카테고리': '현금처리'},
-    {'분류': '계정과목', '키워드': '신한은행/하나은행/신한카드/리볼빙', '카테고리': '현금처리'},
-    # 업종분류
-    {'분류': '업종분류', '키워드': '369101', '카테고리': '귀금속및관련제품제조업'},
-    {'분류': '업종분류', '키워드': '512293', '카테고리': '복권발행및판매업'},
-    {'분류': '업종분류', '키워드': '513934', '카테고리': '시계및귀금속제품도매업'},
-    {'분류': '업종분류', '키워드': '522082/924906', '카테고리': '복권발행및판매업'},
-    {'분류': '업종분류', '키워드': '924917', '카테고리': '기타사행시설관리및운영업'},
-    {'분류': '업종분류', '키워드': '552201/552202/552203/552204/552206', '카테고리': '일반유흥주점업'},
-    {'분류': '업종분류', '키워드': '552207/552208/552209/552210/552211/552211/552211', '카테고리': '기타주점업'},
-    {'분류': '업종분류', '키워드': '513942/523931', '카테고리': '운동및경기용품도매업'},
-    {'분류': '업종분류', '키워드': '551001', '카테고리': '호텔업'},
-    {'분류': '업종분류', '키워드': '621000', '카테고리': '항공여객운송업'},
-    {'분류': '업종분류', '키워드': '621001', '카테고리': '항공화물운송업'},
-    {'분류': '업종분류', '키워드': '630101', '카테고리': '항공및육상화물취급업'},
-    {'분류': '업종분류', '키워드': '921904', '카테고리': '무도장운영업'},
-    {'분류': '업종분류', '키워드': '924303', '카테고리': '골프장운영업'},
-    {'분류': '업종분류', '키워드': '924307', '카테고리': '골프연습장운영업'},
-    {'분류': '업종분류', '키워드': '924308', '카테고리': '골프연습장운영업'},
-]
+# info_category(신용카드): category_create.md 파싱 또는 info_category_defaults 기본값 사용
+# 카테고리 분류: apply_category_from_merchant에서 계정과목만 사용, 키워드 길이 순, 기본값 기타거래
 
 
 def create_category_table(df=None, category_filepath=None):
-    """info_category.xlsx 생성·갱신 (구분 없음). 분류 = 계정과목, 업종분류. category_filepath: None이면 MyInfo/info_category.xlsx."""
-    category_data = list(DEFAULT_CARD_CATEGORY_ROWS)
-    seen_all = set()
-    unique_category_data = []
-    for item in category_data:
-        분류 = str(item.get('분류', '')).strip()
-        키워드 = str(item.get('키워드', '')).strip()
-        카테고리 = str(item.get('카테고리', '')).strip()
-        key = (분류, 키워드, 카테고리)
-        if key not in seen_all:
-            seen_all.add(key)
-            unique_category_data.append({'분류': 분류, '키워드': 키워드, '카테고리': 카테고리})
+    """info_category.xlsx 생성·갱신 (구분 없음). 분류 = 계정과목, 업종분류. category_create.md 파싱 또는 기본값 사용."""
+    try:
+        from info_category_defaults import get_default_rules
+    except ImportError:
+        _root = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+        if _root not in sys.path:
+            sys.path.insert(0, _root)
+        from info_category_defaults import get_default_rules
+    unique_category_data = get_default_rules('card')
     category_df = pd.DataFrame(unique_category_data).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
     _root = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
     default_info = os.path.join(_root, 'info_category.xlsx')
@@ -664,16 +761,20 @@ def create_category_table(df=None, category_filepath=None):
         parent_dir = os.path.dirname(out_path)
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
+        _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+        if _root not in sys.path:
+            sys.path.insert(0, _root)
+        from info_category_io import safe_write_info_category_xlsx, load_info_category, normalize_category_df, INFO_CATEGORY_COLUMNS
         if len(category_df) == 0:
-            category_df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        out = category_df[['분류', '키워드', '카테고리']].copy()
+            category_df = pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
+        out = category_df[INFO_CATEGORY_COLUMNS].copy()
         if os.path.exists(out_path):
-            full = pd.read_excel(out_path, engine='openpyxl').fillna('')
-            if '구분' in full.columns:
-                full = full.drop(columns=['구분'], errors='ignore')
-            if all(c in full.columns for c in ['분류', '키워드', '카테고리']):
-                out = pd.concat([full[['분류', '키워드', '카테고리']], out], ignore_index=True).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
-        out.to_excel(out_path, index=False, engine='openpyxl')
+            full = load_info_category(out_path, default_empty=True)
+            if full is not None and not full.empty:
+                full = normalize_category_df(full)
+                if not full.empty:
+                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
+        safe_write_info_category_xlsx(out_path, out)
         if not os.path.exists(out_path):
             raise FileNotFoundError(f"오류: 파일 생성 후에도 {out_path} 파일이 존재하지 않습니다.")
     except PermissionError as e:
@@ -686,9 +787,8 @@ def create_category_table(df=None, category_filepath=None):
 
 
 def apply_category_from_merchant(df, category_df):
-    """가맹점명을 기초로 info_category(신용카드) 규칙(분류, 키워드, 카테고리)을 적용해 df['카테고리'] 채움.
-    계정과목 분류를 먼저 적용하고, 키워드(슬래시 구분)가 가맹점명에 포함되면 해당 카테고리 할당.
-    벡터화로 행 단위 iterrows 제거하여 대용량에서 속도 개선."""
+    """가맹점명을 기초로 info_category(신용카드) 규칙을 적용해 df['카테고리'] 채움.
+    분류=계정과목만 사용. 키워드 길이 긴 순 적용. 기본값 기타거래, 매칭된 행만 계정과목으로 덮어씀."""
     if df is None or df.empty or category_df is None or category_df.empty:
         return df
     if '가맹점명' not in df.columns:
@@ -696,86 +796,61 @@ def apply_category_from_merchant(df, category_df):
     if '카테고리' not in df.columns:
         df = df.copy()
         df['카테고리'] = ''
-    # 컬럼명 공백 제거
+    if '키워드' not in df.columns:
+        df['키워드'] = ''
     category_df = category_df.copy()
     category_df.columns = [str(c).strip() for c in category_df.columns]
     need_cols = ['분류', '키워드', '카테고리']
     if not all(c in category_df.columns for c in need_cols):
         return df
-    # 선매칭 규칙(_PRECEDENCE_RULES)을 항상 맨 앞에 붙여 Excel에 없어도 이마트/롯데마트 → 주식비/부식비 적용
-    precedence_df = pd.DataFrame(_PRECEDENCE_RULES)
-    precedence_df = precedence_df[need_cols] if all(c in precedence_df.columns for c in need_cols) else pd.DataFrame(columns=need_cols)
-    if len(precedence_df) > 0:
-        category_df = pd.concat([precedence_df, category_df], ignore_index=True)
-        category_df = category_df.drop_duplicates(subset=need_cols, keep='first').reset_index(drop=True)
-    # 계정과목 우선 적용 (가맹점명 기반 분류), 그 다음 업종분류 등
-    order = ['계정과목', '업종분류']
-    precedence_keys = {
-        (str(r.get('분류', '')).strip(), str(r.get('키워드', '')).strip(), str(r.get('카테고리', '')).strip())
-        for r in _PRECEDENCE_RULES
-    }
-    # 주식비/부식비 중 이마트/롯데마트/식자재 키워드 포함 행도 선매칭 (예전 Excel 호환)
-    def is_precedence(row):
-        key = (str(row.get('분류', '')).strip(), str(row.get('키워드', '')).strip(), str(row.get('카테고리', '')).strip())
-        if key in precedence_keys:
-            return True
-        if key[0] == '계정과목' and key[2] == '주식비/부식비' and key[1]:
-            kw = key[1]
-            if '롯데마트' in kw or '(주)이마트' in kw or '식자재' in kw:
-                return True
-        return False
-    cat_sorted = category_df.copy()
-    cat_sorted['_order'] = cat_sorted['분류'].apply(
-        lambda x: order.index(str(x).strip()) if str(x).strip() in order else 999
-    )
-    cat_sorted['_priority'] = cat_sorted.apply(lambda row: 0 if is_precedence(row) else 1, axis=1)
-    cat_sorted = cat_sorted.sort_values(['_order', '_priority']).drop(columns=['_order', '_priority'], errors='ignore')
+    # 계정과목만 사용. 행별 최대 키워드 길이 기준 정렬(긴 것 먼저). 매칭된 키워드가 더 긴 경우에만 덮어씀.
+    account_mask = (category_df['분류'].astype(str).str.strip() == '계정과목')
+    account_df = category_df.loc[account_mask].copy()
+    if account_df.empty:
+        return df
+    def _max_kw_len(s):
+        parts = [k.strip() for k in str(s).split('/') if k.strip()]
+        return max(len(k) for k in parts) if parts else 0
+    account_df['_max_klen'] = account_df['키워드'].apply(_max_kw_len)
+    account_df = account_df.sort_values('_max_klen', ascending=False).drop(columns=['_max_klen'], errors='ignore')
     df = df.copy()
-    # 카테고리 컬럼을 object로 변환해 문자열 할당 시 FutureWarning 방지 (Excel 로드 시 float64인 경우)
     df['카테고리'] = df['카테고리'].astype(object)
-    # 가맹점명 시리즈 (NaN은 빈 문자열)
+    df['키워드'] = df['키워드'].astype(object)
+    df['카테고리'] = '기타거래'
+    df['키워드'] = ''
+    df['_matched_kw_len'] = 0
     merchants = df['가맹점명'].fillna('').astype(str).apply(safe_str)
-    # 1단계: 선매칭 규칙만 먼저 적용(덮어쓰기). iterrows/Excel 순서 무관.
-    for rule in _PRECEDENCE_RULES:
-        kw_str = safe_str(rule.get('키워드', ''))
-        if not kw_str:
-            continue
-        kws = [k.strip() for k in kw_str.split('/') if k.strip()]
-        if not kws:
-            continue
-        r_match = pd.Series(False, index=df.index)
-        for kw in kws:
-            if not kw:
-                continue
-            # "이마트" 단독 키워드: 이마트24(기타잡비) 제외, "이마트"만 주식비/부식비
-            if kw == '이마트':
-                r_match |= (merchants.str.contains('이마트', regex=False) & ~merchants.str.contains('이마트24', regex=False))
-            else:
-                r_match |= merchants.str.contains(re.escape(kw), regex=False)
-        if r_match.any():
-            df.loc[r_match, '카테고리'] = safe_str(rule.get('카테고리', ''))
-    # 2단계: 나머지 규칙은 빈 행만 채움
-    empty_mask = (df['카테고리'].fillna('').astype(str).str.strip() == '')
-    for _, cat_row in cat_sorted.iterrows():
+    for _, cat_row in account_df.iterrows():
+        cat_val = safe_str(cat_row.get('카테고리', '')).strip() or '기타거래'
         keywords_str = safe_str(cat_row.get('키워드', ''))
         if not keywords_str:
             continue
         keywords = [k.strip() for k in keywords_str.split('/') if k.strip()]
         if not keywords:
             continue
-        cat_val = safe_str(cat_row.get('카테고리', ''))
+        # 키워드도 주식회사→(주) 정규화해 매칭 (데이터는 이미 safe_str로 정규화됨)
+        keywords_norm = [normalize_주식회사_for_match(k) for k in keywords if k]
+        if not keywords_norm:
+            continue
         rule_match = pd.Series(False, index=df.index)
-        for kw in keywords:
+        for kw in keywords_norm:
             if kw:
-                rule_match |= merchants.str.contains(re.escape(kw), regex=False)
-        # 선매칭 규칙: 매칭되는 행은 빈 여부와 관계없이 덮어씀. 그 외: 빈 행만 채움.
-        is_prec = is_precedence(cat_row)
-        rule_mask = rule_match if is_prec else (rule_match & empty_mask)
-        if rule_mask.any():
-            df.loc[rule_mask, '카테고리'] = cat_val
-            empty_mask = empty_mask & ~rule_mask
-        if not empty_mask.any():
-            break
+                rule_match |= merchants.str.contains(re.escape(kw), regex=False, na=False)
+        # 행별로 매칭된 키워드 중 가장 긴 것의 길이 (정규화된 키워드 기준)
+        def longest_matched(m):
+            matched = [k for k in keywords_norm if k and k in str(m)]
+            return max(matched, key=len) if matched else ''
+        matched_kw = merchants.apply(longest_matched)
+        matched_len = matched_kw.str.len()
+        # 기타거래(초기)이거나, 새로 매칭된 키워드가 기존보다 길 때만 덮어씀
+        fill_mask = rule_match & (
+            (df['카테고리'].fillna('').astype(str) == '기타거래') | (matched_len > df['_matched_kw_len'])
+        )
+        if fill_mask.any():
+            df.loc[fill_mask, '카테고리'] = cat_val
+            df.loc[fill_mask, '키워드'] = matched_kw.loc[fill_mask]
+            df.loc[fill_mask, '_matched_kw_len'] = matched_len.loc[fill_mask]
+    df = df.drop(columns=['_matched_kw_len'], errors='ignore')
     return df
 
 

@@ -23,6 +23,20 @@ alwaysApply: true
   - 금융정보: **.source/Cash**
   - Git에는 **.source/** 전체를 포함하지 않습니다.
 
+## info_category.xlsx 읽기/쓰기 통합 (info_category_io.py)
+
+- **MyInfo/info_category_io.py**에서 읽기/쓰기 기능을 일관되게 제공합니다.
+- `load_info_category(path)`: 안전한 읽기 (손상된 zip 시 빈 DataFrame 반환)
+- `create_empty_info_category(path)`: 빈 [분류, 키워드, 카테고리] 생성·저장 (기존 있으면 보존)
+- `normalize_category_df(df)`: 구분 제거, 표준 컬럼 보장, fillna
+- `INFO_CATEGORY_COLUMNS`, `safe_write_info_category_xlsx`
+- process_bank_data, process_card_data, process_cash_data, bank_app, card_app, cash_app는 모두 이 모듈을 사용합니다.
+
+## info_category.xlsx 생성·읽기 순서
+
+- **info_category.xlsx는 bank_before, card_before, cash_before 파일 생성·읽기 후에만** 생성·읽기를 시도합니다.
+- 앱 로드 시점에 빈 info_category를 생성하지 않습니다. 각 모듈(ensure_all_bank_files, ensure_all_cash_files, card 전처리)에서 before 파일을 먼저 확보한 뒤 info_category를 생성·갱신합니다.
+
 ## 카테고리 파일 (상세)
 
 - **구분(은행거래/신용카드) 컬럼은 사용하지 않습니다.** 은행·신용카드·금융정보가 동일한 카테고리 테이블(분류·키워드·카테고리)을 공유합니다.

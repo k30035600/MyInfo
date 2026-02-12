@@ -141,9 +141,10 @@
             display: flex;
             flex-direction: column;
             gap: 0;
-            min-height: 450px;
+            min-height: 400px;
             flex: 1;
             overflow: hidden;
+            padding: 6px 0;
         }
         
         .category-container {
@@ -777,21 +778,38 @@
             z-index: 100;
         }
         
-        /* 모든 테이블 헤더 가운데 정렬 강제 */
+        /* 모든 테이블 헤더 가운데 정렬 강제, 높이 최소화 */
         #source-data-table th {
             text-align: left !important;
-            padding: 6px 4px !important; /* 위 패딩 6, 아래 패딩 6 */
+            padding: 2px 2px !important;
             margin: 0 !important;
-            font-weight: bold !important; /* 모든 헤더 텍스트 진하게 */
+            font-weight: bold !important;
         }
         
         #processed-data-table th,
         #before-category-table th,
         #category-applied-table th {
             text-align: center !important;
-            padding: 6px 4px !important; /* 위 패딩 6, 아래 패딩 6 */
+            padding: 2px 2px !important;
             margin: 0 !important;
-            font-weight: bold !important; /* 모든 헤더 텍스트 진하게 */
+            font-weight: bold !important;
+        }
+
+        /* 전처리전/전처리후/카테고리조회/카테고리적용후: 헤더·행 높이 최소화 */
+        #source-data-table th, #source-data-table td,
+        #processed-data-table th, #processed-data-table td,
+        #category-query-table th, #category-query-table td,
+        #category-applied-table th, #category-applied-table td {
+            padding: 2px 2px !important;
+            line-height: 1.1 !important;
+            min-height: 0;
+        }
+        #source-data-table thead tr, #source-data-table tbody tr,
+        #processed-data-table thead tr, #processed-data-table tbody tr,
+        #category-query-table thead tr, #category-query-table tbody tr,
+        #category-applied-table thead tr, #category-applied-table tbody tr {
+            height: 18px;
+            min-height: 18px;
         }
 
         /* 전처리전 테이블: 파란색 기반 패턴 */
@@ -851,16 +869,29 @@
         /* 테이블 헤더 및 행 폰트 크기 */
         table th, table td { font-size: 11px !important; }
         
-        /* 전처리후 테이블: 헤더 전부 가운데 정렬, 컬럼 너비 0.8:1.5:0.8:1.2:3.0:1.0:0.5:2.0 (합 10.8) */
+        /* 전처리후 테이블: card_before만 사용, 10컬럼. 헤더 가운데정렬, 셀 컬럼별 정렬. 너비 0.8:1.5:0.8:0.8:1.2:1.2:0.5:2.5:1:0.5 */
         #processed-data-table th { text-align: center !important; }
-        #processed-data-table th:nth-child(1), #processed-data-table td:nth-child(1) { width: 7.41% !important; min-width: 0 !important; max-width: none !important; text-align: center !important; }   /* 카드사 0.8 가운데 */
-        #processed-data-table th:nth-child(2), #processed-data-table td:nth-child(2) { width: 13.89% !important; min-width: 0 !important; max-width: none !important; text-align: center !important; }   /* 카드번호 1.5 가운데 */
-        #processed-data-table th:nth-child(3), #processed-data-table td:nth-child(3) { width: 7.41% !important; min-width: 0 !important; max-width: none !important; text-align: center !important; }   /* 이용일 0.8 가운데 */
-        #processed-data-table th:nth-child(4), #processed-data-table td:nth-child(4) { width: 11.11% !important; min-width: 0 !important; max-width: none !important; text-align: right !important; }   /* 이용금액 1.2 우측 */
-        #processed-data-table th:nth-child(5), #processed-data-table td:nth-child(5) { width: 27.78% !important; min-width: 0 !important; max-width: none !important; text-align: left !important; }  /* 가맹점명 3.0 좌측 */
-        #processed-data-table th:nth-child(6), #processed-data-table td:nth-child(6) { width: 9.26% !important; min-width: 0 !important; max-width: none !important; text-align: center !important; }  /* 사업자번호 1.0 가운데 */
-        #processed-data-table th:nth-child(7), #processed-data-table td:nth-child(7) { width: 4.63% !important; min-width: 0 !important; max-width: none !important; text-align: center !important; }   /* 할부 0.5 가운데 */
-        #processed-data-table th:nth-child(8), #processed-data-table td:nth-child(8) { width: 18.52% !important; min-width: 0 !important; max-width: none !important; text-align: left !important; }   /* 카테고리 2.0 좌측 */
+        #processed-data-table th:nth-child(1), #processed-data-table th:nth-child(2), #processed-data-table th:nth-child(3), #processed-data-table th:nth-child(4), #processed-data-table th:nth-child(5), #processed-data-table th:nth-child(6), #processed-data-table th:nth-child(7), #processed-data-table th:nth-child(8), #processed-data-table th:nth-child(9), #processed-data-table th:nth-child(10) { text-align: center !important; }
+        #processed-data-table th:nth-child(1), #processed-data-table td:nth-child(1) { width: 7.14% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(1) { text-align: center !important; }
+        #processed-data-table th:nth-child(2), #processed-data-table td:nth-child(2) { width: 13.39% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(2) { text-align: left !important; }
+        #processed-data-table th:nth-child(3), #processed-data-table td:nth-child(3) { width: 7.14% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(3) { text-align: center !important; }
+        #processed-data-table th:nth-child(4), #processed-data-table td:nth-child(4) { width: 7.14% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(4) { text-align: center !important; }
+        #processed-data-table th:nth-child(5), #processed-data-table td:nth-child(5) { width: 10.71% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(5) { text-align: right !important; }
+        #processed-data-table th:nth-child(6), #processed-data-table td:nth-child(6) { width: 10.71% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(6) { text-align: right !important; }
+        #processed-data-table th:nth-child(7), #processed-data-table td:nth-child(7) { width: 4.46% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(7) { text-align: right !important; }
+        #processed-data-table th:nth-child(8), #processed-data-table td:nth-child(8) { width: 22.32% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(8) { text-align: left !important; }
+        #processed-data-table th:nth-child(9), #processed-data-table td:nth-child(9) { width: 8.93% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(9) { text-align: left !important; }
+        #processed-data-table th:nth-child(10), #processed-data-table td:nth-child(10) { width: 4.46% !important; min-width: 0 !important; max-width: none !important; }
+        #processed-data-table td:nth-child(10) { text-align: center !important; }
         
         /* 전처리전 테이블의 텍스트 정렬 */
         #source-data-table td:nth-child(1),
@@ -886,20 +917,22 @@
             white-space: nowrap;
         }
         
-        /* 전처리후 테이블: 모든 컬럼 줄바꿈 방지 및 오버플로우 처리 */
+        /* 전처리후 테이블: 자릿수 모자르면 말줄임 */
         #processed-data-table th,
         #processed-data-table td {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
+            min-width: 0;
         }
         
-        /* 전처리전 테이블: 모든 컬럼 줄바꿈 방지 및 오버플로우 처리 */
+        /* 전처리전 테이블: 자릿수 모자르면 말줄임 */
         #source-data-table th,
         #source-data-table td {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
+            min-width: 0;
         }
         
         /* 카테고리 작업 테이블: 모든 컬럼 줄바꿈 방지 및 오버플로우 처리 */
@@ -916,12 +949,13 @@
             word-break: break-word !important;
         }
         
-        /* 카테고리 적용후 테이블: 모든 컬럼 줄바꿈 방지 및 오버플로우 처리 */
+        /* 카테고리 적용후 테이블: 자릿수 모자르면 말줄임 */
         #category-applied-table th,
         #category-applied-table td {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
+            min-width: 0;
         }
         
         /* 카테고리 적용후 테이블: 입출금 컬럼은 텍스트 전체 표시 */
@@ -934,6 +968,15 @@
         #category-query-table th:nth-child(7),
         #category-query-table td:nth-child(7) {
             text-align: center !important;
+        }
+
+        /* 카테고리 조회 테이블: 자릿수 모자르면 말줄임 */
+        #category-query-table th,
+        #category-query-table td {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            min-width: 0;
         }
 
         /* 반응형 디자인 */
@@ -1015,7 +1058,7 @@
             .preprocess-container {
                 flex-direction: column;
                 height: auto;
-                min-height: 450px;
+                min-height: 400px;
                 gap: 4px;
             }
             
@@ -1195,7 +1238,7 @@
             
             .preprocess-container {
                 height: auto;
-                min-height: 450px;
+                min-height: 400px;
             }
             
             .box {
@@ -1321,15 +1364,35 @@
             max-height: 330px;
         }
         
-        /* 카테고리 테이블 컬럼 너비: 0.5:2.5:1.0 (분류:키워드:카테고리) */
+        /* 카테고리 테이블: 카테고리조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
+        #category-definition-table,
+        #category-definition-table th,
+        #category-definition-table td,
+        #category-definition-table select,
+        #category-definition-table input {
+            font-size: 11px !important;
+        }
+        #category-definition-table th,
+        #category-definition-table td {
+            padding: 2px 2px !important;
+            line-height: 1.1 !important;
+        }
+        #category-definition-table thead tr,
+        #category-definition-table tbody tr {
+            height: 18px;
+            min-height: 18px;
+        }
+        
+        /* 카테고리 테이블 컬럼 너비: 15% : 60% : 25% (분류:키워드:카테고리), 분류 컬럼 중앙정렬 */
         #category-definition-table th:nth-child(1),
         #category-definition-table td:nth-child(1) {
-            width: 12.5%;
+            width: 15%;
+            text-align: center;
         }
         
         #category-definition-table th:nth-child(2),
         #category-definition-table td:nth-child(2) {
-            width: 62.5%;
+            width: 60%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -1444,9 +1507,9 @@
     </div>
     
     <!-- 카테고리 테이블, 카테고리 조회, 카테고리 그래프 (단일 컨테이너) -->
-    <div id="category-section-container" class="chart-card" style="margin-top: 20px; margin-bottom: 30px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
-            <div style="display: flex; flex-direction: column; flex: 3 1 0; min-width: 300px;">
+            <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0;">카테고리 테이블</h2>
@@ -1458,41 +1521,59 @@
                     <table id="category-definition-table" style="width: 100%; border-collapse: collapse; font-size: 11px;">
                     <thead style="position: sticky; top: 0; background-color: #f5f5f5;">
                         <tr>
-                            <th style="text-align: left; border: 1px solid #ddd; padding: 8px; white-space: nowrap;">분류</th>
-                            <th style="text-align: left; border: 1px solid #ddd; padding: 8px; white-space: nowrap;">키워드</th>
-                            <th style="text-align: left; border: 1px solid #ddd; padding: 8px; white-space: nowrap;">카테고리</th>
+                            <th style="text-align: center; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">분류</th>
+                            <th style="text-align: left; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">키워드</th>
+                            <th style="text-align: left; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">카테고리</th>
                         </tr>
                         <tr style="background-color: #f9f9f9;">
-                            <td style="border: 1px solid #ddd; padding: 4px 8px;">
-                                <select id="new-category-chasu" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px;">
+                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
+                                <select id="new-category-chasu" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
                                     <option value="">전체</option>
                                     <option value="입력">입력</option>
                                     <option value="수정">수정</option>
                                     <option value="삭제">삭제</option>
+                                    <option value="전처리">전처리</option>
+                                    <option value="후처리">후처리</option>
+                                    <option value="심야구분">심야구분</option>
                                     <option value="계정과목">계정과목</option>
                                     <option value="업종분류">업종분류</option>
+                                    <option value="신용카드">신용카드</option>
+                                    <option value="가상자산">가상자산</option>
+                                    <option value="증권투자">증권투자</option>
+                                    <option value="해외송금">해외송금</option>
                                 </select>
                             </td>
-                            <td style="border: 1px solid #ddd; padding: 4px 8px;">
-                                <select id="new-category-keyword-filter" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px;">
+                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
+                                <select id="new-category-keyword-filter" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
                                     <option value="">전체</option>
                                 </select>
                             </td>
-                            <td style="border: 1px solid #ddd; padding: 4px 8px;">
-                                <select id="new-category-name-filter" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px;">
+                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
+                                <select id="new-category-name-filter" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
                                     <option value="">전체</option>
                                 </select>
                             </td>
                         </tr>
                         <tr style="background-color: #f9f9f9;">
-                            <td style="border: 1px solid #ddd; padding: 2px 8px;">
-                                <input type="text" id="new-category-chasu-input" placeholder="입력/수정/삭제/계정과목/업종분류" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box;">
+                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
+                                <select id="new-category-chasu-input" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box;">
+                                    <option value="" selected>분류선택</option>
+                                    <option value="계정과목">계정과목</option>
+                                    <option value="전처리">전처리</option>
+                                    <option value="후처리">후처리</option>
+                                    <option value="업종분류">업종분류</option>
+                                    <option value="신용카드">신용카드</option>
+                                    <option value="가상자산">가상자산</option>
+                                    <option value="증권투자">증권투자</option>
+                                    <option value="해외송금">해외송금</option>
+                                    <option value="심야구분">심야구분</option>
+                                </select>
                             </td>
-                            <td style="border: 1px solid #ddd; padding: 2px 8px;">
-                                <input type="text" id="new-category-keyword-input" placeholder="키워드 직접 입력" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box;">
+                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
+                                <input type="text" id="new-category-keyword-input" placeholder="키워드 직접 입력" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box;">
                             </td>
-                            <td style="border: 1px solid #ddd; padding: 2px 8px;">
-                                <input type="text" id="new-category-name-input" placeholder="카테고리 직접 입력" style="padding: 2px 4px; width: 100%; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box;">
+                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
+                                <input type="text" id="new-category-name-input" placeholder="카테고리 직접 입력" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box;">
                             </td>
                         </tr>
                     </thead>
@@ -1504,7 +1585,7 @@
                     </table>
                 </div>
             </div>
-            <div style="display: flex; flex-direction: column; flex: 7 1 0; min-width: 400px; gap: 20px;">
+            <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -1534,6 +1615,13 @@
     <script>
         // API 기본 경로 설정 (현재 페이지 경로 기반)
         const API_BASE = window.location.pathname.startsWith('/card') ? '/card' : '';
+        const FETCH_TIMEOUT_MS = 60000; // 60초 내 응답 없으면 타임아웃 (무한 로딩 방지)
+        function fetchWithTimeout(url, options, timeoutMs) {
+            const ms = timeoutMs || FETCH_TIMEOUT_MS;
+            const ctrl = new AbortController();
+            const id = setTimeout(() => ctrl.abort(), ms);
+            return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+        }
         
         // 전역 변수: 파일 목록 저장
         let sourceFilesList = [];
@@ -1583,18 +1671,21 @@
             rightBankFilter.addEventListener('change', function() {
                 updateFilterBackground(this);
                 loadRightData();
+                if (typeof loadCategoryQueryTable === 'function') loadCategoryQueryTable();
             });
         }
         if (rightCardnoFilter) {
             rightCardnoFilter.addEventListener('change', function() {
                 updateFilterBackground(this);
                 loadRightData();
+                if (typeof loadCategoryQueryTable === 'function') loadCategoryQueryTable();
             });
         }
         if (rightYearFilter) {
             rightYearFilter.addEventListener('change', function() {
                 updateFilterBackground(this);
                 loadRightData();
+                if (typeof loadCategoryQueryTable === 'function') loadCategoryQueryTable();
             });
         }
 
@@ -1677,6 +1768,14 @@
             return str;
         }
         
+        // 사업자번호 형식: 숫자만 추출 후 000-00-00000 (3-2-5)
+        function formatBusinessNumber(value) {
+            if (value === null || value === undefined || value === '') return '';
+            const digits = String(value).replace(/\D/g, '');
+            if (digits.length < 10) return String(value).trim();
+            return digits.slice(0, 3) + '-' + digits.slice(3, 5) + '-' + digits.slice(5, 10);
+        }
+
         // 금액 형식 변환: 천단위 구분 기호
         function formatAmount(value) {
             if (value === null || value === undefined || value === '') {
@@ -1692,7 +1791,7 @@
         // 파일 목록 로드
         async function loadSourceFiles() {
             try {
-                const response = await fetch(`${API_BASE}/api/source-files`);
+                const response = await fetchWithTimeout(`${API_BASE}/api/source-files`);
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
                     const msg = data.error || `서버 오류 ${response.status} ${response.statusText}`;
@@ -1780,10 +1879,11 @@
             const leftDepositEl = document.getElementById('left-deposit');
             const leftWithdrawEl = document.getElementById('left-withdraw');
             const filenameFilterEl = document.getElementById('left-filename-filter');
+            if (!contentDiv) return;
             contentDiv.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
 
             try {
-                const response = await fetch(`${API_BASE}/api/source-data`);
+                const response = await fetchWithTimeout(`${API_BASE}/api/source-data`);
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || `서버 오류: ${response.status} ${response.statusText}`);
@@ -1831,7 +1931,8 @@
                 renderLeftTable(columns, filteredRows, true);
             } catch (error) {
                 console.error('Error loading left data:', error);
-                const msg = (error && error.message) ? String(error.message).replace(/\n/g, '<br>') : '알 수 없음';
+                const isAbort = (error && error.name === 'AbortError');
+                const msg = isAbort ? '연결 시간이 초과되었습니다. 서버가 응답하지 않거나 .source/Card 파일 접근이 느립니다. 새로고침 후 다시 시도해 주세요.' : ((error && error.message) ? String(error.message).replace(/\n/g, '<br>') : '알 수 없음');
                 contentDiv.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">데이터 로딩 오류:<br>${msg}</div>`;
                 if (leftCountEl) leftCountEl.textContent = '0';
                 if (leftDepositEl) leftDepositEl.textContent = '0';
@@ -1867,7 +1968,7 @@
                     }
                 }
 
-                const response = await fetch(`${API_BASE}/api/processed-data?${params}`);
+                const response = await fetchWithTimeout(`${API_BASE}/api/processed-data?${params}`);
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || `서버 오류: ${response.status} ${response.statusText}`);
@@ -1965,23 +2066,24 @@
                     }
                 }
 
-                // 집계 계산: 카드(이용금액) 또는 은행(입금/출금). 카드는 이용금액<0 → 입금, 이용금액>0 → 출금
+                // 집계 계산: 카드(입금액/출금액) 또는 은행(입금/출금)
                 let totalCount = 0;
                 let totalDeposit = 0;
                 let totalWithdraw = 0;
-                let depositCount = 0;   // 입금 건수 (이용금액<0 또는 입금액 있는 행)
-                let withdrawCount = 0;  // 출금 건수 (이용금액>0 또는 출금액 있는 행)
-                const useCardColumns = data.data && data.data.length > 0 && data.data[0].hasOwnProperty('이용금액');
+                let depositCount = 0;   // 입금 건수 (입금액 > 0인 행)
+                let withdrawCount = 0;  // 출금 건수 (출금액 > 0인 행)
+                const useCardColumns = data.data && data.data.length > 0 && (data.data[0].hasOwnProperty('입금액') || data.data[0].hasOwnProperty('출금액'));
                 
                 if (data.data && data.data.length > 0) {
                     data.data.forEach(row => {
                         totalCount++;
-                        if (useCardColumns && row.hasOwnProperty('이용금액')) {
-                            const amt = parseFloat(String(row['이용금액']).replace(/,/g, ''));
-                            if (!isNaN(amt)) {
-                                if (amt < 0) { totalDeposit += Math.abs(amt); depositCount++; }
-                                else if (amt > 0) { totalWithdraw += amt; withdrawCount++; }
-                            }
+                        if (useCardColumns && (row.hasOwnProperty('입금액') || row.hasOwnProperty('출금액'))) {
+                            const dep = parseFloat(String(row['입금액'] || '0').replace(/,/g, ''));
+                            const withAmt = parseFloat(String(row['출금액'] || '0').replace(/,/g, ''));
+                            if (!isNaN(dep)) totalDeposit += dep;
+                            if (!isNaN(withAmt)) totalWithdraw += withAmt;
+                            if (dep > 0) depositCount++;
+                            if (withAmt > 0) withdrawCount++;
                         } else {
                             if (row.hasOwnProperty('입금액') && row['입금액'] != null && row['입금액'] !== '') {
                                 const v = parseFloat(String(row['입금액']).replace(/,/g, ''));
@@ -2003,9 +2105,10 @@
 
                 // 데이터 표시
                 if (data.data && data.data.length > 0) {
-                    // 카드 전처리후: card_before.xlsx 컬럼 순서 (카드사, 카드번호, 이용일, 이용금액, 가맹점명, 사업자번호, 할부, 카테고리)
-                    const card_column_order = ['카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리'];
-                    const data_columns = Object.keys(data.data[0]);
+                    // 전처리후: card_before.xlsx만 사용. 카테고리·키워드 컬럼은 표시하지 않음
+                    const card_column_order = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '사업자번호', '할부'];
+                    const exclude_cols = ['키워드', '카테고리'];
+                    const data_columns = Object.keys(data.data[0]).filter(c => !exclude_cols.includes(c));
                     const columns = card_column_order.filter(col => data_columns.includes(col));
                     data_columns.forEach(col => {
                         if (!columns.includes(col)) columns.push(col);
@@ -2016,9 +2119,8 @@
                     html += '</tr></thead><tbody id="processed-data-tbody">';
                     
                     data.data.forEach(row => {
-                        const 이용금액 = parseFloat(String(row['이용금액'] || '').replace(/,/g, ''));
-                        const 카테고리 = String(row['카테고리'] || '').trim();
-                        const rowBlue = (columns.includes('이용금액') && !isNaN(이용금액) && 이용금액 < 0) || (카테고리 === '현금처리');
+                        const 입금액 = parseFloat(String(row['입금액'] || '0').replace(/,/g, ''));
+                        const rowBlue = (columns.includes('입금액') && !isNaN(입금액) && 입금액 > 0);
                         const rowStyle = rowBlue ? ' style="color: #0000FF;"' : '';
                         html += `<tr${rowStyle}>`;
                         columns.forEach(col => {
@@ -2026,36 +2128,37 @@
                             let displayValue = '';
                             if (value !== null && value !== undefined && value !== '') {
                                 if (col === '이용일' || col === '거래일') {
-                                    displayValue = formatDate(value);
-                                } else if (col === '거래시간') {
-                                    displayValue = formatTime(value);
-                                } else if (col === '이용금액' || col === '입금액' || col === '출금액' || col === '잔액') {
+                                    displayValue = formatDate(value);  /* yy/mm/dd */
+                                } else if (col === '거래시간' || col === '이용시간') {
+                                    displayValue = formatTime(value);  /* hh:mm:ss */
+                                } else if (col === '취소') {
+                                    const s = String(value).trim();
+                                    displayValue = (s === '0' || s === '0.0') ? '' : s;
+                                } else if (col === '입금액' || col === '출금액' || col === '잔액') {
                                     const numVal = parseFloat(value) || 0;
                                     displayValue = (col === '입금액' && numVal > 0) ? '-' + formatAmount(numVal) : formatAmount(value);
+                                } else if (col === '사업자번호') {
+                                    displayValue = formatBusinessNumber(value);  /* 000-00-00000 */
                                 } else if (col === '할부') {
                                     displayValue = String(value);
                                 } else {
                                     displayValue = value;
                                 }
                             }
-                            let cellStyle = '';
-                            if (col === '이용금액' || col === '입금액' || col === '출금액' || col === '잔액') {
-                                cellStyle = ' style="white-space: nowrap; text-align: right !important;"';
-                            } else {
-                                cellStyle = ' style="white-space: nowrap; text-align: left !important;"';
-                            }
+                            let align = 'left';
+                            if (col === '카드사' || col === '이용일' || col === '이용시간' || col === '할부' || col === '사업자번호' || col === '취소') align = 'center';
+                            else if (col === '입금액' || col === '출금액') align = 'right';
+                            let cellStyle = ` style="white-space: nowrap; text-align: ${align} !important;"`;
                             html += `<td${cellStyle}>${displayValue}</td>`;
                         });
                         html += '</tr>';
                     });
                     
-                    // 합계 행: 첫 컬럼 "합계", 이용금액 컬럼에 합계
+                    // 합계 행: 첫 컬럼 "합계", 입금액/출금액 컬럼에 합계
                     html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f0f0f0; font-weight: bold;">';
                     columns.forEach(col => {
                         if (col === '카드사' || col === '거래일') {
                             html += `<td style="text-align: left;" data-sum-col="${col}">합계</td>`;
-                        } else if (col === '이용금액') {
-                            html += `<td style="text-align: right;" data-sum-col="이용금액">${formatAmount(totalWithdraw)}</td>`;
                         } else if (col === '입금액') {
                             html += `<td style="text-align: right; color: #0000FF;" data-sum-col="입금액">${totalDeposit > 0 ? '-' + formatAmount(totalDeposit) : formatAmount(totalDeposit)}</td>`;
                         } else if (col === '출금액') {
@@ -2073,7 +2176,8 @@
                 }
             } catch (error) {
                 console.error('Error loading right data:', error);
-                const msg = (error && error.message) ? String(error.message).replace(/\n/g, '<br>') : '알 수 없음';
+                const isAbort = (error && error.name === 'AbortError');
+                const msg = isAbort ? '연결 시간이 초과되었습니다. 서버가 응답하지 않습니다. 새로고침 후 다시 시도해 주세요.' : ((error && error.message) ? String(error.message).replace(/\n/g, '<br>') : '알 수 없음');
                 const el = document.getElementById('right-content');
                 if (el) {
                     el.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">데이터 로딩 오류:<br>${msg || '알 수 없음'}<br><small>F12 콘솔 확인.</small><br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
@@ -2294,7 +2398,7 @@
             loadLeftData();
             loadRightData();
             
-            // 카테고리 테이블 먼저 로드 후 카테고리 조회 로드 (분류코드/업종분류 드롭다운에 카테고리테이블 업종분류 사용)
+            // 카테고리 테이블 먼저 로드 후 카테고리 조회 로드
             (async () => {
                 await loadCategoryDefinitionTable();
                 loadCategoryQueryTable();
@@ -2369,7 +2473,7 @@
                     updatedBtn.style.background = '#4CAF50';
                     updatedBtn.addEventListener('click', function() {
                         const currentAction = document.getElementById('new-category-chasu').value;
-                        if (currentAction === '수정' || currentAction === '삭제') {
+                        if (currentAction === '입력' || currentAction === '수정' || currentAction === '삭제') {
                             handleNewCategoryChange();
                         } else {
                             exportCategoryTable();
@@ -2564,9 +2668,9 @@
                 const cursorStyle = 'cursor: pointer;';
                 
                 tableHtml += `<tr class="category-table-row" data-chasu="${분류}" data-keyword="${키워드}" data-category="${카테고리}" style="border-bottom: 1px solid #eee;${rowBgColor ? ` background-color: ${rowBgColor};` : ''}${cursorStyle}" onclick="selectCategoryRow(this)">
-                    <td style="border: 1px solid #ddd; padding: 4px;">${분류}</td>
-                    <td style="border: 1px solid #ddd; padding: 4px;">${키워드}</td>
-                    <td style="border: 1px solid #ddd; padding: 4px;">${카테고리}</td>
+                    <td style="border: 1px solid #ddd; padding: 2px; text-align: center;">${분류}</td>
+                    <td style="border: 1px solid #ddd; padding: 2px;">${키워드}</td>
+                    <td style="border: 1px solid #ddd; padding: 2px;">${카테고리}</td>
                 </tr>`;
             });
             
@@ -2575,12 +2679,12 @@
         }
 
         // 분류 입력 검증 (입력/수정/삭제/계정과목/업종분류만 허용)
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
         function validateChasuInput(input) {
-            const value = input.value.trim();
-            const validValues = ['입력', '수정', '삭제', '계정과목', '업종분류'];
-            if (value && !validValues.includes(value)) {
-                alert('분류는 입력, 수정, 삭제, 계정과목, 업종분류만 입력할 수 있습니다.');
-                input.value = '';
+            const value = (input.value || '').toString().trim();
+            if (value && !VALID_CHASU_VALUES.includes(value)) {
+                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
             return true;
@@ -2610,7 +2714,7 @@
                 카테고리: rowElement.getAttribute('data-category')
             };
             
-            document.getElementById('new-category-chasu-input').value = selectedRowData.분류;
+            document.getElementById('new-category-chasu-input').value = VALID_CHASU_VALUES.includes(selectedRowData.분류) ? selectedRowData.분류 : '';
             document.getElementById('new-category-keyword-input').value = selectedRowData.키워드;
             document.getElementById('new-category-name-input').value = selectedRowData.카테고리;
         }
@@ -2694,9 +2798,8 @@
                 return;
             }
             
-            const validValues = ['입력', '수정', '삭제', '계정과목', '업종분류'];
-            if (!validValues.includes(chasuInput)) {
-                alert('분류는 입력, 수정, 삭제, 계정과목, 업종분류만 입력할 수 있습니다.');
+            if (!VALID_CHASU_VALUES.includes(chasuInput)) {
+                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -2790,49 +2893,124 @@
                 '<title>카테고리 테이블 출력</title>' +
                 '<meta charset="UTF-8">' +
                 '<style>' +
-                '@page { size: A4; margin: 15mm; }' +
+                '@page { size: A4; margin: 5mm; }' +
                 '@media print { ' +
                 'body { margin: 0; padding: 0; } ' +
                 '.no-print { display: none; } ' +
+                '.print-header { position: fixed; top: 0; left: 0; right: 0; background: #fff; padding: 4px 8px; font-size: 11px; z-index: 10; border-bottom: 1px solid #ddd; }' +
+                '.print-body { padding-top: 52px; }' +
                 'table { page-break-inside: auto; } ' +
                 'tr { page-break-inside: avoid; page-break-after: auto; } ' +
-                'thead { display: table-header-group; } ' +
-                'tfoot { display: table-footer-group; } ' +
+                'thead { display: table-header-group !important; } ' +
                 '}' +
-                'body { font-family: "Malgun Gothic", sans-serif; padding: 20px; margin: 0; }' +
-                'h2 { text-align: center; margin: 0 0 20px 0; font-size: 18px; }' +
-                'table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 11px; }' +
+                'body { font-family: "Malgun Gothic", sans-serif; padding: 8px; margin: 0; }' +
+                '.print-header h2 { margin: 0 0 4px 0; font-size: 14px; text-align: center; }' +
+                '.print-header .header-row { display: flex; justify-content: space-between; align-items: center; }' +
+                '.print-header .header-left { text-align: left; } .print-header .header-right { text-align: right; }' +
+                'table { border-collapse: collapse; width: 100%; margin-top: 0; font-size: 11px; table-layout: fixed; }' +
                 'th, td { border: 1px solid #333; padding: 6px; text-align: left; }' +
                 'th { background-color: #f5f5f5; font-weight: bold; text-align: center; }' +
                 'tr:nth-child(even) { background-color: rgba(255, 152, 0, 0.1); }' +
-                '.header-info { text-align: center; margin-bottom: 15px; font-size: 12px; color: #666; }' +
                 '</style>' +
                 '</head><body>' +
-                '<div class="header-info">' +
+                '<div class="print-header">' +
                 '<h2>카테고리 테이블 출력</h2>' +
-                '<div>정렬 순서: 분류 → 카테고리 → 키워드</div>' +
-                '<div>출력 일시: ' + printDate + '</div>' +
+                '<div class="header-row"><span class="header-left">출력 일시: ' + printDate + '</span><span class="header-right">정렬 순서: 분류 → 카테고리 → 키워드</span></div>' +
                 '</div>' +
-                '<table>' +
-                '<thead><tr>' +
-                '<th style="width: 12.5%;">분류</th>' +
-                '<th style="width: 62.5%;">키워드</th>' +
-                '<th style="width: 25%;">카테고리</th>' +
-                '</tr></thead>' +
-                '<tbody>' + tableRows + '</tbody>' +
-                '</table>' +
+                '<div class="print-body">' +
+                '<table><thead><tr>' +
+                '<th style="width: 15%;">분류</th>' +
+                '<th style="width: 65%;">키워드</th>' +
+                '<th style="width: 20%;">카테고리</th>' +
+                '</tr></thead><tbody>' + tableRows + '</tbody></table>' +
+                '</div>' +
                 '<script>window.onload = function() { window.print(); };<\/script>' +
                 '</body></html>');
             printWindow.document.close();
         }
         
-        // 카테고리 조회 테이블 로드
+        // 카테고리 조회 드롭다운이 모두 "전체"인지 여부 (전체이면 전처리후 테이블과 연동)
+        function areAllCategoryQueryFiltersWhole() {
+            const table = document.getElementById('category-query-table');
+            if (!table || !table.dataset.columns) return false;
+            let columns = [];
+            try { columns = JSON.parse(table.dataset.columns); } catch (e) { return false; }
+            for (const col of columns) {
+                const sel = document.getElementById(`filter-category-query-${col}`);
+                if (sel && sel.value !== '' && sel.value !== '전체') return false;
+            }
+            return true;
+        }
+        
+        // 카테고리 조회 ↔ 전처리후 스크롤 연동 (드롭다운 모두 전체일 때만)
+        function setupCategoryQueryScrollSync() {
+            const rightContent = document.getElementById('right-content');
+            const categoryQueryContent = document.getElementById('category-query-content');
+            if (!rightContent || !categoryQueryContent) return;
+            const removeSync = () => {
+                rightContent._scrollSyncEnabled = false;
+                categoryQueryContent._scrollSyncEnabled = false;
+                rightContent.removeEventListener('scroll', rightContent._scrollSyncHandler);
+                categoryQueryContent.removeEventListener('scroll', categoryQueryContent._scrollSyncHandler);
+            };
+            if (!areAllCategoryQueryFiltersWhole()) {
+                removeSync();
+                return;
+            }
+            let syncing = false;
+            rightContent._scrollSyncHandler = function() {
+                if (syncing) return;
+                syncing = true;
+                const maxTop = Math.max(0, rightContent.scrollHeight - rightContent.clientHeight);
+                const maxLeft = Math.max(0, rightContent.scrollWidth - rightContent.clientWidth);
+                const ratioTop = maxTop ? rightContent.scrollTop / maxTop : 0;
+                const ratioLeft = maxLeft ? rightContent.scrollLeft / maxLeft : 0;
+                const cqMaxTop = Math.max(0, categoryQueryContent.scrollHeight - categoryQueryContent.clientHeight);
+                const cqMaxLeft = Math.max(0, categoryQueryContent.scrollWidth - categoryQueryContent.clientWidth);
+                categoryQueryContent.scrollTop = ratioTop * cqMaxTop;
+                categoryQueryContent.scrollLeft = ratioLeft * cqMaxLeft;
+                syncing = false;
+            };
+            categoryQueryContent._scrollSyncHandler = function() {
+                if (syncing) return;
+                syncing = true;
+                const cqMaxTop = Math.max(0, categoryQueryContent.scrollHeight - categoryQueryContent.clientHeight);
+                const cqMaxLeft = Math.max(0, categoryQueryContent.scrollWidth - categoryQueryContent.clientWidth);
+                const ratioTop = cqMaxTop ? categoryQueryContent.scrollTop / cqMaxTop : 0;
+                const ratioLeft = cqMaxLeft ? categoryQueryContent.scrollLeft / cqMaxLeft : 0;
+                const maxTop = Math.max(0, rightContent.scrollHeight - rightContent.clientHeight);
+                const maxLeft = Math.max(0, rightContent.scrollWidth - rightContent.clientWidth);
+                rightContent.scrollTop = ratioTop * maxTop;
+                rightContent.scrollLeft = ratioLeft * maxLeft;
+                syncing = false;
+            };
+            removeSync();
+            rightContent.addEventListener('scroll', rightContent._scrollSyncHandler);
+            categoryQueryContent.addEventListener('scroll', categoryQueryContent._scrollSyncHandler);
+        }
+        
+        // 카테고리 조회 테이블 로드 (전처리후 카드사/카드번호/년월과 동일 조건으로 요청 → 드롭다운 전체이면 전처리후와 연동)
         async function loadCategoryQueryTable() {
             const btn = document.getElementById('generate-category-btn');
             const contentEl = document.getElementById('category-query-content');
             if (!contentEl) return;
             try {
-                const response = await fetch(`${API_BASE}/api/category-applied-data`);
+                const params = new URLSearchParams();
+                const bankFilter = document.getElementById('right-bank-filter')?.value || '';
+                const cardnoFilter = document.getElementById('right-cardno-filter')?.value || '';
+                const yearFilter = document.getElementById('right-year-filter')?.value || '';
+                if (bankFilter) params.append('bank', bankFilter);
+                if (cardnoFilter) params.append('cardno', cardnoFilter);
+                if (yearFilter && String(yearFilter).includes('/')) {
+                    const parts = String(yearFilter).split('/');
+                    const yy = parts[0], mm = parts[1];
+                    if (yy && mm) {
+                        const cy = new Date().getFullYear();
+                        const year = (parseInt(yy) > cy % 100) ? Math.floor(cy/100)*100 - 100 + parseInt(yy) : Math.floor(cy/100)*100 + parseInt(yy);
+                        params.append('date', `${year}-${mm}`);
+                    }
+                }
+                const response = await fetch(`${API_BASE}/api/category-applied-data?${params}`);
                 const text = await response.text();
                 
                 if (!response.ok) {
@@ -2900,59 +3078,88 @@
                 return;
             }
             
-            const cardColumns = ['카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리', '분류코드', '업종분류'];
+            const cardColumns = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '할부', '키워드', '카테고리', '가맹점명'];
             const bankColumns = [
-                '거래일', '은행명', '입금액', '출금액', '구분', '적요', '내용', 
-                '거래점', '송금메모', '입출금', '거래유형', '기타거래'
+                '거래일', '거래시간', '은행명', '입금액', '출금액', '구분', '적요', '내용', 
+                '거래점', '송금메모', '키워드', '입출금', '카테고리', '기타거래'
             ];
             
-            const isCardData = data[0] && data[0].hasOwnProperty('카드사');
+            // API/Excel 컬럼명 공백 차이 보정: trim한 키 → 실제 키 매핑 (취소·카드사 등 컬럼 누락 방지)
+            const keyMap = {};
+            if (data[0]) {
+                Object.keys(data[0]).forEach(k => {
+                    const t = String(k).trim();
+                    if (t && !keyMap[t]) keyMap[t] = k;
+                });
+            }
+            function getCell(row, col) { return row[keyMap[col] || col]; }
+            function isSimyaTime(s) {
+                const str = String(s != null ? s : '').trim();
+                if (!str) return false;
+                const parts = str.match(/^(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?/);
+                if (!parts) return false;
+                const h = parseInt(parts[1], 10);
+                const min = parseInt(parts[2] || '0', 10);
+                const sec = parseInt(parts[3] || '0', 10);
+                if (h === 0 && min === 0 && sec === 0) return false;
+                return !isNaN(h) && h >= 0 && h <= 5;
+            }
+            // 카드 여부: '카드사' 또는 공백 있는 '카드사' 컬럼이 있으면 카드 데이터 (은행이면 취소 컬럼 없음)
+            const isCardData = data[0] && (data[0].hasOwnProperty('카드사') || keyMap['카드사']);
             const columns = isCardData ? cardColumns : bankColumns;
+            // 표준 컬럼명으로 값 복사 (공백 있는 컬럼명도 '취소' 등으로 통일해 필터/합계 등에서 사용)
+            columns.forEach(col => {
+                const rawKey = keyMap[col] || col;
+                if (rawKey !== col || !data[0].hasOwnProperty(col)) {
+                    data.forEach(row => {
+                        if (row.hasOwnProperty(rawKey)) row[col] = row[rawKey];
+                    });
+                }
+            });
             
-            if (data[0] && data[0].hasOwnProperty('카테고리분류') && !data[0].hasOwnProperty('입출금')) {
+            if (data[0] && getCell(data[0], '카테고리분류') !== undefined && getCell(data[0], '입출금') === undefined) {
                 data.forEach(row => {
-                    if (row.hasOwnProperty('카테고리분류')) {
-                        row['입출금'] = row['카테고리분류'];
-                    }
+                    const v = getCell(row, '카테고리분류');
+                    if (v !== undefined) row['입출금'] = v;
                 });
             }
             
             const availableColumns = columns.filter(col => 
-                data[0] && data[0].hasOwnProperty(col)
+                data[0] && (data[0].hasOwnProperty(col) || keyMap[col])
             );
             
-            // card_after(카드): 너비 1,1.5,1,1,2.5,1,0.8,1.5,1,1.5 (카드사:카드번호:이용일:이용금액:가맹점명:사업자번호:할부:카테고리:분류코드:업종분류); 은행: 기존 비율
+            // 카테고리 조회 컬럼 너비 (비율) - 신용카드
             const columnWidthsCard = {
-                '카드사': 0.8, '카드번호': 1.5, '이용일': 0.8, '이용금액': 1, '가맹점명': 2.5, '사업자번호': 1, '할부': 0.8, '카테고리': 1.5, '분류코드': 0.8, '업종분류': 1.5
+                '카드사': 0.8, '카드번호': 1.2, '이용일': 0.8, '이용시간': 0.8, '입금액': 0.9, '출금액': 0.9, '취소': 0.7, '사업자번호': 1, '할부': 0.7, '키워드': 1, '카테고리': 1.5, '가맹점명': 2
             };
             const columnWidthsBank = {
                 '거래일': 0.7, '은행명': 0.7, '입금액': 0.9, '출금액': 0.9, '구분': 0.7,
-                '적요': 1.5, '내용': 1.5, '거래점': 0.8, '송금메모': 0.8, '입출금': 0.7,
-                '거래유형': 1.5, '기타거래': 1.5
+                '적요': 1.5, '내용': 1.5, '거래점': 0.8, '송금메모': 0.8, '키워드': 1.0, '입출금': 0.7,
+                '거래유형': 1.5, '카테고리': 1.5, '기타거래': 1.5
             };
             const columnWidths = isCardData
                 ? columnWidthsCard
                 : columnWidthsBank;
             
             const columnBgColors = {
-                '거래일': 'rgba(33, 150, 243, 0.1)', '은행명': 'rgba(33, 150, 243, 0.1)',
+                '거래일': 'rgba(33, 150, 243, 0.1)', '거래시간': 'rgba(33, 150, 243, 0.1)', '은행명': 'rgba(33, 150, 243, 0.1)',
                 '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)',
                 '구분': 'rgba(33, 150, 243, 0.1)', '적요': 'rgba(33, 150, 243, 0.1)',
                 '내용': 'rgba(33, 150, 243, 0.1)', '거래점': 'rgba(33, 150, 243, 0.1)',
-                '송금메모': 'rgba(33, 150, 243, 0.1)', '입출금': 'rgba(255, 152, 0, 0.1)',
-                '거래유형': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)',
+                '송금메모': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)',
+                '입출금': 'rgba(255, 152, 0, 0.1)',
+                '기타거래': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)',
                 '카드사': 'rgba(33, 150, 243, 0.1)', '카드번호': 'rgba(33, 150, 243, 0.1)',
-                '이용일': 'rgba(33, 150, 243, 0.1)', '이용금액': 'rgba(33, 150, 243, 0.1)',
+                '이용일': 'rgba(33, 150, 243, 0.1)', '이용시간': 'rgba(33, 150, 243, 0.1)', '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)', '취소': 'rgba(33, 150, 243, 0.1)',
                 '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)',
-                '할부': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)',
-                '분류코드': 'rgba(255, 152, 0, 0.1)', '업종분류': 'rgba(255, 152, 0, 0.1)'
+                '할부': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)'  // 할부: 사업자번호와 동일 배경색
             };
             
             const totalRatio = availableColumns.reduce((sum, col) => sum + (columnWidths[col] || 1.0), 0);
             
             const uniqueValues = {};
             availableColumns.forEach(col => {
-                let raw = data.map(row => row[col]);
+                let raw = data.map(row => getCell(row, col));
                 if (col === '할부') {
                     raw = raw.filter(v => v !== null && v !== undefined);
                 } else {
@@ -2960,7 +3167,7 @@
                 }
                 let uniqueValuesList = [...new Set(raw)];
                 
-                if (col === '입금액' || col === '출금액' || col === '이용금액') {
+                if (col === '입금액' || col === '출금액' || col === '취소') {
                     uniqueValuesList = uniqueValuesList.sort((a, b) => {
                         const numA = parseFloat(String(a).replace(/,/g, ''));
                         const numB = parseFloat(String(b).replace(/,/g, ''));
@@ -2988,34 +3195,8 @@
                 uniqueValues[col] = uniqueValuesList;
             });
 
-            // 카드 데이터일 때: 분류코드/업종분류 드롭다운은 카테고리테이블 "업종분류" 행에서 추출
-            if (isCardData && allCategoryTableData && allCategoryTableData.length > 0) {
-                const 업종분류Rows = allCategoryTableData.filter(row => String(row['분류'] || '').trim() === '업종분류');
-                if (업종분류Rows.length > 0) {
-                    // 분류코드: 키워드에서 6자리 숫자 추출 (슬래시 구분 다중 키워드 포함)
-                    const 분류코드Set = new Set();
-                    업종분류Rows.forEach(row => {
-                        const kw = String(row['키워드'] || '').trim();
-                        if (kw) {
-                            kw.split('/').forEach(part => {
-                                const code = part.trim();
-                                if (/^\d{6}$/.test(code)) 분류코드Set.add(code);
-                            });
-                        }
-                    });
-                    if (분류코드Set.size > 0) {
-                        uniqueValues['분류코드'] = [...분류코드Set].sort();
-                    }
-                    // 업종분류: 카테고리 값 사용
-                    const 업종분류Set = new Set(업종분류Rows.map(row => String(row['카테고리'] || '').trim()).filter(c => c));
-                    if (업종분류Set.size > 0) {
-                        uniqueValues['업종분류'] = [...업종분류Set].sort();
-                    }
-                }
-            }
             
             const columnDisplayNames = {
-                '거래유형': '거래유형 (2차)',
                 '기타거래': '기타거래'
             };
             
@@ -3027,7 +3208,7 @@
                 const width = ((ratio / totalRatio) * 100).toFixed(2);
                 const headerBgColor = columnBgColors[col] || '';
                 const displayName = columnDisplayNames[col] || col;
-                html += `<th style="width: ${width}%; white-space: nowrap; text-align: center; padding: 8px; border: 1px solid #ddd;${headerBgColor ? ` background-color: ${headerBgColor};` : ''}">${displayName}</th>`;
+                html += `<th style="width: ${width}%; white-space: nowrap; text-align: center; padding: 2px 2px; border: 1px solid #ddd;${headerBgColor ? ` background-color: ${headerBgColor};` : ''}">${displayName}</th>`;
             });
             html += '</tr>';
             
@@ -3035,9 +3216,12 @@
             availableColumns.forEach(col => {
                 const ratio = columnWidths[col] || 1.0;
                 const width = ((ratio / totalRatio) * 100).toFixed(2);
-                html += `<th style="width: ${width}%; padding: 4px 8px; border: 1px solid #ddd;">
-                    <select id="filter-category-query-${col}" style="width: 100%; padding: 2px 4px; font-size: 12px; border: 1px solid #ccc; border-radius: 3px;">
+                html += `<th style="width: ${width}%; padding: 2px 2px; border: 1px solid #ddd;">
+                    <select id="filter-category-query-${col}" style="width: 100%; padding: 1px 2px; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
                         <option value="">전체</option>`;
+                if (col === '이용시간') {
+                    html += '<option value="심야구분">심야구분</option>';
+                }
                 if (col === '사업자번호') {
                     html += '<option value="__사업자번호없음__">사업자번호 없음</option>';
                 }
@@ -3047,7 +3231,10 @@
                 if (uniqueValues[col]) {
                     uniqueValues[col].forEach(val => {
                         let displayVal = val;
-                        if (col === '입금액' || col === '출금액' || col === '이용금액') {
+                        if (col === '취소') {
+                            const s = String(val ?? '').trim();
+                            displayVal = (s === '0' || s === '0.0' || s === 'nan') ? '' : s;
+                        } else if (col === '입금액' || col === '출금액') {
                             const numVal = parseFloat(String(val).replace(/,/g, ''));
                             if (!isNaN(numVal)) {
                                 displayVal = formatNumber(numVal);
@@ -3068,18 +3255,23 @@
             
             data.forEach((row, rowIndex) => {
                 const isEvenRow = rowIndex % 2 === 1;
-                const 이용금액 = parseFloat(String(row['이용금액'] || '').replace(/,/g, ''));
-                const 카테고리 = String(row['카테고리'] || '').trim();
-                const rowBlue = (availableColumns.includes('이용금액') && !isNaN(이용금액) && 이용금액 < 0) || (카테고리 === '현금처리');
+                const 입금액Val = parseFloat(String(getCell(row, '입금액') || '0').replace(/,/g, ''));
+                const 카테고리 = String(getCell(row, '카테고리') || '').trim();
+                const rowBlue = (availableColumns.includes('입금액') && !isNaN(입금액Val) && 입금액Val > 0) || (카테고리 === '현금처리');
                 const rowStyle = rowBlue ? ' style="cursor: pointer; color: #0000FF;"' : ' style="cursor: pointer;"';
                 html += `<tr data-row-index="${rowIndex}" class="category-query-row"${rowStyle}>`;
                 availableColumns.forEach(col => {
-                    let value = row[col];
+                    let value = getCell(row, col);
                     let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
                     
                     if (col === '거래일' || col === '이용일') {
                         if (displayValue) displayValue = formatDateYyyyMmDd(displayValue);
-                    } else if (col === '입금액' || col === '출금액' || col === '이용금액') {
+                    } else if (col === '거래시간' || col === '이용시간') {
+                        displayValue = formatTime(displayValue);
+                    } else if (col === '취소') {
+                        const s = String(value ?? '').trim();
+                        displayValue = (s === '0' || s === '0.0' || s === 'nan') ? '' : s;
+                    } else if (col === '입금액' || col === '출금액') {
                         if (displayValue) {
                             const numValue = parseFloat(String(displayValue).replace(/,/g, '')) || 0;
                             displayValue = formatNumber(numValue);
@@ -3093,12 +3285,12 @@
                         cellBgColor = columnBgColors[col] || '';
                     }
                     
-                    let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    if (col === '입금액' || col === '출금액' || col === '이용금액') {
+                    let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
+                    if (col === '입금액' || col === '출금액') {
                         let amtColor = (col === '입금액' && !rowBlue) ? '#0000FF' : (col === '출금액' && !rowBlue) ? '#FF0000' : '';
-                        cellStyle = ` style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd;${amtColor ? ` color: ${amtColor};` : ''} font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '구분' || col === '입출금' || col === '은행명' || col === '거래일' || col === '카드사' || col === '카드번호' || col === '이용일' || col === '사업자번호' || col === '할부' || col === '분류코드' || col === '업종분류') {
-                        cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
+                        cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd;${amtColor ? ` color: ${amtColor};` : ''} font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
+                    } else if (col === '구분' || col === '입출금' || col === '은행명' || col === '거래일' || col === '거래시간' || col === '카드사' || col === '카드번호' || col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '할부' || col === '취소') {
+                        cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     }
                     
                     html += `<td${cellStyle}>${displayValue}</td>`;
@@ -3108,29 +3300,24 @@
             
             let totalDeposit = 0;
             let totalWithdraw = 0;
-            let totalUseAmt = 0;
             data.forEach(row => {
-                totalDeposit += parseFloat(row['입금액']) || 0;
-                totalWithdraw += parseFloat(row['출금액']) || 0;
-                totalUseAmt += parseFloat(String(row['이용금액'] || '').replace(/,/g, '')) || 0;
+                totalDeposit += parseFloat(getCell(row, '입금액')) || 0;
+                totalWithdraw += parseFloat(getCell(row, '출금액')) || 0;
             });
             
             html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
             availableColumns.forEach(col => {
-                let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;"`;
+                let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;"`;
                 let displayValue = '';
                 
                 if (col === '입금액') {
-                    cellStyle = ` style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;"`;
+                    cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;"`;
                     displayValue = formatNumber(totalDeposit);
                 } else if (col === '출금액') {
-                    cellStyle = ` style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #FF0000; font-size: 11px;"`;
+                    cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #FF0000; font-size: 11px;"`;
                     displayValue = formatNumber(totalWithdraw);
-                } else if (col === '이용금액') {
-                    cellStyle = ` style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; font-size: 11px;"`;
-                    displayValue = formatNumber(totalUseAmt);
                 } else if (col === '거래일' || col === '카드사') {
-                    cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;"`;
+                    cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;"`;
                     displayValue = '합계';
                 }
                 
@@ -3141,18 +3328,24 @@
             html += '</tbody></table>';
             contentDiv.innerHTML = html;
             
+            const tableEl = document.getElementById('category-query-table');
+            if (tableEl) tableEl.dataset.columns = JSON.stringify(availableColumns);
+            
             availableColumns.forEach(col => {
                 const filterSelect = document.getElementById(`filter-category-query-${col}`);
                 if (filterSelect) {
+                    filterSelect.selectedIndex = 0; // 초기값 '전체' (취소 등에서 잘못 선택되어 행이 안 보이는 것 방지)
                     filterSelect.addEventListener('change', function() {
                         updateFilterBackground(this);
                         filterCategoryQueryTable();
+                        if (typeof setupCategoryQueryScrollSync === 'function') setupCategoryQueryScrollSync();
                     });
                     updateFilterBackground(filterSelect);
                 }
             });
             
             updateCategoryChartFromQuery();
+            if (typeof setupCategoryQueryScrollSync === 'function') setupCategoryQueryScrollSync();
             
             const categoryQueryContent = document.getElementById('category-query-content');
             if (categoryQueryContent) {
@@ -3175,9 +3368,14 @@
             if (!tbody) return;
             
             const rows = tbody.querySelectorAll('tr');
-            const columns = categoryQueryDataOriginal.length > 0
-                ? Object.keys(categoryQueryDataOriginal[0])
-                : ['은행명', '입금액', '출금액', '구분', '적요', '내용', '거래점', '송금메모', '입출금', '거래유형', '기타거래'];
+            let columns = null;
+            if (table.dataset.columns) {
+                try { columns = JSON.parse(table.dataset.columns); } catch (e) {}
+            }
+            if (!columns || !columns.length)
+                columns = categoryQueryDataOriginal.length > 0
+                    ? Object.keys(categoryQueryDataOriginal[0])
+                    : ['거래일', '거래시간', '은행명', '입금액', '출금액', '구분', '적요', '내용', '거래점', '송금메모', '키워드', '입출금', '카테고리', '기타거래'];
             
             const filteredData = [];
             let sumRow = null;
@@ -3204,7 +3402,12 @@
                         const filterValue = filterSelect.value;
                         const cellValue = rowData[col];
                         
-                        if (col === '입금액' || col === '출금액' || col === '이용금액') {
+                        if (col === '취소') {
+                            const cs = String(cellValue != null ? cellValue : '').trim();
+                            const fs = String(filterValue != null ? filterValue : '').trim();
+                            const norm = function(s) { return (s === '0' || s === '0.0' || s === 'nan') ? '' : s; };
+                            if (norm(cs) !== norm(fs)) showRow = false;
+                        } else if (col === '입금액' || col === '출금액') {
                             const filterNum = parseFloat(String(filterValue).replace(/,/g, ''));
                             const cellNum = parseFloat(String(cellValue || '').replace(/,/g, ''));
                             if (isNaN(filterNum) || isNaN(cellNum) || filterNum !== cellNum) {
@@ -3228,6 +3431,8 @@
                         } else if (col === '가맹점명' && filterValue === '__가맹점명없음__') {
                             const cellEmpty = (cellValue === '' || cellValue === null || cellValue === undefined || String(cellValue).trim() === '');
                             if (!cellEmpty) showRow = false;
+                        } else if (col === '이용시간' && filterValue === '심야구분') {
+                            if (!isSimyaTime(cellValue)) showRow = false;
                         } else {
                             if (String(cellValue) !== String(filterValue)) {
                                 showRow = false;
@@ -3246,11 +3451,9 @@
             if (sumRow) {
                 let totalDeposit = 0;
                 let totalWithdraw = 0;
-                let totalUseAmt = 0;
                 filteredData.forEach(rowData => {
                     totalDeposit += parseFloat(rowData['입금액']) || 0;
                     totalWithdraw += parseFloat(rowData['출금액']) || 0;
-                    totalUseAmt += parseFloat(String(rowData['이용금액'] || '').replace(/,/g, '')) || 0;
                 });
                 
                 const cells = sumRow.querySelectorAll('td');
@@ -3265,9 +3468,6 @@
                         } else if (col === '출금액') {
                             cell.textContent = formatNumber(totalWithdraw);
                             cell.setAttribute('data-sum-col', '출금액');
-                        } else if (col === '이용금액') {
-                            cell.textContent = formatNumber(totalUseAmt);
-                            cell.setAttribute('data-sum-col', '이용금액');
                         } else if (col === '거래일' || col === '카드사') {
                             cell.textContent = '합계';
                             cell.setAttribute('data-sum-col', col);
@@ -3367,28 +3567,30 @@
                 
                 filteredData.forEach(row => {
                     const cat = String(row['카테고리'] || '').trim() || '미분류';
-                    const amt = parseFloat(String(row['이용금액'] || '').replace(/,/g, '')) || 0;
-                    if (amt < 0) {
-                        aggDep[cat] = (aggDep[cat] || 0) + Math.abs(amt);
-                    } else if (amt > 0) {
-                        aggWith[cat] = (aggWith[cat] || 0) + amt;
+                    const dep = parseFloat(String(row['입금액'] || '0').replace(/,/g, '')) || 0;
+                    const withAmt = parseFloat(String(row['출금액'] || '0').replace(/,/g, '')) || 0;
+                    if (dep > 0) {
+                        aggDep[cat] = (aggDep[cat] || 0) + dep;
                     }
-                    aggBal[cat] = (aggBal[cat] || 0) + Math.abs(amt);
+                    if (withAmt > 0) {
+                        aggWith[cat] = (aggWith[cat] || 0) + withAmt;
+                    }
+                    aggBal[cat] = (aggBal[cat] || 0) + dep + withAmt;
                 });
                 
                 deposits = categoryOrder.map(c => aggDep[c] || 0);
                 withdraws = categoryOrder.map(c => aggWith[c] || 0);
                 balances = categoryOrder.map(c => aggBal[c] || 0);
             } else {
-                // 은행 데이터: 거래유형 기준 (거래방법/거래지점 미사용)
+                // 은행 데이터: 카테고리 기준
                 const maxRows = 14;
                 const selectedData = filteredData.slice(0, maxRows);
                 while (selectedData.length < maxRows) {
-                    selectedData.push({ '거래유형': '', '입금액': 0, '출금액': 0 });
+                    selectedData.push({ '카테고리': '', '입금액': 0, '출금액': 0 });
                 }
                 labels = selectedData.map((item, i) => {
-                    const 거래유형 = item['거래유형'] || '';
-                    const 라벨 = 거래유형 || `행${i+1}`;
+                    const 카테고리 = item['카테고리'] || '';
+                    const 라벨 = 카테고리 || `행${i+1}`;
                     return 라벨.length > 10 ? 라벨.substring(0, 10) + '...' : 라벨;
                 });
                 deposits = selectedData.map(item => parseFloat(item['입금액']) || 0);
@@ -3447,7 +3649,7 @@
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return context.dataset.label + ': ' + formatNumber(context.parsed.y) + '원';
+                                    return context.dataset.label + ': ' + formatNumber(context.parsed.y);
                                 }
                             }
                         }
@@ -3486,7 +3688,7 @@
                                 stepSize: normalizedStep,
                                 font: { size: 10 },
                                 callback: function(value) {
-                                    return formatNumber(value) + '원';
+                                    return formatNumber(value);
                                 }
                             }
                         }
@@ -3557,6 +3759,13 @@
                         document.getElementById('new-category-name-input').value = '';
                         selectedRowData = null;
                         updateButtonText('출력', '#4CAF50');
+                        // 분류가 전체이면 키워드/카테고리도 전체
+                        if (!filterValue || filterValue === '' || filterValue === '전체') {
+                            const kw = document.getElementById('new-category-keyword-filter');
+                            const cat = document.getElementById('new-category-name-filter');
+                            if (kw) { kw.value = ''; updateCategoryFilterBackground(kw); }
+                            if (cat) { cat.value = ''; updateCategoryFilterBackground(cat); }
+                        }
                         renderCategoryDefinitionTable();
                     }
                 });
@@ -3640,21 +3849,21 @@
                 });
             }
             
-            // ESC 키: 입력/수정/삭제 모드 취소
+            // ESC, F1~F12: 입력/수정/삭제 모드 취소 → 출력 모드로 전환
             document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    const chasuSelect = document.getElementById('new-category-chasu');
-                    if (chasuSelect && ['입력', '수정', '삭제'].includes(chasuSelect.value)) {
-                        chasuSelect.value = '';
-                        document.getElementById('new-category-chasu-input').value = '';
-                        document.getElementById('new-category-keyword-input').value = '';
-                        document.getElementById('new-category-name-input').value = '';
-                        selectedRowData = null;
-                        toggleInputFields(false);
-                        updateButtonText('출력', '#4CAF50');
-                        updateFilterBackground(chasuSelect);
-                        renderCategoryDefinitionTable();
-                    }
+                const chasuSelect = document.getElementById('new-category-chasu');
+                if (!chasuSelect || !['입력', '수정', '삭제'].includes(chasuSelect.value)) return;
+                if (e.key === 'Escape' || /^F([1-9]|1[0-2])$/.test(e.key)) {
+                    e.preventDefault();
+                    chasuSelect.value = '';
+                    document.getElementById('new-category-chasu-input').value = '';
+                    document.getElementById('new-category-keyword-input').value = '';
+                    document.getElementById('new-category-name-input').value = '';
+                    selectedRowData = null;
+                    toggleInputFields(false);
+                    updateButtonText('출력', '#4CAF50');
+                    updateFilterBackground(chasuSelect);
+                    renderCategoryDefinitionTable();
                 }
             });
             

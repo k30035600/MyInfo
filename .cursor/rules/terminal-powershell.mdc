@@ -1,0 +1,37 @@
+---
+description: 터미널이 PowerShell일 때 CMD 전용 문법 사용 금지 (원인 제거)
+alwaysApply: true
+---
+
+# 터미널: PowerShell vs CMD
+
+## 원인
+
+- Cursor/Windows 기본 셸이 **PowerShell**일 때, **CMD 전용 문법**을 쓰면 오류가 납니다.
+- 예: `cd /d "경로"` → PowerShell에는 `/d` 인자가 없어 "A positional parameter cannot be found that accepts argument ..." 발생.
+
+## 규칙
+
+- **PowerShell**에서 명령을 실행할 때는 **PowerShell 호환 문법**만 사용합니다.
+- CMD 전용 문법은 사용하지 않습니다.
+
+### 디렉터리 이동
+
+| 사용 금지 (CMD) | 사용 (PowerShell) |
+|-----------------|-------------------|
+| `cd /d "d:\path"` | `Set-Location "d:\path"` 또는 `cd "d:\path"` |
+| `cd /d 경로 && 명령` | `Set-Location "경로"; 명령` |
+
+- PowerShell의 `cd`는 드라이브까지 자동 전환하므로 `/d`가 필요 없습니다.
+- 명령 연결: CMD의 `&&` 대신 PowerShell에서는 **세미콜론 `;`** 사용.
+
+### 기타
+
+| 사용 금지 (CMD) | 사용 (PowerShell) |
+|-----------------|-------------------|
+| `timeout /t 2` | `Start-Sleep -Seconds 2` |
+
+## 참고
+
+- 서버 실행 등: `Set-Location "d:\OneDrive\Cursor\MyInfo"; python app.py`
+- 터미널 로그 한글: `terminal-log-encoding.mdc` 참고.

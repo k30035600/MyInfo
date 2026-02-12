@@ -154,7 +154,7 @@
             color: #FF0000;
         }
         
-        /* 카테고리별 거래내역: 헤더 중간 정렬, 행 폰트 0.5 줄임 (9pt → 8pt) */
+        /* 카테고리 거래내역: 헤더 중간 정렬, 행 폰트 0.5 줄임 (9pt → 8pt) */
         table.transaction-detail,
         table.transaction-detail th,
         table.transaction-detail td {
@@ -165,7 +165,7 @@
             text-align: center;
         }
         
-        /* 카테고리별 거래내역: 카드사 최소 너비(잘리지 않게), 입금액/출금액 넓게 */
+        /* 카테고리 거래내역: 카드사 최소 너비(잘리지 않게), 입금액/출금액 넓게 */
         table.transaction-detail {
             table-layout: auto;
         }
@@ -387,6 +387,13 @@
         .section-monthly-trend .monthly-vertical-bar.bar-withdraw { background: rgba(255, 0, 0, 0.5); }
         @media print { .monthly-vertical-legend .legend-color, .monthly-vertical-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .monthly-vertical-xaxis-cell { -webkit-transform: rotate(-45deg); transform: rotate(-45deg); } }
         
+        /* 2페이지 그래프: 은행 기본분석과 동일 - 카드사별 비율 원 160px, 카드사별 집계 막대 130px */
+        .page.charts-page .monthly-vertical-chart-row { height: 160px; }
+        .page.charts-page .monthly-vertical-bar-container { height: 128px; }
+        .page.charts-page .row-half .section-pie-wrap:not(.section-category-pie) .pie-chart { width: 160px; height: 160px; min-width: 160px; min-height: 160px; }
+        .page.charts-page .bar-v-wrap { height: 130px; margin-top: 10px; }
+        .page.charts-page .bar-v-bars { height: 100px; }
+        
         /* 카드사/카드별 집계: 카드사 최소 너비(잘리지 않게), 입금액/출금액 넓게 */
         table.bank-table th:first-child,
         table.bank-table td:first-child {
@@ -422,7 +429,7 @@
             <div class="bank-info">카드사: {{ bank_filter }}</div>
         </div>
         
-        <!-- 2행: 카테고리별 입출금 내역 | 카테고리별 거래내역 (1:1) -->
+        <!-- 2행: 카테고리별 입출금 내역 | 카테고리 거래내역 (1:1) -->
         <div class="row-half">
             <div class="section">
                 <div class="section-title">카테고리별 입출금 내역</div>
@@ -438,22 +445,22 @@
                         {% for item in category_stats[:15] %}
                         <tr>
                             <td>{{ item['카테고리'] }}</td>
-                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}원</td>
-                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}원</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr style="font-weight: bold; background: #f0f0f0;">
                             <td>합계</td>
-                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(category_stats|sum(attribute='입금액')|int) }}원</td>
-                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(category_stats|sum(attribute='출금액')|int) }}원</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(category_stats|sum(attribute='입금액')|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(category_stats|sum(attribute='출금액')|int) }}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
             <div class="section">
-                <div class="section-title">카테고리별 거래내역{% if selected_category %} ({{ selected_category }}){% endif %}</div>
+                <div class="section-title">카테고리 거래내역{% if selected_category %} ({{ selected_category }}){% endif %}</div>
                 <table class="transaction-detail">
                     <thead>
                         <tr>
@@ -465,7 +472,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in transactions[:20] %}
+                        {% for item in transactions[:15] %}
                         {% set d = item.get('이용일', '')[:10] %}
                         {% set yy = d[2:4] if d|length >= 10 else '' %}
                         {% set mm = d[5:7] if d|length >= 10 else '' %}
@@ -479,9 +486,9 @@
                             <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item.get('출금액', 0)|int) }}</td>
                         </tr>
                         {% endfor %}
-                        {% if transaction_total_count > 20 %}
+                        {% if transaction_total_count > 15 %}
                         <tr class="transaction-more">
-                            <td colspan="3" class="text-center" style="color: #666; font-style: italic;">카드사 / 가맹점명 … (외 {{ transaction_total_count - 20 }}건)</td>
+                            <td colspan="3" class="text-center" style="color: #666; font-style: italic;">카드사 / 가맹점명 … (외 {{ transaction_total_count - 15 }}건)</td>
                             <td colspan="2"></td>
                         </tr>
                         {% endif %}
@@ -513,16 +520,16 @@
                         {% for item in bank_stats %}
                         <tr>
                             <td>{{ item[bank_col] }}</td>
-                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}원</td>
-                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}원</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr style="font-weight: bold; background: #f0f0f0;">
                             <td>합계</td>
-                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(bank_stats|sum(attribute='입금액')|int) }}원</td>
-                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(bank_stats|sum(attribute='출금액')|int) }}원</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(bank_stats|sum(attribute='입금액')|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(bank_stats|sum(attribute='출금액')|int) }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -575,15 +582,15 @@
             </div>
             <div class="stat-item">
                 <span class="label">순잔액</span>
-                <span class="value">{{ "{:,}".format(net_balance) }}원</span>
+                <span class="value">{{ "{:,}".format(net_balance) }}</span>
             </div>
             <div class="stat-item deposit">
                 <span class="label">입금합계</span>
-                <span class="value">{{ "{:,}".format(total_deposit) }}원</span>
+                <span class="value">{{ "{:,}".format(total_deposit) }}</span>
             </div>
             <div class="stat-item withdraw">
                 <span class="label">출금합계</span>
-                <span class="value">{{ "{:,}".format(total_withdraw) }}원</span>
+                <span class="value">{{ "{:,}".format(total_withdraw) }}</span>
             </div>
         </div>
     </div>
@@ -591,7 +598,7 @@
     <div class="page-break"></div>
     
     <!-- 2페이지 -->
-    <div class="page">
+    <div class="page charts-page">
         <!-- 1행: 헤더 -->
         <div class="header">
             <div class="date">출력일: {{ report_date }}</div>
@@ -611,11 +618,11 @@
                 </div>
                 <div class="monthly-vertical-chart-row">
                     <div class="monthly-vertical-yaxis">
-                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format(max_monthly_both) }}원{% else %}0원{% endif %}</span>
-                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both * 3 / 4)|int) }}원{% else %}0원{% endif %}</span>
-                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both / 2)|int) }}원{% else %}0원{% endif %}</span>
-                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both / 4)|int) }}원{% else %}0원{% endif %}</span>
-                        <span>0원</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format(max_monthly_both) }}{% else %}0{% endif %}</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both * 3 / 4)|int) }}{% else %}0{% endif %}</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both / 2)|int) }}{% else %}0{% endif %}</span>
+                        <span>{% if max_monthly_both > 0 %}{{ "{:,}".format((max_monthly_both / 4)|int) }}{% else %}0{% endif %}</span>
+                        <span>0</span>
                     </div>
                     <div class="monthly-vertical-bars-area">
                         {% for row in monthly_totals_list %}
@@ -695,7 +702,7 @@
                         {% set bank_total = item['입금액'] + item['출금액'] %}
                         <tr>
                             <td>{{ item[bank_col] }}</td>
-                            <td class="text-right">{{ "{:,}".format(bank_total|int) }}원</td>
+                            <td class="text-right">{{ "{:,}".format(bank_total|int) }}</td>
                             <td class="text-right">{{ "%.1f"|format((bank_total / total_amount * 100) if total_amount > 0 else 0) }}%</td>
                         </tr>
                         {% endfor %}
@@ -746,16 +753,16 @@
                         {% for item in bank_stats %}
                         <tr>
                             <td>{{ item[bank_col] }}</td>
-                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}원</td>
-                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}원</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(item['입금액']|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(item['출금액']|int) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr style="font-weight: bold; background: #f0f0f0;">
                             <td>합계</td>
-                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(bank_stats|sum(attribute='입금액')|int) }}원</td>
-                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(bank_stats|sum(attribute='출금액')|int) }}원</td>
+                            <td class="text-right" style="color: #0000FF;">{{ "{:,}".format(bank_stats|sum(attribute='입금액')|int) }}</td>
+                            <td class="text-right" style="color: #FF0000;">{{ "{:,}".format(bank_stats|sum(attribute='출금액')|int) }}</td>
                         </tr>
                     </tfoot>
                 </table>

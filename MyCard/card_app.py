@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import io
 import os
+import shutil
 from functools import wraps
 from datetime import datetime
 
@@ -27,8 +28,57 @@ app.config['JSON_AS_ASCII'] = False
 # 스크립트 디렉토리 = MyCard 폴더
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-# category: MyInfo/info_category.xlsx 하나만 사용
+# category: MyInfo/info_category.xlsx 하나만 사용 (info_category_io 모듈로 읽기/쓰기)
 INFO_CATEGORY_PATH = str(Path(PROJECT_ROOT) / 'info_category.xlsx')
+try:
+    from info_category_io import load_info_category, normalize_category_df, get_category_table as _io_get_category_table, apply_category_action
+except ImportError:
+    def load_info_category(path, default_empty=True):
+        if not path or not Path(path).exists(): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
+        return pd.read_excel(path, engine='openpyxl')
+    def normalize_category_df(df):
+        if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
+        df = df.copy().fillna(''); df = df.drop(columns=['구분'], errors='ignore')
+        for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
+        return df[['분류', '키워드', '카테고리']].copy()
+
+    def _io_get_category_table(path):
+        import os
+        cols = ['분류', '키워드', '카테고리']
+        pe = bool(path and os.path.exists(path) and os.path.getsize(path) > 0)
+        if not pe: return (pd.DataFrame(columns=cols), False)
+        full = load_info_category(path, default_empty=True)
+        if full is None or full.empty: return (pd.DataFrame(columns=cols), pe)
+        df = normalize_category_df(full).fillna('')
+        for c in cols: df[c] = df[c] if c in df.columns else ''
+        return (df, pe)
+
+    def apply_category_action(path, action, data):
+        import unicodedata
+        def _n(v):
+            if v is None or (isinstance(v, str) and not str(v).strip()): return '' if v is None else v
+            return unicodedata.normalize('NFKC', str(v).strip())
+        _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분')
+        try:
+            df, _ = _io_get_category_table(path)
+            df = df.fillna('')
+            if action == 'add':
+                v = _n(data.get('분류', '')).strip()
+                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
+                df = pd.concat([df, pd.DataFrame([{'분류': _n(data.get('분류','')), '키워드': _n(data.get('키워드','')), '카테고리': _n(data.get('카테고리',''))}])], ignore_index=True)
+            elif action == 'update':
+                o1, o2, o3 = data.get('original_분류',''), data.get('original_키워드',''), data.get('original_카테고리','')
+                v = _n(data.get('분류','')).strip()
+                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
+                mask = (df['분류']==o1)&(df['키워드']==o2)&(df['카테고리']==o3)
+                if mask.any(): df.loc[mask, '분류'], df.loc[mask, '키워드'], df.loc[mask, '카테고리'] = v, _n(data.get('키워드','')), _n(data.get('카테고리',''))
+                else: return (False, '수정할 데이터를 찾을 수 없습니다.', 0)
+            elif action == 'delete':
+                df = df[~((df['분류']==data.get('original_분류',data.get('분류','')))&(df['키워드']==data.get('original_키워드',data.get('키워드','')))&(df['카테고리']==data.get('original_카테고리',data.get('카테고리',''))))]
+            else: return (False, f'unknown action: {action}', 0)
+            df.to_excel(str(path), index=False, engine='openpyxl')
+            return (True, None, len(df))
+        except Exception as e: return (False, str(e), 0)
 # 원본 카드 파일: .source/Card. before/after: MyCard 폴더
 SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
 CARD_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'card_before.xlsx')
@@ -61,7 +111,7 @@ def _ensure_card_category_file():
 
 
 def _call_integrate_card():
-    """card_before.xlsx 생성 (MyCard 폴더). info_category 있으면 카테고리 적용 후 저장."""
+    """card_before.xlsx 생성 (MyCard 폴더). 카테고리는 card_after에서만 적용."""
     mod = _load_process_card_data_module()
     card_before_path = Path(CARD_BEFORE_PATH)
     df = mod.integrate_card_excel(skip_write=True)
@@ -77,25 +127,8 @@ def _call_integrate_card():
         df.loc[has_card, '가맹점명'] = df.loc[has_card, '카드사']
     if df is not None and not df.empty:
         _apply_카드사_사업자번호_기본값(df)
-    # 이용금액 마이너스 → 카테고리 현금처리 (우선 적용, 기타 카테고리 적용 무시)
-    if df is not None and not df.empty:
-        if '카테고리' not in df.columns:
-            df['카테고리'] = ''
-        _apply_이용금액_마이너스_현금처리(df)
-    # info_category.xlsx가 있을 때만 카테고리 적용 (구분 없음)
-    if df is not None and not df.empty and '가맹점명' in df.columns and Path(INFO_CATEGORY_PATH).exists():
-        try:
-            full = pd.read_excel(INFO_CATEGORY_PATH, engine='openpyxl').fillna('')
-            if '구분' in full.columns:
-                full = full.drop(columns=['구분'], errors='ignore')
-            category_df = full[['분류', '키워드', '카테고리']].copy() if all(c in full.columns for c in ['분류', '키워드', '카테고리']) else full
-            if not category_df.empty:
-                df = mod.apply_category_from_merchant(df, category_df)
-        except Exception:
-            pass
+    # card_before에는 카테고리 미포함 (card_after에서만 카테고리·현금처리 적용)
     if df is not None:
-        # 현금처리: 이용금액>0일 때만 * -1 (입금으로 저장)
-        _apply_현금처리_이용금액_negate(df)
         # 할부: '일시불'/0 → 공백 (card_before.xlsx 저장 전 정규화)
         if not df.empty and '할부' in df.columns:
             df['할부'] = df['할부'].apply(
@@ -237,7 +270,7 @@ def load_processed_file():
         if not Path(CARD_AFTER_PATH).exists():
             return pd.DataFrame()
         df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
-        if not df.empty and '이용금액' in df.columns:
+        if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
             _card_deposit_withdraw_from_이용금액(df)
         return df
     except Exception as e:
@@ -264,7 +297,9 @@ def load_category_file():
         if Path(CARD_AFTER_PATH).exists():
             try:
                 df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
-                if not df.empty and '이용금액' in df.columns:
+                if not df.empty:
+                    df.columns = [str(c).strip() for c in df.columns]
+                if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
                     _card_deposit_withdraw_from_이용금액(df)
                 return df
             except Exception as e:
@@ -376,8 +411,7 @@ def run_card_preprocess():
 @app.route('/api/processed-data')
 @ensure_working_directory
 def get_processed_data():
-    """전처리된 데이터 반환 (카드: card_before.xlsx 기준, 필터링 지원).
-    전처리후: card_before 있으면 기존 파일 읽어 사용, 없으면 통합 생성 후 사용."""
+    """전처리후 테이블용: card_before.xlsx만 사용. 카테고리·키워드 컬럼은 사용하지 않음."""
     try:
         output_path = Path(CARD_BEFORE_PATH)
         if not output_path.exists() or output_path.stat().st_size == 0:
@@ -399,27 +433,13 @@ def get_processed_data():
                     'withdraw_amount': 0,
                     'data': []
                 }), 500
-        
+
+        # 전처리후 테이블: card_before.xlsx만 사용 (카테고리·키워드 컬럼 해당 없음)
         df = load_card_before_file()
+        if not df.empty:
+            df = df.drop(columns=['키워드', '카테고리'], errors='ignore')
+
         category_file_exists = Path(INFO_CATEGORY_PATH).exists()
-        # info_category.xlsx(신용카드) 없으면 기본 규칙으로 생성 후 카테고리 적용
-        if not category_file_exists and not df.empty:
-            try:
-                mod = _load_process_card_data_module()
-                mod.create_category_table(None, category_filepath=INFO_CATEGORY_PATH)
-                category_file_exists = Path(INFO_CATEGORY_PATH).exists()
-            except Exception:
-                pass
-        # 가맹점명 기반 카테고리 적용 (info_category.xlsx 신용카드 규칙)
-        if not df.empty and category_file_exists:
-            try:
-                full = pd.read_excel(INFO_CATEGORY_PATH, engine='openpyxl').fillna('')
-                if '구분' in full.columns: full = full.drop(columns=['구분'], errors='ignore')
-                category_df = full[['분류', '키워드', '카테고리']].copy() if all(c in full.columns for c in ['분류', '키워드', '카테고리']) else full
-                mod = _load_process_card_data_module()
-                df = mod.apply_category_from_merchant(df, category_df)
-            except Exception:
-                pass
         
         if df.empty:
             response = jsonify({
@@ -452,6 +472,10 @@ def get_processed_data():
             if date_col:
                 df = df[df[date_col].astype(str).str.replace(r'[\s\-/.]', '', regex=True).str.startswith(date_filter.replace('-', '').replace('/', ''))]
         
+        # 전처리후 화면: 입금액 절대값으로 표시 (card_before 생성 시에도 절대값 저장됨)
+        if not df.empty and '입금액' in df.columns:
+            df['입금액'] = pd.to_numeric(df['입금액'], errors='coerce').fillna(0).abs()
+        
         # 카드번호 16자 이하 행 제외 (전처리후 표시용)
         if not df.empty and '카드번호' in df.columns:
             df = df[df['카드번호'].astype(str).str.strip().str.len() > 16]
@@ -468,6 +492,21 @@ def get_processed_data():
         
         # NaN 값을 None으로 변환
         df = df.where(pd.notna(df), None)
+        # 취소 컬럼: 0/0.0/'0'은 빈 문자열, "0 취소" 등은 '취소'로 통일
+        if not df.empty and '취소' in df.columns:
+            def _normalize_cancel(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)): return ''
+                s = str(v).strip()
+                if s in ('', '0', '0.0', 'nan'): return ''
+                return '취소' if '취소' in s else s
+            df['취소'] = df['취소'].apply(_normalize_cancel)
+        # 이용시간 없으면 00:00:00 (전처리후 화면 표시)
+        if not df.empty and '이용시간' in df.columns:
+            def _fill_time(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)): return '00:00:00'
+                s = str(v).strip()
+                return '00:00:00' if not s else s
+            df['이용시간'] = df['이용시간'].apply(_fill_time)
         
         data = df.to_dict('records')
         data = _json_safe(data)
@@ -496,10 +535,14 @@ def get_processed_data():
 @ensure_working_directory
 def get_category_applied_data():
     """카테고리 적용된 데이터 반환 (card_after.xlsx, 필터링 지원).
-    카테고리 조회: card_after 있으면 기존 파일 읽어 사용. 생성은 'card_after.xlsx 생성' 버튼에서만."""
+    card_after 없으면 은행거래와 동일하게 자동 생성 후 반환."""
     try:
-        category_file_exists = Path(CARD_AFTER_PATH).exists()
-        
+        card_after_path = Path(CARD_AFTER_PATH)
+        if not card_after_path.exists() or card_after_path.stat().st_size == 0:
+            if Path(CARD_BEFORE_PATH).exists() and Path(CARD_BEFORE_PATH).stat().st_size > 0:
+                _create_card_after()
+        category_file_exists = card_after_path.exists()
+
         # 카테고리 파일 로드
         try:
             df = load_category_file()
@@ -519,12 +562,16 @@ def get_category_applied_data():
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
         
-        # 필터 파라미터 (카드: 카드사, 은행: 은행명)
-        bank_filter = request.args.get('bank', '')
+        # 필터 파라미터 (전처리후 카드사/카드번호에 따라 필터링)
+        bank_filter = (request.args.get('bank') or '').strip()
         date_filter = request.args.get('date', '')
+        cardno_filter = (request.args.get('cardno') or '').strip()
         bank_col = '카드사' if not df.empty and '카드사' in df.columns else '은행명'
         if bank_filter and bank_col in df.columns:
             df = df[df[bank_col].astype(str).str.strip() == bank_filter]
+        
+        if cardno_filter and '카드번호' in df.columns:
+            df = df[df['카드번호'].fillna('').astype(str).str.strip() == cardno_filter]
         
         if date_filter:
             date_col = '이용일' if '이용일' in df.columns else ('거래일' if '거래일' in df.columns else None)
@@ -552,6 +599,32 @@ def get_category_applied_data():
             withdraw_amount = int(df['출금액'].sum()) if not df.empty else 0
         
         df = df.where(pd.notna(df), None)
+        # 취소 컬럼: 0/0.0/'0'/nan은 빈 문자열, "0 취소" 등 비어있지 않으면 '취소' (테이블에 "취소"만 표시)
+        if not df.empty and '취소' in df.columns:
+            def _normalize_cancel_cat(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)): return ''
+                s = str(v).strip()
+                if s in ('', '0', '0.0', 'nan'): return ''
+                return '취소' if s else ''
+            df['취소'] = df['취소'].apply(_normalize_cancel_cat)
+        # 이용시간 없으면 00:00:00 (카테고리 조회 테이블 표시)
+        if not df.empty and '이용시간' in df.columns:
+            def _fill_time_cat(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)): return '00:00:00'
+                s = str(v).strip()
+                return '00:00:00' if not s else s
+            df['이용시간'] = df['이용시간'].apply(_fill_time_cat)
+        # 카테고리 적용후 테이블: 이용일 → 이용시간 → 카드번호 순 정렬
+        sort_cols = []
+        if '이용일' in df.columns:
+            sort_cols.append('이용일')
+        if '이용시간' in df.columns:
+            sort_cols.append('이용시간')
+        if '카드번호' in df.columns:
+            sort_cols.append('카드번호')
+        if sort_cols:
+            # 이용일은 문자열이어도 YYYY-MM-DD/YY/MM/DD 형식이면 문자열 정렬로 순서 유지
+            df = df.sort_values(by=sort_cols, ascending=True, na_position='last').reset_index(drop=True)
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
@@ -660,20 +733,9 @@ def category():
 @app.route('/api/card_category')
 def get_category_table():
     """info_category.xlsx 전체 반환 (구분 없음)."""
-    path = Path(INFO_CATEGORY_PATH)
+    path = str(Path(INFO_CATEGORY_PATH))
     try:
-        file_exists = path.exists()
-        cols = ['분류', '키워드', '카테고리']
-        if not file_exists:
-            df = pd.DataFrame(columns=cols)
-        else:
-            full = pd.read_excel(str(path), engine='openpyxl').fillna('')
-            if '구분' in full.columns:
-                full = full.drop(columns=['구분'], errors='ignore')
-            df = full[cols].copy() if all(c in full.columns for c in cols) else pd.DataFrame(columns=cols)
-        for col in cols:
-            if col not in df.columns:
-                df[col] = ''
+        df, _ = _io_get_category_table(path)
         data = df.to_dict('records')
         response = jsonify({
             'data': data,
@@ -688,7 +750,7 @@ def get_category_table():
         response = jsonify({
             'error': str(e),
             'data': [],
-            'file_exists': path.exists()
+            'file_exists': Path(INFO_CATEGORY_PATH).exists()
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response, 500
@@ -696,49 +758,22 @@ def get_category_table():
 @app.route('/api/card_category', methods=['POST'])
 def save_category_table():
     """info_category.xlsx 전체 갱신 (구분 없음)"""
-    path = Path(INFO_CATEGORY_PATH)
-    file_columns = ['분류', '키워드', '카테고리']
+    path = str(Path(INFO_CATEGORY_PATH))
     try:
-        data = request.json
+        data = request.json or {}
         action = data.get('action', 'add')
-        if path.exists():
-            full_df = pd.read_excel(str(path), engine='openpyxl').fillna('')
-            if '구분' in full_df.columns:
-                full_df = full_df.drop(columns=['구분'], errors='ignore')
-            df = full_df[file_columns].copy() if all(c in full_df.columns for c in file_columns) else pd.DataFrame(columns=file_columns)
-        else:
-            df = pd.DataFrame(columns=file_columns)
-        for col in file_columns:
-            if col not in df.columns:
-                df[col] = ''
-        df = df.fillna('')
-        if action == 'add':
-            new_row = {'분류': data.get('분류', ''), '키워드': data.get('키워드', ''), '카테고리': data.get('카테고리', '')}
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        elif action == 'update':
-            original_분류 = data.get('original_분류', '')
-            original_keyword = data.get('original_키워드', '')
-            original_category = data.get('original_카테고리', '')
-            new_분류 = data.get('분류', '')
-            new_keyword = data.get('키워드', '')
-            new_category = data.get('카테고리', '')
-            mask = ((df['분류'] == original_분류) & (df['키워드'] == original_keyword) & (df['카테고리'] == original_category))
-            if mask.any():
-                df.loc[mask, '분류'] = new_분류
-                df.loc[mask, '키워드'] = new_keyword
-                df.loc[mask, '카테고리'] = new_category
-            else:
-                return jsonify({'success': False, 'error': '수정할 데이터를 찾을 수 없습니다.'}), 400
-        elif action == 'delete':
-            분류값 = data.get('original_분류', data.get('분류', ''))
-            keyword = data.get('original_키워드', data.get('키워드', ''))
-            category = data.get('original_카테고리', data.get('카테고리', ''))
-            df = df[~((df['분류'] == 분류값) & (df['키워드'] == keyword) & (df['카테고리'] == category))]
-        df.to_excel(str(path), index=False, engine='openpyxl')
+        success, error_msg, count = apply_category_action(path, action, data)
+        if not success:
+            return jsonify({'success': False, 'error': error_msg}), 400
+        try:
+            from info_category_defaults import sync_category_create_from_xlsx
+            sync_category_create_from_xlsx(path)
+        except Exception:
+            pass
         response = jsonify({
             'success': True,
             'message': '카테고리 테이블이 업데이트되었습니다.',
-            'count': len(df)
+            'count': count
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response
@@ -1322,7 +1357,7 @@ def get_transactions_by_content():
             transactions = df[(df[content_col].isin(top_content_list)) & (df[amt_col] > 0)].copy()
             transactions = transactions.sort_values(amt_col, ascending=False)
             transactions = transactions.where(pd.notna(transactions), None)
-            cols = [c for c in ['거래일', '이용일', bank_col, amt_col, '구분', '적요', content_col, '거래점', '카테고리'] if c in transactions.columns]
+            cols = [c for c in ['거래일', '거래시간', '이용일', '이용시간', bank_col, amt_col, '구분', '적요', content_col, '거래점', '카테고리'] if c in transactions.columns]
             data = transactions[cols].to_dict('records') if cols else []
             data = _json_safe(data)
         else:
@@ -1334,7 +1369,7 @@ def get_transactions_by_content():
             transactions = df[(df[content_col].isin(top_content_list)) & (df[amt_col] > 0)].copy()
             transactions = transactions.sort_values(amt_col, ascending=False)
             transactions = transactions.where(pd.notna(transactions), None)
-            cols = [c for c in ['거래일', '이용일', bank_col, amt_col, '구분', '적요', content_col, '거래점', '카테고리'] if c in transactions.columns]
+            cols = [c for c in ['거래일', '거래시간', '이용일', '이용시간', bank_col, amt_col, '구분', '적요', content_col, '거래점', '카테고리'] if c in transactions.columns]
             data = transactions[cols].to_dict('records') if cols else []
             data = _json_safe(data)
         response = jsonify({'data': data})
@@ -1517,49 +1552,62 @@ def get_date_range():
         traceback.print_exc()
         return jsonify({'error': str(e), 'min_date': None, 'max_date': None}), 500
 
-@app.route('/api/generate-category', methods=['POST'])
-@ensure_working_directory
-def generate_category():
-    """card_before → card_after 생성. info_category(신용카드) 규칙으로 카테고리(계정과목/업종분류) 적용 후 저장."""
+
+def _create_card_after():
+    """card_before → card_after.xlsx 생성. 은행거래 ensure_all_bank_files와 동일하게 전처리 화면에서 자동 생성 시 사용.
+    Returns: (success: bool, error: Optional[str], count: int)"""
     try:
         mod = _load_process_card_data_module()
         card_before_path = Path(CARD_BEFORE_PATH)
         if not card_before_path.exists() or card_before_path.stat().st_size == 0:
-            return jsonify({
-                'success': False,
-                'error': 'card_after.xlsx를 만들 수 없습니다. card_before.xlsx가 없거나 비어 있습니다. '
-                         'MyInfo/.source/Card에 .xls/.xlsx 파일을 넣은 뒤 전처리를 먼저 실행하세요.'
-            }), 400
+            return (False, 'card_after.xlsx를 만들 수 없습니다. card_before.xlsx가 없거나 비어 있습니다. '
+                    'MyInfo/.source/Card에 .xls/.xlsx 파일을 넣은 뒤 전처리를 먼저 실행하세요.', 0)
 
         df_card = pd.read_excel(card_before_path, engine='openpyxl')
+        df_card.columns = [str(c).strip() for c in df_card.columns]
         Path(CARD_AFTER_PATH).parent.mkdir(parents=True, exist_ok=True)
         had_category_file = Path(INFO_CATEGORY_PATH).exists()
 
-        # 카드사/카드번호/이용금액이 있으면서 가맹점명이 공란이면 가맹점명에 카드사 저장 (카테고리 매칭 전에 수행 → 신한카드 등 카드사명 매칭 가능)
-        if not df_card.empty and all(c in df_card.columns for c in ['카드사', '카드번호', '이용금액', '가맹점명']):
-            has_card = (
-                (df_card['카드사'].fillna('').astype(str).str.strip() != '') &
-                (df_card['카드번호'].fillna('').astype(str).str.strip() != '') &
-                (df_card['이용금액'].notna()) &
-                (df_card['가맹점명'].fillna('').astype(str).str.strip() == '')
+        # 카드사/카드번호/입금액 또는 출금액이 있으면서 가맹점명이 공란이면 가맹점명에 카드사 저장
+        if not df_card.empty and all(c in df_card.columns for c in ['카드사', '카드번호', '가맹점명']):
+            has_amt = ('입금액' in df_card.columns and df_card['입금액'].notna().any()) or ('출금액' in df_card.columns and df_card['출금액'].notna().any())
+            if has_amt:
+                has_card = (
+                    (df_card['카드사'].fillna('').astype(str).str.strip() != '') &
+                    (df_card['카드번호'].fillna('').astype(str).str.strip() != '') &
+                    (df_card['가맹점명'].fillna('').astype(str).str.strip() == '')
+                )
+                df_card.loc[has_card, '가맹점명'] = df_card.loc[has_card, '카드사']
+            # 신한카드에서 가맹점명이 '신한카드'인 경우(카드론 등): '신한카드_카드론'으로 통일
+            sh_merchant = (
+                df_card['카드사'].fillna('').astype(str).str.strip().str.contains('신한', na=False) &
+                (df_card['가맹점명'].fillna('').astype(str).str.strip() == '신한카드')
             )
-            df_card.loc[has_card, '가맹점명'] = df_card.loc[has_card, '카드사']
+            if sh_merchant.any():
+                df_card.loc[sh_merchant, '가맹점명'] = '신한카드_카드론'
+
+        # 카테고리(info_category.xlsx) 전처리/후처리 규칙 적용 (가맹점명, 카드사)
+        if hasattr(mod, '_apply_prepost_to_columns'):
+            df_card = mod._apply_prepost_to_columns(df_card, ['가맹점명', '카드사'])
 
         # 신한카드/하나카드 + 사업자번호 없음 → 기본값 저장
         _apply_카드사_사업자번호_기본값(df_card)
 
-        # 이용금액 마이너스 → 카테고리 현금처리 (우선 적용, 기타 카테고리 적용 무시)
+        # 입금액 > 0 (환급) → 카테고리 현금처리 (우선 적용)
         if '카테고리' not in df_card.columns:
             df_card['카테고리'] = ''
-        _apply_이용금액_마이너스_현금처리(df_card)
+        if '입금액' in df_card.columns:
+            입금 = pd.to_numeric(df_card['입금액'], errors='coerce').fillna(0) > 0
+            if 입금.any():
+                df_card.loc[입금, '카테고리'] = '현금처리'
 
         if had_category_file:
             try:
-                full = pd.read_excel(INFO_CATEGORY_PATH, engine='openpyxl').fillna('')
-                if '구분' in full.columns:
-                    full = full.drop(columns=['구분'], errors='ignore')
-                df_cat = full[['분류', '키워드', '카테고리']].copy() if all(c in full.columns for c in ['분류', '키워드', '카테고리']) else full
-                df_card = mod.apply_category_from_merchant(df_card, df_cat)
+                full = load_info_category(INFO_CATEGORY_PATH, default_empty=True)
+                if full is not None and not full.empty:
+                    df_cat = normalize_category_df(full)
+                    if not df_cat.empty:
+                        df_card = mod.apply_category_from_merchant(df_card, df_cat)
             except Exception:
                 pass
         # 카테고리 컬럼 없으면 추가, 비어 있거나 공백이면 '미분류' (card_before에 카테고리 없을 수 있음)
@@ -1571,9 +1619,9 @@ def generate_category():
         # 카드번호 16자 이하 행 제외 후 card_after.xlsx 저장
         if not df_card.empty and '카드번호' in df_card.columns:
             df_card = df_card[df_card['카드번호'].astype(str).str.strip().str.len() > 16]
-        # 시간 제외: '시간' 포함 컬럼 삭제, 이용일 등 날짜 컬럼은 날짜만 저장(시간 제거)
+        # 시간 제외: 이용시간(승인시간)은 유지, 그 외 '시간' 포함 컬럼 삭제
         if not df_card.empty:
-            time_cols = [c for c in df_card.columns if '시간' in str(c)]
+            time_cols = [c for c in df_card.columns if '시간' in str(c) and c != '이용시간']
             if time_cols:
                 df_card = df_card.drop(columns=time_cols, errors='ignore')
             for col in ['이용일', '거래일']:
@@ -1581,31 +1629,52 @@ def generate_category():
                     continue
                 ser = pd.to_datetime(df_card[col], errors='coerce')
                 df_card[col] = ser.dt.strftime('%Y-%m-%d').where(ser.notna(), df_card[col])
-        # 카테고리 뒤 분류코드/업종분류 컬럼 추가 (카테고리 조회용)
-        # 분류코드: 카테고리테이블 업종분류 해당 키워드 6자리 숫자를 문자로 저장. 나중에 코드 추가 예정.
-        #   → 사업자번호를 기초로 국세청 홈페이지에서 업종분류 코드를 취득하여 저장할 예정.
-        if '분류코드' not in df_card.columns:
-            df_card['분류코드'] = ''
+        # 키워드: apply_category_from_merchant에서 매칭된 규칙의 키워드 저장. 없으면 빈 문자열.
+        if '키워드' not in df_card.columns:
+            df_card['키워드'] = ''
         else:
-            df_card['분류코드'] = df_card['분류코드'].fillna('').astype(str).str.strip()
-        # 업종분류: 나중에 코드 추가 예정.
-        #   → 카테고리테이블 "업종분류"에 해당하는 6자리 코드를 매칭하고, 매칭 결과가 있을 경우 해당 카테고리를 업종분류에 저장할 예정.
-        if '업종분류' not in df_card.columns:
-            df_card['업종분류'] = ''
-        else:
-            df_card['업종분류'] = df_card['업종분류'].fillna('').astype(str).str.strip()
-        # 현금처리: 이용금액>0일 때만 * -1 (입금으로 저장)
-        _apply_현금처리_이용금액_negate(df_card)
+            df_card['키워드'] = df_card['키워드'].fillna('').astype(str).str.strip()
+        # 현금처리: 입금액/출금액 구조에서는 별도 변환 없음 (이미 입금액/출금액으로 저장됨)
         # 할부 컬럼: '일시불' 등 → 공백으로 저장 (card_after.xlsx에는 일시불 텍스트 미저장)
         if not df_card.empty and '할부' in df_card.columns:
             df_card['할부'] = df_card['할부'].apply(
                 lambda v: '' if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ('', '0', '일시불') else v
             )
-        # 컬럼 순서: ... 카테고리, 분류코드, 업종분류
-        card_after_cols = ['카드사', '카드번호', '이용일', '이용금액', '가맹점명', '사업자번호', '할부', '카테고리', '분류코드', '업종분류']
+        # 이용시간 없으면 00:00:00으로 채움 (컬럼 없으면 추가, 값 비어 있으면 00:00:00)
+        if not df_card.empty:
+            if '이용시간' not in df_card.columns:
+                df_card['이용시간'] = '00:00:00'
+            else:
+                def _fill_time(v):
+                    if v is None or (isinstance(v, float) and pd.isna(v)): return '00:00:00'
+                    s = str(v).strip()
+                    return '00:00:00' if not s else s
+                df_card['이용시간'] = df_card['이용시간'].apply(_fill_time)
+            if '취소' not in df_card.columns:
+                df_card['취소'] = ''
+        # 취소 컬럼: 0/NaN → '', "0 취소" 등은 '취소'만 저장 (Excel에 "취소"만 보이도록)
+        if not df_card.empty and '취소' in df_card.columns:
+            def _cancel_str(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return ''
+                s = str(v).strip()
+                if s in ('', '0', '0.0', 'nan'):
+                    return ''
+                return '취소' if '취소' in s else s
+            df_card['취소'] = df_card['취소'].apply(_cancel_str)
+        # 컬럼 순서: 카드사, 카드번호, 이용일, 이용시간, 입금액, 출금액, 취소, 사업자번호, 할부, 키워드, 카테고리, 가맹점명
+        card_after_cols = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '할부', '키워드', '카테고리', '가맹점명']
         existing = [c for c in card_after_cols if c in df_card.columns]
         extra = [c for c in df_card.columns if c not in card_after_cols]
         df_card = df_card.reindex(columns=existing + extra)
+        # 이미 card_after.xlsx가 있으면 .bak으로 복사 후 새로 생성
+        card_after_path = Path(CARD_AFTER_PATH)
+        if card_after_path.exists() and card_after_path.stat().st_size > 0:
+            try:
+                bak_path = card_after_path.with_suffix(card_after_path.suffix + '.bak')
+                shutil.copy2(str(card_after_path), str(bak_path))
+            except Exception:
+                pass
         df_card.to_excel(str(CARD_AFTER_PATH), index=False, engine='openpyxl')
 
         if not had_category_file:
@@ -1614,28 +1683,33 @@ def generate_category():
             except Exception as e:
                 print(f"info_category.xlsx 신용카드 섹션 생성 실패: {e}")
 
+        return (True, None, len(df_card))
+    except FileNotFoundError as e:
+        return (False, f'파일을 찾을 수 없습니다: {str(e)}', 0)
+    except Exception as e:
+        traceback.print_exc()
+        return (False, str(e), 0)
+
+
+@app.route('/api/generate-category', methods=['POST'])
+@ensure_working_directory
+def generate_category():
+    """card_before → card_after 생성. info_category(신용카드) 규칙으로 카테고리(계정과목/업종분류) 적용 후 저장."""
+    success, error, count = _create_card_after()
+    if success:
+        had_category_file = Path(INFO_CATEGORY_PATH).exists()
         return jsonify({
             'success': True,
-            'message': f'card_after.xlsx 생성 완료: {len(df_card)}건' + (
+            'message': f'card_after.xlsx 생성 완료: {count}건' + (
                 ' (카테고리 적용 없이 미분류로 저장 후 info_category 신용카드 섹션 생성)' if not had_category_file else ' (info_category 적용)'
             ),
-            'count': len(df_card),
+            'count': count,
             'folder': str(Path(CARD_AFTER_PATH).parent),
             'filename': Path(CARD_AFTER_PATH).name
         })
-            
-    except FileNotFoundError as e:
-        return jsonify({
-            'success': False,
-            'error': f'파일을 찾을 수 없습니다: {str(e)}'
-        }), 500
-    except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"카테고리 생성 오류: {error_trace}")
-        return jsonify({
-            'success': False,
-            'error': f'{str(e)}\n상세 정보는 서버 로그를 확인하세요.'
-        }), 500
+    if error and 'card_before' in error and '없거나 비어' in error:
+        return jsonify({'success': False, 'error': error}), 400
+    return jsonify({'success': False, 'error': error or 'card_after.xlsx 생성 실패'}), 500
 
 @app.route('/help')
 def help():
@@ -1681,7 +1755,7 @@ def print_analysis():
         if selected_category:
             trans_all = df[df['카테고리'] == selected_category]
             transaction_total_count = len(trans_all)
-            transactions = trans_all.head(20)
+            transactions = trans_all.head(15)
             transaction_deposit_total = int(trans_all['입금액'].sum())
             transaction_withdraw_total = int(trans_all['출금액'].sum())
         else:
@@ -1767,9 +1841,4 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
     
-    print("=" * 50)
-    print("신용카드 통합정보(mybccard) 서버를 시작합니다...")
-    print("브라우저에서 http://localhost:5002 으로 접속하세요.")
-    print("서버를 중지하려면 Ctrl+C를 누르세요.")
-    print("=" * 50)
     app.run(debug=True, port=5002, host='127.0.0.1')

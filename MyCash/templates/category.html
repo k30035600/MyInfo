@@ -209,6 +209,25 @@
             min-height: 0;
         }
         
+        /* 카테고리 테이블: 카테고리조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
+        #category-definition-table,
+        #category-definition-table th,
+        #category-definition-table td,
+        #category-definition-table select,
+        #category-definition-table input {
+            font-size: 11px !important;
+        }
+        #category-definition-table th,
+        #category-definition-table td {
+            padding: 2px 2px !important;
+            line-height: 1.1 !important;
+        }
+        #category-definition-table thead tr,
+        #category-definition-table tbody tr {
+            height: 18px;
+            min-height: 18px;
+        }
+        
         #category-definition-table {
             width: 100%;
             table-layout: auto;
@@ -220,12 +239,12 @@
         
         #category-definition-table th:nth-child(1),
         #category-definition-table td:nth-child(1) {
-            width: 20%; /* 1:2:2 비율 (1/5) */
+            width: 15%;
         }
         
         #category-definition-table th:nth-child(2),
         #category-definition-table td:nth-child(2) {
-            width: 40%; /* 1:2:2 비율 (2/5) */
+            width: 60%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -233,7 +252,7 @@
         
         #category-definition-table th:nth-child(3),
         #category-definition-table td:nth-child(3) {
-            width: 40%; /* 1:2:2 비율 (2/5) */
+            width: 25%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -628,11 +647,11 @@
                     updatedBtn.style.background = '#4CAF50';
                     updatedBtn.addEventListener('click', function() {
                         const currentAction = document.getElementById('new-category-chasu').value;
-                        if (currentAction === '수정' || currentAction === '삭제') {
-                            // 수정/삭제 모드일 때는 완료 처리
+                        if (currentAction === '입력' || currentAction === '수정' || currentAction === '삭제') {
+                            // 입력/수정/삭제 모드: 저장 후 xlsx·md 수정, 테이블 재출력, 출력 모드로 전환
                             handleNewCategoryChange();
                         } else {
-                            // 일반 모드일 때는 출력
+                            // 출력 모드: 인쇄용 출력
                             exportCategoryTable();
                         }
                     });
@@ -823,9 +842,9 @@
                 const hoverStyle = 'hover:bg-yellow-100';
                 
                 tableHtml += `<tr class="bank_category-row" data-chasu="${분류}" data-keyword="${키워드}" data-category="${카테고리}" style="border-bottom: 1px solid #eee;${rowBgColor ? ` background-color: ${rowBgColor};` : ''}${cursorStyle}" onclick="selectCategoryRow(this)">
-                    <td style="border: 1px solid #ddd; padding: 4px;">${분류}</td>
-                    <td style="border: 1px solid #ddd; padding: 4px;">${키워드}</td>
-                    <td style="border: 1px solid #ddd; padding: 4px;">${카테고리}</td>
+                    <td style="border: 1px solid #ddd; padding: 2px;">${분류}</td>
+                    <td style="border: 1px solid #ddd; padding: 2px;">${키워드}</td>
+                    <td style="border: 1px solid #ddd; padding: 2px;">${카테고리}</td>
                 </tr>`;
             });
             
@@ -836,12 +855,12 @@
         }
 
         // 분류 입력 검증 (전처리/후처리/계정과목만, 거래방법/거래지점 미사용)
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
         function validateChasuInput(input) {
-            const value = input.value.trim();
-            const validValues = ['전처리', '후처리', '계정과목'];
-            if (value && !validValues.includes(value)) {
-                alert('분류는 전처리, 후처리, 계정과목만 입력할 수 있습니다.');
-                input.value = '';
+            const value = (input.value || '').toString().trim();
+            if (value && !VALID_CHASU_VALUES.includes(value)) {
+                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
             return true;
@@ -875,7 +894,7 @@
             };
             
             // 입력 필드에 값 채우기
-            document.getElementById('new-category-chasu-input').value = selectedRowData.분류;
+            document.getElementById('new-category-chasu-input').value = VALID_CHASU_VALUES.includes(selectedRowData.분류) ? selectedRowData.분류 : '';
             document.getElementById('new-category-keyword-input').value = selectedRowData.키워드;
             document.getElementById('new-category-name-input').value = selectedRowData.카테고리;
         }
@@ -921,9 +940,8 @@
             }
             
             // 분류 검증 (전처리/후처리/계정과목만)
-            const validValues = ['전처리', '후처리', '계정과목'];
-            if (!validValues.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 계정과목만 입력할 수 있습니다.');
+            if (!VALID_CHASU_VALUES.includes(chasuInput)) {
+                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -1055,8 +1073,8 @@
                 '<table>' +
                 '<thead><tr>' +
                 '<th style="width: 15%;">분류</th>' +
-                '<th style="width: 42.5%;">키워드</th>' +
-                '<th style="width: 42.5%;">카테고리</th>' +
+                '<th style="width: 60%;">키워드</th>' +
+                '<th style="width: 25%;">카테고리</th>' +
                 '</tr></thead>' +
                 '<tbody>' + tableRows + '</tbody>' +
                 '</table>' +
@@ -1069,13 +1087,14 @@
         // 카테고리 적용후 원본 데이터 저장 (전처리 페이지에서 이동)
         let categoryAppliedDataOriginalForIndex = [];
         
-        // 카테고리 적용후 데이터 로드 (전처리 페이지에서 이동)
+        // 카테고리 적용후 데이터 로드 (1차, 정상 출력)
         async function loadCategoryAppliedDataForIndex() {
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
             contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
             
+            const btn = document.getElementById('generate-category-btn');
             try {
                 const response = await fetch(`${API_BASE}/api/category-applied-data`);
                 const data = await response.json();
@@ -1083,12 +1102,23 @@
                 if (data.data && data.data.length > 0) {
                     categoryAppliedDataOriginalForIndex = data.data;
                     renderCategoryAppliedTableForIndex(data.data);
+                    loadMonthlyTrend();
                 } else {
                     contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">카테고리 적용 후 데이터를 확인할 수 있습니다.</div>';
+                }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.style.backgroundColor = '#2196F3';
+                    btn.style.cursor = 'pointer';
                 }
             } catch (error) {
                 console.error('Error loading category applied data:', error);
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 중 오류가 발생했습니다.</div>';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.style.backgroundColor = '#2196F3';
+                    btn.style.cursor = 'pointer';
+                }
             }
         }
         
@@ -1473,9 +1503,14 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     // 선택된 행 초기화
                     selectedRowData = null;
                     // 버튼 텍스트를 "출력"으로 변경
-                    const fileExists = allCategoryTableData && allCategoryTableData.length > 0;
                     updateButtonText('출력', '#4CAF50');
-                    // 테이블만 재출력 (키워드/카테고리 필터는 유지)
+                    // 분류가 전체이면 키워드/카테고리도 전체
+                    if (!filterValue || filterValue === '' || filterValue === '전체') {
+                        const kw = document.getElementById('new-category-keyword-filter');
+                        const cat = document.getElementById('new-category-name-filter');
+                        if (kw) kw.value = '';
+                        if (cat) cat.value = '';
+                    }
                     renderCategoryDefinitionTable();
                 }
                 });
@@ -1566,16 +1601,33 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 });
             }
             
+            // ESC, F1~F12: 입력/수정/삭제 모드에서 출력 모드로 빠져 나감 (저장하지 않음)
+            document.addEventListener('keydown', (e) => {
+                const currentAction = document.getElementById('new-category-chasu')?.value;
+                if (currentAction !== '입력' && currentAction !== '수정' && currentAction !== '삭제') return;
+                if (e.key === 'Escape' || /^F([1-9]|1[0-2])$/.test(e.key)) {
+                    e.preventDefault();
+                    document.getElementById('new-category-chasu').value = '';
+                    document.getElementById('new-category-chasu-input').value = '';
+                    document.getElementById('new-category-keyword-input').value = '';
+                    document.getElementById('new-category-name-input').value = '';
+                    selectedRowData = null;
+                    toggleInputFields(false);
+                    updateButtonText('출력', '#4CAF50');
+                    renderCategoryDefinitionTable();
+                }
+            });
+            
             // 완료 버튼 클릭 이벤트 (동적으로 설정)
             const exportBtn = document.getElementById('export-bank_category-btn');
             if (exportBtn) {
                 exportBtn.addEventListener('click', function() {
                     const currentAction = document.getElementById('new-category-chasu').value;
-                    if (currentAction === '수정' || currentAction === '삭제') {
-                        // 수정/삭제 모드일 때는 완료 처리
+                    if (currentAction === '입력' || currentAction === '수정' || currentAction === '삭제') {
+                        // 입력/수정/삭제 모드: 저장 후 xlsx·md 수정, 테이블 재출력, 출력 모드로 전환
                         handleNewCategoryChange();
                     } else {
-                        // 일반 모드일 때는 출력
+                        // 출력 모드: 인쇄용 출력
                         exportCategoryTable();
                     }
                 });
@@ -1587,8 +1639,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 toggleInputFields(false);
             }
             
-            // 카테고리 적용 테이블 로드
-            loadCategoryAppliedTable();
+            // 카테고리 적용 테이블은 loadCategoryAppliedDataForIndex()에서 이미 로드됨 (1차가 정상)
             // 은행명 목록 로드
             loadCategoryBankFilterList();
             // 헤더 은행명 변경 시 테이블 필터 연동
@@ -2233,10 +2284,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 
                 if (result.success) {
                     alert(`카테고리 파일 생성 완료!\n${result.message}\n\n카테고리 조회 데이터를 새로고침합니다.`);
-                    // 버튼 텍스트 복원 (비활성화는 loadCategoryAppliedTable에서 처리)
                     btn.textContent = originalText;
-                    // 카테고리 조회 데이터 다시 로드 (파일 존재 시 버튼 비활성화됨)
-                    await loadCategoryAppliedTable();
+                    await loadCategoryAppliedDataForIndex();
                 } else {
                     alert(`오류: ${result.error || '카테고리 파일 생성 실패'}`);
                     // 실패 시 버튼 다시 활성화

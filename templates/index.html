@@ -21,7 +21,8 @@
         .service-card h2 { font-size: 2em; margin-bottom: 20px; font-weight: bold; }
         .service-card p { font-size: 1.1em; line-height: 1.6; opacity: 0.95; }
         .service-card .icon { font-size: 4em; margin-bottom: 20px; }
-        .features { margin-top: 50px; padding-top: 40px; border-top: 2px solid #eee; }
+        .features { margin-top: 50px; padding-top: 40px; border-top: 2px solid #eee; transition: background 0.2s; }
+        .features:hover { background: #fafafa; border-radius: 10px; }
         .features h3 { font-size: 1.5em; color: #333; margin-bottom: 30px; }
         .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
         .feature-item { padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #667eea; }
@@ -43,14 +44,27 @@
             <a href="/card/" class="service-card card"><div class="icon">💳</div><h2>신용카드 통합정보</h2><p>MyCard</p><p style="margin-top: 15px; font-size: 0.95em;">신용카드 거래 내역을 전처리, 카테고리 분류,<br>기본 분석, 고급 분석을 통해 관리합니다.</p></a>
             <a href="/cash/" class="service-card cash"><div class="icon">📋</div><h2>금융정보 종합분석</h2><p>MyCash</p><p style="margin-top: 15px; font-size: 0.95em;">은행·신용카드 거래를 하나로 모아 전처리, 카테고리,<br>기본 분석, 고급 분석으로 통합 관리합니다.</p></a>
         </div>
-        <div class="features">
+        <div class="features" id="features-shutdown" role="button" tabindex="0" title="클릭 시 서버 종료 및 캐시 초기화" style="cursor: pointer;">
             <h3>주요 기능</h3>
             <div class="features-grid">
                 <div class="feature-item"><h4>📊 전처리</h4><p>원본 데이터를 정제하고 표준화된 형식으로 변환</p></div>
                 <div class="feature-item"><h4>🏷️ 카테고리</h4><p>거래 내역을 카테고리별로 자동 분류 및 관리</p></div>
                 <div class="feature-item"><h4>📈 기본분석</h4><p>거래 통계, 월별 추이 등 기본적인 분석 제공</p></div>
             </div>
+            <p style="font-size:0.8em;color:#999;margin-top:12px;">※ 이 영역을 클릭하면 서버가 종료되고, 창이 닫히며, 캐시가 초기화됩니다.</p>
         </div>
+    <script>
+        (function() {
+            var el = document.getElementById('features-shutdown');
+            function doShutdown() {
+                if (confirm('서버를 종료하고 캐시를 초기화합니다.\n다음 서버 기동 시 처음부터 시작됩니다.\n계속하시겠습니까?')) {
+                    window.location.href = '/shutdown';
+                }
+            }
+            el.addEventListener('click', doShutdown);
+            el.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doShutdown(); } });
+        })();
+    </script>
     </div>
 </body>
 </html>

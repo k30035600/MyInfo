@@ -1,23 +1,22 @@
 ---
-description: Git 커밋 메시지 한글 깨짐 방지 - 영문 메시지 사용
+description: Git 커밋 메시지 한글 깨짐 방지
 alwaysApply: true
 ---
 
-# Git 커밋 메시지: 영문 사용
+# Git 커밋 메시지: 한글/영문 모두 허용
 
-## 이유
+## 적용된 설정
 
-- PowerShell/터미널/CI에서 **한글 커밋 메시지**가 깨져 보입니다 (예: `?낆텧湲?`).
-- `git commit -m "한글 메시지"` 실행 시 인코딩 문제로 GitHub/로그에 깨진 문자가 저장될 수 있습니다.
+- Git 전역: `i18n.commitEncoding=utf-8`, `i18n.logOutputEncoding=utf-8`, `core.quotepath=false`
+- 터미널: Cursor·PowerShell UTF-8 설정 완료
+- 위 설정이 되어 있으면 **한글·영문 커밋 메시지 모두** 사용 가능합니다.
 
 ## 규칙
 
-- 이 프로젝트에서 **git commit** 할 때는 **커밋 메시지(-m)를 반드시 영문**으로 작성하세요.
-- 예: `feat(bank): show balance graph as absolute value`
-- 예: `chore: remove unused files`
-- 예: `fix: fix category filter in analysis`
+- **한글** 예: `feat: 은행 잔액 그래프 절대값 표시`
+- **영문** 예: `feat(bank): show balance graph as absolute value`
+- CI·외부 도구에서 깨짐이 보이면 해당 환경 인코딩을 확인하거나, 영문 메시지를 사용하세요.
 
 ## 참고
 
-- 한글 설명이 필요하면 커밋 본문(에디터에서 `git commit` 후 작성)이나 PR/이슈에 남깁니다.
-- 상세: `Git_호스팅_가이드.md` 2장 "커밋 메시지 한글 깨짐 방지", `Railway_가입_배포_도메인.md` 5장.
+- 상세: `Git_호스팅_가이드.md` 2장, `Railway_가입_배포_도메인.md` 5장.

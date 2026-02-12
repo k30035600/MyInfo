@@ -120,15 +120,40 @@ def _clear_startup_caches():
                     pass
     except Exception:
         pass
+    # 3) info_category_io 원자적 쓰기 시 남은 .info_cat_*.xlsx 임시 파일 삭제
+    try:
+        _root = os.path.dirname(os.path.abspath(__file__))
+        for _d in (_root, os.path.join(_root, 'MyBank'), os.path.join(_root, 'MyCard'), os.path.join(_root, 'MyCash')):
+            if os.path.isdir(_d):
+                for _f in os.listdir(_d):
+                    if _f.startswith('.info_cat_') and _f.endswith('.xlsx'):
+                        try:
+                            os.unlink(os.path.join(_d, _f))
+                        except OSError:
+                            pass
+    except Exception:
+        pass
+
+
+def _cleanup_and_exit():
+    """캐시·임시파일 초기화 후 프로세스 종료. 다음 서버 기동 시 처음부터 시작할 수 있게 한다."""
+    try:
+        _clear_startup_caches()
+    except Exception as e:
+        print(f"[WARN] 종료 전 초기화 중 오류: {e}", flush=True)
+    try:
+        os._exit(0)
+    except Exception:
+        sys.exit(0)
 
 
 def _ensure_info_category_file():
-    """info_category.xlsx가 없으면 빈 파일(분류·키워드·카테고리 컬럼) 생성."""
+    """info_category.xlsx가 없으면 빈 파일(분류·키워드·카테고리 컬럼) 생성. (info_category_io.create_empty_info_category 사용)"""
     if os.path.isfile(INFO_CATEGORY_PATH):
         return
     try:
-        import pandas as pd
-        pd.DataFrame(columns=['분류', '키워드', '카테고리']).to_excel(INFO_CATEGORY_PATH, index=False, engine='openpyxl')
+        from info_category_io import create_empty_info_category
+        create_empty_info_category(INFO_CATEGORY_PATH)
     except Exception:
         pass
 
@@ -273,7 +298,7 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
         subapp_module.__file__ = app_file
         if hasattr(subapp_module, 'SCRIPT_DIR'):
             subapp_module.SCRIPT_DIR = subapp_dir
-        _ensure_info_category_file()
+        # info_category.xlsx는 before 파일(bank/card/cash) 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
         if hasattr(subapp_module, 'INFO_CATEGORY_PATH'):
             subapp_module.INFO_CATEGORY_PATH = INFO_CATEGORY_PATH
         if subapp_path == 'MyBank':
@@ -285,11 +310,7 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
             mycard_path = Path(subapp_dir)
             if hasattr(subapp_module, 'CARD_AFTER_PATH'):
                 subapp_module.CARD_AFTER_PATH = mycard_path / 'card_after.xlsx'
-            if hasattr(subapp_module, '_ensure_card_category_file'):
-                try:
-                    subapp_module._ensure_card_category_file()
-                except Exception as e:
-                    print(f"[app] info_category.xlsx 신용카드 섹션 준비 실패: {e}")
+            # info_category.xlsx는 card_before 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
         
         # 서브 앱 로드 후 즉시 stdout/stderr를 sys.__stdout__/__stderr__로 복원
         sys.stdout = sys.__stdout__
@@ -404,9 +425,7 @@ _subapp_errors = {}  # prefix -> (표시이름, 오류메시지)
 
 for _path, _prefix, _app_file, _name in SUBAPP_CONFIG:
     try:
-        print(f"{_name} 라우트 등록 중...", flush=True)
         load_subapp_routes(_path, _prefix, _app_file)
-        print(f"[OK] {_name} 라우트 등록 완료", flush=True)
         _subapp_errors.pop(_prefix, None)
     except Exception as e:
         err_msg = str(e)
@@ -424,10 +443,6 @@ for _path, _prefix, _app_file, _name in SUBAPP_CONFIG:
 
 # 서버 기동 시 캐시·임시파일 초기화 (이전 실행 상태 제거)
 _clear_startup_caches()
-try:
-    print("[INFO] 서버 기동: 캐시·임시파일 초기화 완료", flush=True)
-except Exception:
-    pass
 
 @app.route('/bank')
 def redirect_bank():
@@ -473,6 +488,30 @@ def help_page():
     resp.headers.update(_no_cache_headers())
     return resp
 
+
+@app.route('/shutdown')
+def shutdown():
+    """서버 종료 요청. 캐시·임시파일 초기화 후 프로세스를 종료한다. 다음 기동 시 처음부터 시작."""
+    import threading
+    def _do_shutdown():
+        import time
+        time.sleep(0.5)  # 응답 전송 대기
+        _cleanup_and_exit()
+    threading.Thread(target=_do_shutdown, daemon=True).start()
+    resp = make_response('''<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서버 종료</title><style>body{font-family:'Malgun Gothic',sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
+.container{text-align:center;padding:40px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+h1{color:#333;margin-bottom:16px;}p{color:#666;}</style></head>
+<body><div class="container"><h1>서버를 종료합니다</h1><p>캐시·임시파일을 초기화했습니다.</p><p>다음에 서버를 시작하면 처음부터 실행됩니다.</p><p id="msg" style="margin-top:20px;color:#999;">창을 닫는 중...</p></div>
+<script>
+setTimeout(function(){ try{ window.close(); setTimeout(function(){ document.getElementById("msg").innerHTML="자동으로 닫히지 않으면 이 창을 직접 닫아 주세요."; }, 500); }catch(e){} }, 800);
+</script></body></html>''')
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    resp.headers.update(_no_cache_headers())
+    return resp
+
+
 @app.route('/health')
 def health():
     """Railway 등에서 서비스 생존 확인용 (템플릿 없이 200 반환)"""
@@ -497,22 +536,6 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     host = '0.0.0.0' if os.environ.get('PORT') else '127.0.0.1'
     try:
-        print("=" * 50, flush=True)
-        print("금융거래 통합정보(mybcinfo) 통합 서버를 시작합니다...", flush=True)
-        print(f"브라우저에서 http://localhost:{port} 으로 접속하세요.", flush=True)
-        print("", flush=True)
-        print("접속 주소:", flush=True)
-        print(f"- 홈페이지: http://localhost:{port}  또는  http://{host}:{port}", flush=True)
-        print(f"- 은행거래 통합정보: http://localhost:{port}/bank", flush=True)
-        print(f"- 신용카드 통합정보: http://localhost:{port}/card", flush=True)
-        print(f"- 금융정보 종합분석: http://localhost:{port}/cash", flush=True)
-        print("", flush=True)
-        print(f"[INFO] 연결이 거부되면 http://{host}:{port} 으로 접속해 보세요.", flush=True)
-        print("[INFO] 모든 서버가 하나로 통합되었습니다!", flush=True)
-        print("[INFO] 프로덕션 WSGI 서버(Waitress)로 실행 중.", flush=True)
-        print("", flush=True)
-        print("서버를 중지하려면 Ctrl+C를 누르세요.", flush=True)
-        print("=" * 50, flush=True)
         from waitress import serve
         # threads 늘려서 요청 대기 시 queue depth 경고 완화
         serve(app, host=host, port=port, threads=8)
