@@ -592,6 +592,16 @@ def get_category_applied_data():
         withdraw_amount = df['출금액'].sum() if not df.empty and '출금액' in df.columns else 0
         
         df = df.where(pd.notna(df), None)
+        # 카테고리 적용후 테이블: 거래일 → 거래시간 → 계좌번호 순 정렬
+        sort_cols = []
+        if '거래일' in df.columns:
+            sort_cols.append('거래일')
+        if '거래시간' in df.columns:
+            sort_cols.append('거래시간')
+        if '계좌번호' in df.columns:
+            sort_cols.append('계좌번호')
+        if sort_cols:
+            df = df.sort_values(by=sort_cols, ascending=True, na_position='last').reset_index(drop=True)
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
