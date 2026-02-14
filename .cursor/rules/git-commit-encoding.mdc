@@ -17,6 +17,20 @@ alwaysApply: true
 - **영문** 예: `feat(bank): show balance graph as absolute value`
 - CI·외부 도구에서 깨짐이 보이면 해당 환경 인코딩을 확인하거나, 영문 메시지를 사용하세요.
 
+## 배포/에이전트 진행 시 한글 깨짐 방지 (필수)
+
+- **원인**: Cursor가 터미널에 넘기는 `git commit -m "한글..."` 문자열이 CP949 등으로 전달되면 커밋 메시지가 깨집니다.
+- **방법**: 한글 커밋 메시지를 쓸 때는 **UTF-8로 저장된 파일**을 사용해 커밋합니다.
+  1. 메시지를 UTF-8 파일로 저장 (예: `commit_msg_utf8.txt`)
+  2. `git commit -F commit_msg_utf8.txt` 또는 `git commit --amend -F commit_msg_utf8.txt`
+- **에이전트**: 한글 커밋 메시지가 필요할 때는 반드시 `-F 파일` 방식을 사용하고, 파일은 UTF-8로 작성합니다. `-m "한글..."` 직접 전달은 사용하지 않습니다.
+- **초기 설정**: 최초 1회 `setup-git-utf8.ps1` 실행 또는 아래 명령으로 Git 인코딩 설정.
+  ```powershell
+  git config --global i18n.commitEncoding utf-8
+  git config --global i18n.logOutputEncoding utf-8
+  git config core.quotepath false
+  ```
+
 ## 참고
 
 - 상세: `Git_호스팅_가이드.md` 2장, `Railway_가입_배포_도메인.md` 5장.

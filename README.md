@@ -26,7 +26,7 @@
 
 | 항목 | 설명 |
 |------|------|
-| **Git** | 로컬 저장소 관리. 커밋 메시지는 **영문** 권장 (한글 깨짐 방지). |
+| **Git** | 로컬 저장소 관리. 한글 커밋 시: `setup-git-utf8.ps1` 1회 실행 후 `git commit -F UTF8메시지파일.txt` 사용. |
 | **GitHub** | 원격 저장소 푸시: `git push origin main`. 저장소 예: `https://github.com/k30035600/MyInfo` |
 | **배포** | Railway 등에서 GitHub 저장소 연결 후 자동 빌드·실행. `Procfile`·`Dockerfile`·`nixpacks.toml` 사용. |
 | **자동 배포** | Railway에 GitHub 저장소 연결 시 **`main` 푸시마다 자동 재배포**. (Railway 대시보드 → Deployments 확인) |

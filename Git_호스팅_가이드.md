@@ -61,11 +61,15 @@ git push -u origin main
 
 ### ⚠️ 커밋 메시지 한글 깨짐 방지
 
-- **PowerShell/터미널/CI**에서 한글 커밋 메시지가 깨져 보일 수 있습니다 (예: `?낆텧湲?`).
-- **권장**: `git commit -m "..."` 에는 **영문**만 사용하세요.  
-  예: `feat(bank): show balance graph as absolute value`  
-  예: `chore: remove unused files`
-- 한글 설명이 필요하면 커밋 본문(`git commit` 후 에디터에서 작성)이나 PR/이슈에 남깁니다.
+- **PowerShell/터미널**에서 `git commit -m "한글..."` 사용 시 인코딩 문제로 메시지가 깨질 수 있습니다.
+- **방법 1 (한글 메시지)**  
+  1. 프로젝트 루트에서 `setup-git-utf8.ps1` 실행 (최초 1회).  
+  2. 한글 메시지를 UTF-8 파일로 저장한 뒤:  
+     `git commit -F 메시지파일.txt`  
+  - 예: 메모장/VS Code로 `msg.txt`에 `feat: 월별 입출금 그래프 수정` 저장 후 `git commit -F msg.txt`
+- **방법 2 (영문 메시지)**  
+  - `git commit -m "feat: update monthly trend chart"` 처럼 영문만 사용하면 깨짐 없음.
+- **에이전트/자동화**: 한글 커밋 시 반드시 `-F` + UTF-8 파일 사용. (`.cursor/rules/git-commit-encoding.mdc` 참고)
 
 ---
 
