@@ -1,0 +1,21 @@
+---
+description: 금융정보는 MyCash 폴더만 사용, 전처리·card/cash 연동 없음
+globs: MyCash/**/*.py, MyCash/**/*.html, MyInfo/app.py
+alwaysApply: false
+---
+
+# 금융정보(MyCash) 전용 정책
+
+## 규칙
+
+1. **금융정보는 MyCash 폴더를 사용한다**
+   - 금융정보 관련 데이터·파일은 **MyCash** 폴더 기준으로만 사용한다.
+   - 원본: `.source/Cash`, 결과: `MyCash/cash_before.xlsx`, `MyCash/cash_after.xlsx`, 카테고리: `info_category.xlsx`(금융정보 구분).
+
+2. **card·cash 테이블 연동만 하지 않음. 은행/카드 데이터 불러와 병합(cash_after 생성)은 진행**
+   - **금융정보(MyCash)**에서는 **card와 cash 테이블 연동만** 하지 않고, **은행/카드 데이터를 불러와 병합(cash_after.xlsx 생성)** 은 진행한다.
+   - bank_after·card_after를 MyCash 전처리/카테고리 화면에서 로드·표시하고, `/api/generate-category`로 병합해 cash_after.xlsx를 생성한다. 별도 안내 메시지는 두지 않는다.
+
+## 구현 요약
+
+- `cash_app.py`: `MYCASH_ONLY_NO_BANK_CARD_LINK = False` — `/api/bank-after-data`, `/api/processed-data`는 bank_after·card_after 정상 반환. `/api/generate-category`는 `merge_bank_card_to_cash_after()`로 cash_after 생성.

@@ -599,7 +599,7 @@ def _load_prepost_rules(category_path=None):
 
 def _apply_prepost_to_columns(df, columns_to_apply):
     """DataFrame의 지정 컬럼에 info_category 전처리·후처리 규칙 적용 (키워드 → 카테고리 치환).
-    적용 전에 해당 컬럼을 주식회사→(주) 등으로 정규화해 category 키워드 매칭을 확실히 함."""
+    적용 전에 해당 컬럼을 주식회사→(주) 등으로 정규화. 가맹점명 등 표시용 컬럼은 셀 전체가 키워드와 일치하면 치환하지 않음 (예: '(주)진프랜드산'이 '(주)'로 줄어드는 것 방지)."""
     if df is None or df.empty or not columns_to_apply:
         return df
     전처리, 후처리 = _load_prepost_rules()
@@ -609,7 +609,6 @@ def _apply_prepost_to_columns(df, columns_to_apply):
     for col in columns_to_apply:
         if col not in df.columns:
             continue
-        # 전처리/후처리 키워드 매칭 전에 컬럼 값을 주식회사→(주) 등으로 정규화
         df[col] = df[col].fillna('').astype(str).apply(lambda v: safe_str(v))
     for col in columns_to_apply:
         if col not in df.columns:
@@ -623,7 +622,15 @@ def _apply_prepost_to_columns(df, columns_to_apply):
                 kw_norm = normalize_주식회사_for_match(kw)
                 if not kw_norm:
                     continue
-                df[col] = df[col].fillna('').astype(str).str.replace(re.escape(kw_norm), cat, regex=True)
+                # 셀 전체가 키워드와 일치하면 치환하지 않음 (가맹점명 등이 '(주)진프랜드산' → '(주)'로 줄어들지 않도록)
+                def replace_if_not_whole(cell_val):
+                    s = (cell_val or '').strip()
+                    if not s:
+                        return cell_val
+                    if normalize_주식회사_for_match(s) == kw_norm:
+                        return cell_val
+                    return s.replace(kw_norm, cat)
+                df[col] = df[col].fillna('').astype(str).apply(lambda v: replace_if_not_whole(v))
     return df
 
 

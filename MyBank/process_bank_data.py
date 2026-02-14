@@ -151,12 +151,51 @@ def ensure_all_bank_files():
                 if not _is_bad_zip_error(e):
                     print(f"오류: info_category 마이그레이션 실패 - {e}")
 
-    # 3. bank_after.xlsx: 없으면 생성
+    # 3. bank_after.xlsx: 없으면 생성 (카테고리 분류). 테이블/프린트 출력 시에는 호출하지 않음.
     if not os.path.exists(OUTPUT_FILE):
         try:
             classify_and_save()
         except Exception as e:
             print(f"오류: bank_after.xlsx 생성 실패 - {e}")
+
+
+def ensure_bank_before_and_category():
+    """bank_before, info_category만 생성·갱신. bank_after는 생성하지 않음. 테이블/프린트 출력 시 사용."""
+    # 1. bank_before.xlsx
+    empty = _bank_before_is_empty()
+    if empty:
+        integrate_bank_transactions()
+        return
+    # 2. info_category.xlsx
+    if not INFO_CATEGORY_FILE:
+        pass
+    elif not os.path.exists(INFO_CATEGORY_FILE):
+        try:
+            df = _safe_read_excel(INPUT_FILE, default_empty=True)
+            if df is not None and not df.empty:
+                create_category_table(df)
+            else:
+                create_empty_info_category(INFO_CATEGORY_FILE)
+        except Exception as e:
+            print(f"오류: info_category 생성 실패 - {e}")
+    else:
+        full = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
+        if (full is None or full.empty) and os.path.getsize(INFO_CATEGORY_FILE) > 0:
+            try:
+                import shutil
+                backup_path = INFO_CATEGORY_FILE + '.bak'
+                shutil.move(INFO_CATEGORY_FILE, backup_path)
+                df = _safe_read_excel(INPUT_FILE, default_empty=True)
+                create_category_table(df if df is not None and not df.empty else pd.DataFrame())
+            except Exception as e:
+                print(f"오류: info_category 손상 복구 실패 - {e}", flush=True)
+        elif full is not None and not full.empty:
+            try:
+                migrate_bank_category_file(INFO_CATEGORY_FILE)
+            except Exception as e:
+                if not _is_bad_zip_error(e):
+                    print(f"오류: info_category 마이그레이션 실패 - {e}")
+    # bank_after.xlsx는 생성하지 않음 (생성은 /api/generate-category에서만)
 
 
 # =========================================================
@@ -860,9 +899,14 @@ def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
                         for col in ['적요', '내용', '송금메모']:
                             if col in df.columns:
                                 cell_value = safe_str(df.iloc[row_idx].get(col, ""))
-                                if keyword_norm in normalize_text(cell_value):
-                                    df.at[row_idx, col] = category_str
-                                    break
+                                if keyword_norm not in normalize_text(cell_value):
+                                    continue
+                                # 셀 전체를 카테고리로 바꾸지 않고, 키워드 부분만 카테고리로 치환 (예: "(주)진프랜드산" → "(주)"만 매칭 시 "(주)진프랜드산" 유지)
+                                new_value = cell_value.replace(keyword_norm, category_str)
+                                if new_value == cell_value and keyword:
+                                    new_value = cell_value.replace(keyword, category_str)
+                                df.at[row_idx, col] = new_value
+                                break
                         df.at[row_idx, "before_text"] = create_before_text_func(df.iloc[row_idx])
                         updated_text = normalize_text(df.iloc[row_idx].get("before_text", ""))
                         updated_text = updated_text.replace(keyword_norm, "").strip()
@@ -1104,12 +1148,11 @@ def classify_and_save(input_file=None, output_file=None):
         if '키워드' not in df.columns:
             df['키워드'] = ''
 
-    # 기타거래를 제일 먼저(첫 번째 컬럼) 저장
+    # 기타거래를 맨 뒤(마지막 컬럼)로 저장
     output_columns = [
-        '기타거래',
         '거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
         '취소', '적요', '내용', '송금메모', '거래점',
-        '입출금', '키워드', '카테고리'
+        '입출금', '키워드', '카테고리', '기타거래'
     ]
 
     available_columns = [col for col in output_columns if col in df.columns]

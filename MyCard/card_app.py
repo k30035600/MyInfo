@@ -58,7 +58,7 @@ except ImportError:
         def _n(v):
             if v is None or (isinstance(v, str) and not str(v).strip()): return '' if v is None else v
             return unicodedata.normalize('NFKC', str(v).strip())
-        _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분')
+        _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '금전대부')
         try:
             df, _ = _io_get_category_table(path)
             df = df.fillna('')
@@ -558,13 +558,10 @@ def get_processed_data():
 @ensure_working_directory
 def get_category_applied_data():
     """카테고리 적용된 데이터 반환 (card_after.xlsx, 필터링 지원).
-    card_after 없으면 은행거래와 동일하게 자동 생성 후 반환."""
+    card_after.xlsx 존재하면 사용만, 없으면 생성하지 않고 빈 데이터. 생성은 /api/generate-category(생성 필터)에서 백업 후 수행."""
     try:
         card_after_path = Path(CARD_AFTER_PATH)
-        if not card_after_path.exists() or card_after_path.stat().st_size == 0:
-            if Path(CARD_BEFORE_PATH).exists() and Path(CARD_BEFORE_PATH).stat().st_size > 0:
-                _create_card_after()
-        category_file_exists = card_after_path.exists()
+        category_file_exists = card_after_path.exists() and card_after_path.stat().st_size > 0
 
         # 카테고리 파일 로드
         try:

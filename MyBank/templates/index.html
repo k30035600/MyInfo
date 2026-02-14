@@ -2726,11 +2726,14 @@
         async function generateCategory() {
             
             try {
-                // 카테고리 적용 API 호출
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
                 const generateResponse = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: ctrl.signal
                 });
+                clearTimeout(timeoutId);
                 const text = await generateResponse.text();
                 let generateResult = { success: false, error: '알 수 없는 오류' };
                 try {
@@ -2757,7 +2760,8 @@
                 }
             } catch (error) {
                 console.error('Error generating category:', error);
-                alert(`카테고리 적용 중 오류가 발생했습니다: ${(error.message || error.toString() || '네트워크/서버 확인')}`);
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '네트워크/서버 확인';
+                alert(`카테고리 적용 중 오류가 발생했습니다: ${msg}`);
             }
         }
         
@@ -3809,6 +3813,19 @@
                     if (typeof updateFilterBackground === 'function') updateFilterBackground(filterSelect);
                 }
             });
+            // 전처리후 은행명/계좌번호 드롭다운과 카테고리 조회 헤더 드롭다운 자동 매칭
+            const rightBankVal = document.getElementById('right-bank-filter')?.value || '';
+            const rightAccountVal = document.getElementById('right-account-filter')?.value || '';
+            const selBank = document.getElementById('filter-category-query-은행명');
+            const selAccount = document.getElementById('filter-category-query-계좌번호');
+            if (selBank && rightBankVal && Array.from(selBank.options).some(o => o.value === rightBankVal)) {
+                selBank.value = rightBankVal;
+                if (typeof updateFilterBackground === 'function') updateFilterBackground(selBank);
+            }
+            if (selAccount && rightAccountVal && Array.from(selAccount.options).some(o => o.value === rightAccountVal)) {
+                selAccount.value = rightAccountVal;
+                if (typeof updateFilterBackground === 'function') updateFilterBackground(selAccount);
+            }
             
             updateCategoryChartFromQuery();
             
@@ -4190,12 +4207,14 @@
             btn.style.backgroundColor = '#ccc';
             
             try {
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
                 const response = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: ctrl.signal
                 });
+                clearTimeout(timeoutId);
                 const text = await response.text();
                 let result = { success: false, error: '카테고리 파일 생성 실패' };
                 try {
@@ -4208,7 +4227,7 @@
                     btn.textContent = originalText;
                     await loadCategoryQueryTable();
                 } else {
-                    alert(`오류: ${(result.error || '카테고리 파일 생성 실패').replace(/\n/g, '\n')}`);
+                    alert(`오류: ${(result.error || '카테고리 파일 생성 실패').replace(/\n/g, ' ')}`);
                     btn.disabled = false;
                     btn.textContent = originalText;
                     btn.style.backgroundColor = '#2196F3';
@@ -4216,7 +4235,8 @@
                 }
             } catch (error) {
                 console.error('Error generating category file:', error);
-                alert('카테고리 파일 생성 중 오류가 발생했습니다. (네트워크 또는 서버 확인)');
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '네트워크/서버 확인';
+                alert('카테고리 파일 생성 중 오류: ' + msg);
                 btn.disabled = false;
                 btn.textContent = originalText;
                 btn.style.backgroundColor = '#2196F3';

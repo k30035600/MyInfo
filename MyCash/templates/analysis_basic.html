@@ -113,7 +113,7 @@
 
         .stat-card {
             background: white;
-            padding: 10px 8px;
+            padding: 4px 8px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             flex: 1;
@@ -517,23 +517,36 @@
         </nav>
     </div>
 
-    <div style="margin-top: 10px; margin-bottom: 10px; background-color: #e0e0e0; padding: 10px; border-radius: 8px;">
+    <!-- 위험도 적용후 테이블 (cash_after.xlsx, 15컬럼) -->
+    <div class="chart-card" style="margin-top: 10px; margin-bottom: 10px; display: flex; flex-direction: column; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+            <h2 style="margin: 0;">위험도 적용후</h2>
+            <div style="font-size: 14px; opacity: 0.5;">cash_after.xlsx</div>
+        </div>
+        <div style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px;">
+            <div id="basic-applied-content" style="width: 100%; height: 100%;">
+                <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 2px; margin-bottom: 2px; background-color: #e0e0e0; padding: 4px 10px; border-radius: 8px;">
         <div class="stats-grid" id="stats-grid" style="display: flex; gap: 8px; margin: 0;">
             <div class="stat-card" style="flex: 1;">
                 <div class="stat-content">
-                    <h3>거래건수</h3>
+                    <h3>합계건수</h3>
                     <div class="value" id="total-count">0건</div>
                 </div>
             </div>
             <div class="stat-card deposit" style="flex: 1;">
                 <div class="stat-content">
-                    <h3>입금건수</h3>
+                    <h3>은행거래</h3>
                     <div class="value" id="deposit-count">0건</div>
                 </div>
             </div>
             <div class="stat-card withdraw" style="flex: 1;">
                 <div class="stat-content">
-                    <h3>출금건수</h3>
+                    <h3>신용카드</h3>
                     <div class="value" id="withdraw-count">0건</div>
                 </div>
             </div>
@@ -562,6 +575,188 @@
         // 숫자 포맷팅
         function formatNumber(num) {
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        // 날짜/시간 포맷 (테이블 표시용)
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            const y = d.getFullYear().toString().slice(2);
+            const m = (d.getMonth() + 1).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            return y + '.' + m + '.' + day;
+        }
+        function formatTime(timeStr) {
+            if (!timeStr) return '';
+            if (typeof timeStr === 'string' && timeStr.includes(':')) {
+                const parts = timeStr.split(':');
+                if (parts.length === 2) return parts[0] + ':' + parts[1] + ':00';
+                return timeStr;
+            }
+            return timeStr;
+        }
+
+        // 위험도 적용후 테이블 데이터
+        let basicAppliedDataOriginal = [];
+
+        // 위험도 적용후 테이블 로드
+        async function loadBasicAppliedTable() {
+            const contentDiv = document.getElementById('basic-applied-content');
+            if (!contentDiv) return;
+            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            try {
+                const bankFilter = document.getElementById('bank-filter') ? document.getElementById('bank-filter').value : '';
+                let url = API_BASE + '/api/category-applied-data?';
+                if (bankFilter) url += 'bank=' + encodeURIComponent(bankFilter);
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.data && data.data.length > 0) {
+                    basicAppliedDataOriginal = data.data;
+                    renderBasicAppliedTable(data.data);
+                } else {
+                    contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading category applied data:', error);
+                contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        // 위험도 적용후 테이블 렌더링 (15컬럼, 카테고리 페이지와 동일)
+        function renderBasicAppliedTable(data) {
+            const contentDiv = document.getElementById('basic-applied-content');
+            if (!contentDiv || !data || data.length === 0) return;
+            const columns = ['업종코드', '업종분류', '위험도', '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분'];
+            const QUERY_WIDTHS = [0.8, 1.5, 0.7, 0.7, 1, 0.7, 0.7, 1, 1, 0.6, 2, 0.8, 1.5, 0.8, 0.6];
+            const QUERY_ALIGN = ['center', 'left', 'center', 'center', 'left', 'center', 'center', 'right', 'right', 'center', 'left', 'left', 'left', 'center', 'center'];
+            let availableColumns = columns.filter(col => data[0] && data[0].hasOwnProperty(col));
+            if (!availableColumns.includes('구분')) {
+                availableColumns = [...availableColumns, '구분'];
+                availableColumns.sort((a, b) => columns.indexOf(a) - columns.indexOf(b));
+            }
+            const totalRatio = availableColumns.reduce((sum, col) => sum + (QUERY_WIDTHS[columns.indexOf(col)] || 1.0), 0);
+            const columnBgColors = {};
+            availableColumns.forEach(c => { columnBgColors[c] = 'rgba(33, 150, 243, 0.08)'; });
+            const uniqueValues = {};
+            availableColumns.forEach(col => {
+                let list = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined && v !== ''))].map(v => typeof v === 'string' ? v.trim() : v);
+                if (col === '구분') {
+                    if (!list.some(v => String(v).trim() === '폐업')) list.push('폐업');
+                    list.sort((a, b) => String(a).localeCompare(String(b)));
+                } else if (col === '입금액' || col === '출금액') {
+                    list.sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0));
+                } else {
+                    list.sort();
+                }
+                uniqueValues[col] = list;
+            });
+            let html = '<table id="basic-applied-table" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;">';
+            html += '<tr>';
+            availableColumns.forEach(col => {
+                const ratio = QUERY_WIDTHS[columns.indexOf(col)] || 1.0;
+                const width = ((ratio / totalRatio) * 100).toFixed(2);
+                const headerAlign = QUERY_ALIGN[columns.indexOf(col)] || 'center';
+                html += '<th style="width:' + width + '%; white-space: nowrap; text-align:' + headerAlign + '; padding: 8px; border: 1px solid #ddd; background-color: ' + (columnBgColors[col] || '') + ';">' + col + '</th>';
+            });
+            html += '</tr><tr style="background-color: #f9f9f9;">';
+            availableColumns.forEach(col => {
+                const ratio = QUERY_WIDTHS[columns.indexOf(col)] || 1.0;
+                const width = ((ratio / totalRatio) * 100).toFixed(2);
+                html += '<th style="width:' + width + '%; padding: 4px 8px; border: 1px solid #ddd;"><select id="filter-basic-applied-' + col + '" style="width:100%; padding:2px 4px; font-size:12px; border:1px solid #ccc; border-radius:3px;"><option value="">전체</option>';
+                if (col === '카테고리') html += '<option value="__미분류__">미분류</option>';
+                if (col === '거래시간') html += '<option value="__심야구분__">심야구분</option>';
+                if (col === '키워드') html += '<option value="__키워드없음__">키워드없음</option>';
+                if (col === '기타거래') html += '<option value="__기타거래없음__">기타거래없음</option>';
+                (uniqueValues[col] || []).forEach(val => {
+                    let displayVal = val;
+                    if (col === '입금액' || col === '출금액') { const n = parseFloat(val); if (!isNaN(n)) displayVal = formatNumber(n); }
+                    html += '<option value="' + String(val).replace(/"/g, '&quot;') + '">' + String(displayVal).replace(/</g, '&lt;') + '</option>';
+                });
+                html += '</select></th>';
+            });
+            html += '</tr></thead><tbody id="basic-applied-tbody">';
+            data.forEach((row, rowIndex) => {
+                const isEvenRow = rowIndex % 2 === 1;
+                html += '<tr data-i="' + rowIndex + '" class="basic-applied-row">';
+                availableColumns.forEach(col => {
+                    let value = row[col];
+                    let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
+                    if (col === '거래일' && displayValue) displayValue = formatDate(displayValue);
+                    else if (col === '거래시간' && displayValue) displayValue = formatTime(displayValue);
+                    else if ((col === '입금액' || col === '출금액') && displayValue) displayValue = formatNumber(parseFloat(displayValue) || 0);
+                    let cellBg = isEvenRow ? (columnBgColors[col] || '') : '';
+                    const align = QUERY_ALIGN[columns.indexOf(col)] || 'left';
+                    let cellStyle = 'white-space: nowrap; text-align:' + align + '; padding: 4px; border: 1px solid #ddd;';
+                    if (cellBg) cellStyle += ' background-color: ' + cellBg + ';';
+                    if (col === '입금액') { cellStyle += ' color: #0000FF;'; }
+                    else if (col === '출금액') { cellStyle += ' color: #FF0000;'; }
+                    html += '<td style="' + cellStyle + '">' + String(displayValue).replace(/</g, '&lt;') + '</td>';
+                });
+                html += '</tr>';
+            });
+            let totalDeposit = 0, totalWithdraw = 0;
+            data.forEach(row => { totalDeposit += parseFloat(row['입금액']) || 0; totalWithdraw += parseFloat(row['출금액']) || 0; });
+            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
+            availableColumns.forEach(col => {
+                let displayValue = '';
+                let cellStyle = 'white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;';
+                if (col === '입금액') { cellStyle += ' color: #0000FF; text-align: right;'; displayValue = formatNumber(totalDeposit); }
+                else if (col === '출금액') { cellStyle += ' color: #FF0000; text-align: right;'; displayValue = formatNumber(totalWithdraw); }
+                else if (col === '거래일') displayValue = '합계';
+                html += '<td style="' + cellStyle + '" data-sum-col="' + col + '">' + displayValue + '</td>';
+            });
+            html += '</tr></tbody></table>';
+            contentDiv.innerHTML = html;
+            availableColumns.forEach(col => {
+                const sel = document.getElementById('filter-basic-applied-' + col);
+                if (sel) sel.addEventListener('change', filterBasicAppliedTable);
+            });
+        }
+
+        function filterBasicAppliedTable() {
+            const table = document.getElementById('basic-applied-table');
+            if (!table || !basicAppliedDataOriginal.length) return;
+            const columns = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도'];
+            const availableColumns = [...table.querySelectorAll('thead tr:first-child th')].map(th => th.textContent.trim());
+            const sumRow = table.querySelector('tr[data-sum-row="true"]');
+            const rows = table.querySelectorAll('tbody tr.basic-applied-row');
+            let totalDeposit = 0, totalWithdraw = 0;
+            rows.forEach(row => {
+                const rowIndex = parseInt(row.getAttribute('data-i'));
+                if (isNaN(rowIndex) || rowIndex < 0 || rowIndex >= basicAppliedDataOriginal.length) { row.style.display = 'none'; return; }
+                const rowData = basicAppliedDataOriginal[rowIndex];
+                let show = true;
+                availableColumns.forEach(col => {
+                    const sel = document.getElementById('filter-basic-applied-' + col);
+                    if (!sel || sel.value === '' || sel.value === '전체') return;
+                    const fv = sel.value;
+                    const cv = rowData[col];
+                    if (col === '입금액' || col === '출금액') {
+                        if (parseFloat(fv) !== parseFloat(cv)) show = false;
+                    } else if (col === '카테고리' && fv === '__미분류__') {
+                        if (String(cv || '').trim() !== '' && String(cv || '').trim() !== '미분류') show = false;
+                    } else if (col === '거래시간' && fv === '__심야구분__') {
+                        if (String(rowData['키워드'] || '').trim() !== '시작' && String(rowData['키워드'] || '').trim() !== '종료') show = false;
+                    } else if (col === '키워드' && fv === '__키워드없음__') {
+                        if (cv !== '' && cv != null && String(cv).trim() !== '') show = false;
+                    } else if (col === '기타거래' && fv === '__기타거래없음__') {
+                        if (cv !== '' && cv != null && String(cv).trim() !== '') show = false;
+                    } else if (String(cv || '') !== String(fv)) show = false;
+                });
+                row.style.display = show ? '' : 'none';
+                if (show) { totalDeposit += parseFloat(rowData['입금액']) || 0; totalWithdraw += parseFloat(rowData['출금액']) || 0; }
+            });
+            if (sumRow) {
+                const cells = sumRow.querySelectorAll('td');
+                availableColumns.forEach((col, i) => {
+                    if (!cells[i]) return;
+                    if (col === '입금액') cells[i].textContent = formatNumber(totalDeposit);
+                    else if (col === '출금액') cells[i].textContent = formatNumber(totalWithdraw);
+                    else if (col === '거래일') cells[i].textContent = '합계';
+                    else cells[i].textContent = '';
+                });
+            }
         }
 
         // 은행 목록 로드
@@ -610,6 +805,7 @@
 
         document.getElementById('bank-filter').addEventListener('change', () => {
             loadSummary();
+            loadBasicAppliedTable();
         });
 
         document.getElementById('print-btn').addEventListener('click', () => {
@@ -623,6 +819,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             loadBankList();
             loadSummary();
+            loadBasicAppliedTable();
         });
     </script>
     

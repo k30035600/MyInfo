@@ -3,11 +3,8 @@
 process_cash_data.py — 금융정보(MyCash) 전용. (카드 관련 역할 없음)
 
 [역할]
-- 금융(은행) 파일 통합: .source 폴더의 은행 엑셀을 모아 cash_before.xlsx 생성
 - 카테고리: MyInfo/info_category.xlsx(금융정보 구분) 사용
-- 분류·저장: cash_before → cash_after.xlsx (입출금, 카테고리, 기타거래)
-
-.source는 .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)
+- cash_after.xlsx는 bank_after + card_after 병합으로만 생성(cash_app.merge_bank_card_to_cash_after).
 """
 import pandas as pd
 import os
@@ -78,27 +75,14 @@ except ImportError:
         return val
     INFO_CATEGORY_COLUMNS = ['분류', '키워드', '카테고리']
 
-INPUT_FILE = "cash_before.xlsx"
 OUTPUT_FILE = "cash_after.xlsx"
 
 
 def ensure_all_cash_files():
-    """cash_before, info_category(금융정보) 파일이 없으면 생성. cash_after는 bank/card 병합(merge_bank_card)으로만 생성."""
-    input_path = os.path.join(_SCRIPT_DIR, INPUT_FILE)
-
-    if not os.path.exists(input_path) or (os.path.exists(input_path) and os.path.getsize(input_path) == 0):
-        integrate_cash_transactions()
-        return
-
-    need_cash_section = not (INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE))
-
-    if need_cash_section:
+    """info_category(금융정보) 파일이 없으면 빈 파일 생성. cash_after는 bank/card 병합(merge_bank_card)으로만 생성."""
+    if not (INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE)):
         try:
-            df = pd.read_excel(input_path, engine='openpyxl')
-            if not df.empty:
-                create_category_table(df)
-            else:
-                create_empty_info_category(INFO_CATEGORY_FILE)
+            create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: info_category(금융정보) 생성 실패 - {e}")
 
@@ -175,384 +159,11 @@ def safe_write_excel(df, filepath, max_retries=3):
     return False
 
 # =========================================================
-# 1. 은행 파일 읽기 함수들
-# =========================================================
-
-def read_kb_file_excel(file_path):
-    """국민은행 Excel(.xlsx) 파일 읽기."""
-    xls = pd.ExcelFile(file_path)
-    all_data = []
-    for sheet_name in xls.sheet_names:
-        df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
-        header_row = None
-        for idx in range(min(15, len(df_raw))):
-            cell = df_raw.iloc[idx, 0]
-            if pd.notna(cell) and ('거래일시' in str(cell) or '거래일자' in str(cell)):
-                header_row = idx
-                break
-        if header_row is None:
-            continue
-        df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row)
-        date_col = None
-        for c in df.columns:
-            s = str(c)
-            if '거래일시' in s or '거래일자' in s:
-                date_col = c
-                break
-        if date_col is None:
-            continue
-        df = df[df[date_col].notna()].copy()
-        df = df[df[date_col].astype(str).str.strip() != ''].copy()
-        df = df[df[date_col].astype(str) != '합계'].copy()
-
-        account_number = None
-        df_info = pd.read_excel(file_path, sheet_name=sheet_name, header=None, nrows=10)
-        for idx in range(len(df_info)):
-            for col in df_info.columns:
-                value = str(df_info.iloc[idx, col])
-                if '계좌번호' in value or '285102' in value:
-                    m = re.search(r'(\d{6}-\d{2}-\d{6})', value)
-                    if m:
-                        account_number = m.group(1)
-                    break
-            if account_number:
-                break
-        if not account_number:
-            m = re.search(r'(\d{6}-\d{2}-\d{6})', str(file_path))
-            if m:
-                account_number = m.group(1)
-
-        bank_name = '국민은행'
-        if '거래일시' in str(date_col):
-            df['거래일'] = df[date_col].astype(str).str.split(' ').str[0]
-            df['거래시간'] = df[date_col].astype(str).str.split(' ').str[1]
-            df['거래시간'] = df['거래시간'].fillna('')
-        else:
-            df['거래일'] = df[date_col].astype(str)
-            df['거래시간'] = ''
-
-        result_df = pd.DataFrame()
-        result_df['거래일'] = df['거래일']
-        result_df['거래시간'] = df['거래시간']
-        result_df['적요'] = df['적요'] if '적요' in df.columns else ''
-        result_df['출금액'] = df['출금액'] if '출금액' in df.columns else 0
-        result_df['입금액'] = df['입금액'] if '입금액' in df.columns else 0
-        result_df['잔액'] = df['잔액'] if '잔액' in df.columns else 0
-        result_df['거래점'] = df['거래점'] if '거래점' in df.columns else ''
-        result_df['구분'] = df['구분'] if '구분' in df.columns else ''
-        content_col = None
-        for c in df.columns:
-            if '보낸분' in str(c) or '받는분' in str(c) or '내용' in str(c):
-                content_col = c
-                break
-        result_df['내용'] = df[content_col].fillna('') if content_col else ''
-        result_df['송금메모'] = df['송금메모'].fillna('') if '송금메모' in df.columns else ''
-        result_df['메모'] = df['메모'].fillna('') if '메모' in df.columns else ''
-        result_df['은행명'] = bank_name
-        result_df['계좌번호'] = account_number
-        result_df = result_df[result_df['거래일'].notna()].copy()
-        result_df = result_df[result_df['거래일'].astype(str).str.strip() != ''].copy()
-        all_data.append(result_df)
-
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    return None
-
-def read_sh_file(file_path):
-    """신한은행 파일 읽기"""
-    xls = pd.ExcelFile(file_path)
-    all_data = []
-    
-    for sheet_name in xls.sheet_names:
-        df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
-        header_row = None
-        for idx in range(min(15, len(df_raw))):
-            if pd.notna(df_raw.iloc[idx, 0]) and '거래일자' in str(df_raw.iloc[idx, 0]):
-                header_row = idx
-                break
-        
-        if header_row is None:
-            continue
-        
-        df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row)
-        df = df[df['거래일자'].notna()].copy()
-        df = df[df['거래일자'] != ''].copy()
-        
-        account_number = None
-        df_info = pd.read_excel(file_path, sheet_name=sheet_name, header=None, nrows=5)
-        for idx in range(len(df_info)):
-            for col in df_info.columns:
-                value = str(df_info.iloc[idx, col])
-                if '계좌번호' in value or '110-478' in value:
-                    match = re.search(r'(\d{3}-\d{3}-\d{6})', value)
-                    if match:
-                        account_number = match.group(1)
-                    break
-            if account_number:
-                break
-        
-        if not account_number:
-            match = re.search(r'(\d{3}-\d{3}-\d{6})', str(file_path))
-            if match:
-                account_number = match.group(1)
-        
-        bank_name = '신한은행'
-        
-        result_df = pd.DataFrame(index=df.index)
-        result_df['거래일'] = df['거래일자'] if '거래일자' in df.columns else ''
-        result_df['거래시간'] = df['거래시간'].fillna('') if '거래시간' in df.columns else ''
-        result_df['적요'] = df['적요'] if '적요' in df.columns else ''
-        result_df['출금액'] = df['출금(원)'] if '출금(원)' in df.columns else (df['출금액'] if '출금액' in df.columns else 0)
-        result_df['입금액'] = df['입금(원)'] if '입금(원)' in df.columns else (df['입금액'] if '입금액' in df.columns else 0)
-        result_df['잔액'] = df['잔액(원)'] if '잔액(원)' in df.columns else (df['잔액'] if '잔액' in df.columns else 0)
-        result_df['거래점'] = df['거래점'] if '거래점' in df.columns else ''
-        result_df['구분'] = ''
-        
-        if '내용' in df.columns:
-            result_df['내용'] = df['내용'].fillna('')
-        else:
-            content_found = False
-            for col in df.columns:
-                col_str = str(col).lower()
-                if any(keyword in col_str for keyword in ['내용', '거래처', '상대방', '받는분', '보낸분', '거래상대방']):
-                    result_df['내용'] = df[col].fillna('')
-                    content_found = True
-                    break
-            
-            if not content_found and len(df.columns) > 5:
-                result_df['내용'] = df[df.columns[5]].fillna('')
-            elif not content_found and len(df.columns) > 4:
-                result_df['내용'] = df[df.columns[4]].fillna('')
-            else:
-                result_df['내용'] = ''
-        
-        result_df['송금메모'] = ''
-        result_df['메모'] = df['메모'].fillna('') if '메모' in df.columns else ''
-        result_df['은행명'] = bank_name
-        result_df['계좌번호'] = account_number
-        
-        result_df = result_df[result_df['거래일'].notna()].copy()
-        result_df = result_df[result_df['거래일'] != ''].copy()
-        
-        all_data.append(result_df)
-    
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    return None
-
-def read_hana_file(file_path):
-    """하나은행 파일 읽기"""
-    xls = pd.ExcelFile(file_path)
-    all_data = []
-    
-    for sheet_name in xls.sheet_names:
-        df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
-        header_row = None
-        for idx in range(min(15, len(df_raw))):
-            if pd.notna(df_raw.iloc[idx, 0]) and ('거래일시' in str(df_raw.iloc[idx, 0]) or '거래일' in str(df_raw.iloc[idx, 0])):
-                header_row = idx
-                break
-        
-        if header_row is None:
-            continue
-        
-        df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row)
-        df = df[df['거래일시'].notna()].copy()
-        
-        account_number = None
-        df_info = pd.read_excel(file_path, sheet_name=sheet_name, header=None, nrows=5)
-        for idx in range(len(df_info)):
-            for col in df_info.columns:
-                value = str(df_info.iloc[idx, col])
-                if '계좌번호' in value or '433-910' in value:
-                    match = re.search(r'(\d{3}-\d{6}-\d{5})', value)
-                    if match:
-                        account_number = match.group(1)
-                    break
-            if account_number:
-                break
-        
-        if not account_number:
-            match = re.search(r'(\d{3}-\d{6}-\d{5})', str(file_path))
-            if match:
-                account_number = match.group(1)
-        
-        bank_name = '하나은행'
-        
-        df['거래일'] = df['거래일시'].astype(str).str.split(' ').str[0]
-        df['거래시간'] = df['거래일시'].astype(str).str.split(' ').str[1]
-        df['거래시간'] = df['거래시간'].fillna('')
-        
-        df = df[df['거래일'].notna()].copy()
-        df = df[df['거래일'] != ''].copy()
-        
-        result_df = pd.DataFrame()
-        result_df['거래일'] = df['거래일']
-        result_df['거래시간'] = df['거래시간']
-        result_df['적요'] = df['적요'] if '적요' in df.columns else ''
-        result_df['출금액'] = df['출금액'] if '출금액' in df.columns else 0
-        result_df['입금액'] = df['입금액'] if '입금액' in df.columns else 0
-        result_df['잔액'] = df['잔액'] if '잔액' in df.columns else 0
-        result_df['거래점'] = df['거래점'] if '거래점' in df.columns else ''
-        result_df['구분'] = ''
-        result_df['내용'] = df['내용'].fillna('') if '내용' in df.columns else ''
-        result_df['송금메모'] = ''
-        result_df['메모'] = ''
-        result_df['은행명'] = bank_name
-        result_df['계좌번호'] = account_number
-        
-        all_data.append(result_df)
-    
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    return None
-
-# =========================================================
-# 2. 은행 파일 통합 함수 (integrate_cash_transactions)
-# =========================================================
-
-def _cash_excel_files(source_dir):
-    """ .source 폴더에서 은행 거래 .xls, .xlsx 파일 목록. .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)"""
-    out = []
-    if not source_dir.exists():
-        return out
-    for ext in ('*.xls', '*.xlsx'):
-        for p in source_dir.glob(ext):
-            n = p.name
-            if '국민은행' in n or '신한은행' in n or '하나은행' in n:
-                out.append(p)
-    return sorted(set(out), key=lambda p: (p.name, str(p)))
-
-def integrate_cash_transactions(output_file=None):
-    """MyInfo/.source/Cash 의 은행 파일을 통합하여 MyCash/cash_before.xlsx 생성."""
-    if output_file is None:
-        output_file = os.path.join(_SCRIPT_DIR, INPUT_FILE)
-    source_dir = Path(SOURCE_CASH_DIR)
-    all_data = []
-    bank_files = _cash_excel_files(source_dir)
-
-    for file_path in bank_files:
-        name = file_path.name
-        suf = file_path.suffix.lower()
-        try:
-            if '국민은행' in name:
-                if suf == '.xlsx':
-                    df = read_kb_file_excel(file_path)
-                else:
-                    continue  # 국민은행 .xls 미지원, .xlsx만 사용
-            elif '신한은행' in name:
-                df = read_sh_file(file_path)
-            elif '하나은행' in name:
-                df = read_hana_file(file_path)
-            else:
-                df = None
-            if df is not None and len(df) > 0:
-                all_data.append(df)
-        except Exception as e:
-            print(f"오류: {name} 처리 실패 - {e}")
-
-    if not all_data:
-        combined_df = pd.DataFrame(columns=['거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
-                                           '구분', '적요', '내용', '거래점', '송금메모', '메모', '카테고리'])
-        combined_df.to_excel(output_file, index=False, engine='openpyxl')
-        try:
-            create_empty_info_category(INFO_CATEGORY_FILE)
-        except Exception as e:
-            print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
-        return combined_df
-
-    combined_df = pd.concat(all_data, ignore_index=True)
-
-    # 금액 데이터 정리
-    combined_df['출금액'] = combined_df['출금액'].apply(clean_amount)
-    combined_df['입금액'] = combined_df['입금액'].apply(clean_amount)
-    combined_df['잔액'] = combined_df['잔액'].apply(clean_amount)
-
-    # 정렬
-    combined_df['거래일_정렬용'] = pd.to_datetime(combined_df['거래일'], errors='coerce')
-    combined_df = combined_df.sort_values(['거래일_정렬용', '거래시간', '은행명', '계좌번호'], na_position='last')
-    combined_df = combined_df.drop('거래일_정렬용', axis=1)
-
-    # 거래일이 없는 행 제거
-    combined_df = combined_df[combined_df['거래일'].notna()].copy()
-    combined_df = combined_df[combined_df['거래일'] != ''].copy()
-
-    # 메모 컬럼을 카테고리로 변경
-    if '카테고리' not in combined_df.columns:
-        if '메모' in combined_df.columns:
-            combined_df['카테고리'] = combined_df['메모'].fillna('')
-        else:
-            combined_df['카테고리'] = ''
-
-    # 적요의 "-"를 공백으로 변경
-    if '적요' in combined_df.columns:
-        combined_df['적요'] = combined_df['적요'].astype(str).str.replace('-', ' ', regex=False)
-
-    # 입금/출금 금액에 따라 카테고리에 "입금"/"출금" 추가
-    for idx in combined_df.index:
-        deposit_value = combined_df.at[idx, '입금액'] if '입금액' in combined_df.columns else 0
-        withdraw_value = combined_df.at[idx, '출금액'] if '출금액' in combined_df.columns else 0
-
-        try:
-            deposit_value = float(deposit_value) if pd.notna(deposit_value) else 0
-            withdraw_value = float(withdraw_value) if pd.notna(withdraw_value) else 0
-        except (ValueError, TypeError):
-            deposit_value = 0
-            withdraw_value = 0
-
-        if deposit_value > 0 or withdraw_value > 0:
-            current_category = str(combined_df.at[idx, '카테고리']) if pd.notna(combined_df.at[idx, '카테고리']) else ''
-
-            if deposit_value > 0:
-                if current_category:
-                    current_category = current_category + ' ' + '입금'
-                else:
-                    current_category = '입금'
-
-            if withdraw_value > 0:
-                if current_category:
-                    current_category = current_category + ' ' + '출금'
-                else:
-                    current_category = '출금'
-
-            combined_df.at[idx, '카테고리'] = current_category
-
-    # 구분 컬럼에 "취소된 거래"는 "취소"로 변경
-    if '구분' in combined_df.columns:
-        combined_df['구분'] = combined_df['구분'].astype(str).str.replace('취소된 거래', '취소', regex=False)
-
-    # 컬럼 순서 정리
-    column_order = ['거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
-                   '구분', '적요', '내용', '거래점', '송금메모', '메모', '카테고리']
-    existing_columns = [col for col in column_order if col in combined_df.columns]
-    for col in combined_df.columns:
-        if col not in existing_columns:
-            existing_columns.append(col)
-    combined_df = combined_df[existing_columns]
-
-    # 파일 저장
-    combined_df.to_excel(output_file, index=False, engine='openpyxl')
-
-    if not combined_df.empty:
-        try:
-            create_category_table(combined_df)
-        except Exception as e:
-            print(f"오류: info_category(금융정보) 생성 실패 - {e}")
-    else:
-        try:
-            create_empty_info_category(INFO_CATEGORY_FILE)
-        except Exception as e:
-            print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
-
-    return combined_df
-
-
-# =========================================================
-# 3. 카테고리 테이블 생성 함수
+# 2. 카테고리 테이블 생성 함수
 # =========================================================
 
 def create_category_table(df):
-    """cash_before 데이터를 기반으로 info_category.xlsx(금융정보 구분) 생성. category_create.md 파싱 또는 기본값 사용."""
+    """DataFrame을 기반으로 info_category.xlsx(금융정보 구분) 생성. category_create.md 파싱 또는 기본값 사용."""
     fn = get_default_rules if get_default_rules else (lambda d: __import__('info_category_defaults').get_default_rules(d))
     unique_category_data = fn('cash')
     category_df = pd.DataFrame(unique_category_data)
@@ -849,9 +460,9 @@ def load_category_table():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """cash_before → cash_after 생성. info_category의 전처리/후처리·기타거래 적용 (거래방법/거래지점 미사용). before/after는 MyCash 폴더."""
+    """입력 파일 → cash_after 생성. info_category의 전처리/후처리·기타거래 적용 (거래방법/거래지점 미사용). 금융정보는 보통 cash_after를 bank/card 병합으로만 생성."""
     if input_file is None:
-        input_file = os.path.join(_SCRIPT_DIR, INPUT_FILE)
+        input_file = os.path.join(_SCRIPT_DIR, "cash_before.xlsx")
     if output_file is None:
         output_file = os.path.join(_SCRIPT_DIR, OUTPUT_FILE)
     try:
@@ -997,24 +608,15 @@ def classify_and_save(input_file=None, output_file=None):
 # =========================================================
 
 def main():
-    """전체 워크플로우 실행"""
+    """전체 워크플로우 실행. cash_after는 bank/card 병합으로만 생성."""
     if len(sys.argv) > 1:
         command = sys.argv[1]
-
-        if command == 'integrate':
-            integrate_cash_transactions()
-            return
-        elif command == 'classify':
+        if command == 'classify':
             success = classify_and_save()
             if not success:
                 print("카테고리 분류 중 오류가 발생했습니다.")
             return
-
-    cash_before_path = os.path.join(_SCRIPT_DIR, INPUT_FILE)
-    if not os.path.exists(cash_before_path) or os.path.getsize(cash_before_path) == 0:
-        integrate_cash_transactions()
-    else:
-        classify_and_save()
+    ensure_all_cash_files()
 
 if __name__ == '__main__':
     main()

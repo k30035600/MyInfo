@@ -64,7 +64,7 @@ except ImportError:
         import unicodedata
         if v is None or (isinstance(v, str) and not str(v).strip()): return '' if v is None else v
         return unicodedata.normalize('NFKC', str(v).strip())
-    _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분')
+    _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '금전대부')
 
     def apply_category_action(path, action, data):
         try:
@@ -324,11 +324,11 @@ def get_source_files():
 @app.route('/api/processed-data')
 @ensure_working_directory
 def get_processed_data():
-    """전처리된 데이터 반환 (필터링 지원). bank_before/category/after 없으면 생성."""
+    """전처리된 데이터 반환 (필터링 지원). bank_before/info_category만 준비, 카테고리 분류( bank_after 생성)는 하지 않음."""
     try:
         output_path = Path(BANK_BEFORE_PATH)
         bank_before_existed = output_path.exists()  # 요청 시작 시 존재 여부 (이번 요청에서 생성됐으면 에러 문구 구분)
-        # bank_before, info_category, bank_after 없으면 생성
+        # bank_before, info_category만 준비 (bank_after 생성/카테고리분류는 하지 않음)
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -336,7 +336,7 @@ def get_processed_data():
                 sys.path.insert(0, _dir_str)
                 _path_added = True
             import process_bank_data as _pbd
-            _pbd.ensure_all_bank_files()
+            _pbd.ensure_bank_before_and_category()
         except Exception as e:
             error_msg = str(e)
             hint = []
@@ -371,11 +371,7 @@ def get_processed_data():
                 'data': []
             }), 500
 
-        # bank_after를 매 요청마다 최신 info_category(계정과목) 기준으로 재생성 → 카테고리 적용 보장
-        try:
-            _pbd.classify_and_save(input_file=str(output_path), output_file=BANK_AFTER_PATH)
-        except Exception as ex:
-            pass  # 기존 파일 사용
+        # bank_after.xlsx 존재하면 사용만. 생성/카테고리 분류는 /api/generate-category(생성 필터)에서만 수행.
 
         # 전처리후 테이블에 카테고리 컬럼 표시: bank_after 있으면 사용, 없으면 bank_before
         category_file_exists = Path(BANK_AFTER_PATH).exists()
@@ -514,9 +510,9 @@ def get_simya_ranges():
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (필터링 지원). bank_after 없으면 생성."""
+    """카테고리 적용된 데이터 반환 (필터링 지원). bank_before/info_category만 준비, bank_after는 생성하지 않음."""
     try:
-        # bank_before, info_category, bank_after 없으면 생성
+        # bank_before, info_category만 준비 (테이블/출력 시 카테고리 분류 미수행)
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -524,7 +520,7 @@ def get_category_applied_data():
                 sys.path.insert(0, _dir_str)
                 _path_added = True
             import process_bank_data as _pbd
-            _pbd.ensure_all_bank_files()
+            _pbd.ensure_bank_before_and_category()
         except Exception:
             pass  # ensure 실패 시 기존 파일로 진행
         finally:
@@ -741,7 +737,7 @@ def get_category_table():
                 sys.path.insert(0, _dir_str)
                 _path_added = True
             import process_bank_data as _pbd
-            _pbd.ensure_all_bank_files()
+            _pbd.ensure_bank_before_and_category()
             if path.exists():
                 _pbd.migrate_bank_category_file(str(path))
         except Exception as _e:
@@ -1765,6 +1761,7 @@ def generate_category():
                 sys.path.insert(0, _dir_str)
                 _path_added = True
             import process_bank_data as _pbd
+            _pbd.ensure_bank_before_and_category()  # bank_before, info_category 준비 (생성 시에만 카테고리 분류)
             # 이미 bank_after.xlsx가 있으면 .bak으로 복사 후 새로 생성
             output_path = Path(BANK_AFTER_PATH)
             if output_path.exists() and output_path.stat().st_size > 0:

@@ -769,22 +769,20 @@
             }
             
             try {
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
                 const response = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: ctrl.signal
                 });
-                
-                const result = await response.json();
-                
+                clearTimeout(timeoutId);
+                const result = await response.json().catch(() => ({}));
                 if (result.success) {
                     alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
-                    // 카테고리 테이블 다시 로드 (파일 존재 시 버튼이 "출력"으로 변경됨)
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'info_category.xlsx 파일 생성 실패'}`);
-                    // 실패 시 버튼 다시 활성화
+                    alert(`오류: ${(result.error || 'info_category.xlsx 파일 생성 실패').replace(/\n/g, ' ')}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -793,8 +791,8 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다.');
-                // 오류 발생 시 버튼 다시 활성화
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '오류가 발생했습니다.';
+                alert('info_category.xlsx 파일 생성 중 오류: ' + msg);
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -2431,25 +2429,22 @@
             btn.style.backgroundColor = '#ccc';
             
             try {
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
                 const response = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: ctrl.signal
                 });
-                
-                const result = await response.json();
-                
+                clearTimeout(timeoutId);
+                const result = await response.json().catch(() => ({}));
                 if (result.success) {
                     const pathLine = (result.folder && result.filename) ? `\n폴더: ${result.folder}\n파일명: ${result.filename}` : '';
                     alert(`카테고리 파일 생성 완료!\n${result.message}${pathLine}\n\n카테고리 조회 데이터를 새로고침합니다.`);
-                    // 버튼 텍스트 복원 (비활성화는 loadCategoryAppliedTable에서 처리)
                     btn.textContent = originalText;
-                    // 카테고리 조회 데이터 다시 로드 (파일 존재 시 버튼 비활성화됨)
                     await loadCategoryAppliedTable();
                 } else {
-                    alert(`오류: ${result.error || '카테고리 파일 생성 실패'}`);
-                    // 실패 시 버튼 다시 활성화
+                    alert(`오류: ${(result.error || '카테고리 파일 생성 실패').replace(/\n/g, ' ')}`);
                     btn.disabled = false;
                     btn.textContent = originalText;
                     btn.style.backgroundColor = '#2196F3';
@@ -2457,14 +2452,13 @@
                 }
             } catch (error) {
                 console.error('Error generating category file:', error);
-                alert('카테고리 파일 생성 중 오류가 발생했습니다.');
-                // 오류 발생 시에만 버튼 다시 활성화
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '오류가 발생했습니다.';
+                alert('카테고리 파일 생성 중 오류: ' + msg);
                 btn.disabled = false;
                 btn.textContent = originalText;
                 btn.style.backgroundColor = '#2196F3';
                 btn.style.cursor = 'pointer';
             }
-            // 성공한 경우는 loadCategoryAppliedTable에서 파일 존재 여부에 따라 버튼 상태를 관리
         }
         
         // 월별 추이 차트 변수

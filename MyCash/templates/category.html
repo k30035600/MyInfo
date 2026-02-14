@@ -746,22 +746,20 @@
             }
             
             try {
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
                 const response = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: ctrl.signal
                 });
-                
-                const result = await response.json();
-                
+                clearTimeout(timeoutId);
+                const result = await response.json().catch(() => ({}));
                 if (result.success) {
                     alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
-                    // 카테고리 테이블 다시 로드 (파일 존재 시 버튼이 "출력"으로 변경됨)
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${result.error || 'info_category.xlsx 파일 생성 실패'}`);
-                    // 실패 시 버튼 다시 활성화
+                    alert(`오류: ${(result.error || 'info_category.xlsx 파일 생성 실패').replace(/\n/g, ' ')}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -770,8 +768,8 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다.');
-                // 오류 발생 시 버튼 다시 활성화
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '오류가 발생했습니다.';
+                alert('info_category.xlsx 파일 생성 중 오류: ' + msg);
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -1131,32 +1129,68 @@
             if (!contentDiv) return;
             
             contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            const loadingMsg = '데이터 로딩 중';
+            let safetyTimeoutId = setTimeout(() => {
+                if (contentDiv.textContent && contentDiv.textContent.includes(loadingMsg)) {
+                    contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">요청 시간이 초과되었습니다. 새로고침(F5) 후 다시 시도하세요.</div>';
+                }
+            }, 65000);
+            const clearSafety = () => { if (safetyTimeoutId) clearTimeout(safetyTimeoutId); safetyTimeoutId = 0; };
             
             const btn = document.getElementById('generate-category-btn');
             try {
-                const response = await fetch(`${API_BASE}/api/category-applied-data`);
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+                const response = await fetch(`${API_BASE}/api/category-applied-data`, { signal: ctrl.signal });
+                clearTimeout(timeoutId);
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(response.status + ' ' + (errText || response.statusText));
+                }
                 const data = await response.json();
                 
                 if (data.data && data.data.length > 0) {
+                    clearSafety();
                     categoryAppliedDataOriginalForIndex = data.data;
                     syncCategoryBankFilterFromData(data.data);
                     renderCategoryAppliedTableForIndex(data.data);
                     loadMonthlyTrend();
                 } else {
-                    const fileExists = data.file_exists === true;
-                    const noFileMsg = !fileExists
-                        ? 'cash_after.xlsx가 없습니다. 위 <strong>cash_after.xlsx 생성</strong> 버튼을 클릭하여 bank_after + card_after를 병합 생성하세요.'
-                        : '데이터 로딩 중...';
-                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">' + noFileMsg + '</div>';
+                    // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
+                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...</div>';
+                    let createOk = false;
+                    try {
+                        const ctrl2 = new AbortController();
+                        const timeoutId2 = setTimeout(() => ctrl2.abort(), 60000);
+                        const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
+                        clearTimeout(timeoutId2);
+                        const createJson = await createRes.json().catch(() => ({}));
+                        if (createRes.ok && createJson.success) {
+                            clearSafety();
+                            createOk = true;
+                            await loadCategoryAppliedDataForIndex();
+                            return;
+                        }
+                        const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
+                        contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다.') + '</div>';
+                    } catch (createErr) {
+                        console.error('cash_after 자동 생성 실패:', createErr);
+                        const msg = (createErr && createErr.name === 'AbortError') ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
+                        contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+                    }
+                    if (!createOk) contentDiv.innerHTML = contentDiv.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 }
+                clearSafety();
                 if (btn) {
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
                     btn.style.cursor = 'pointer';
                 }
             } catch (error) {
+                clearSafety();
                 console.error('Error loading category applied data:', error);
-                contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 중 오류가 발생했습니다.</div>';
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '데이터 로딩 중 오류가 발생했습니다.';
+                contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                 if (btn) {
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
@@ -1191,7 +1225,7 @@
             }
             const totalRatio = availableColumns.reduce((sum, col, i) => sum + (QUERY_WIDTHS[columns.indexOf(col)] || 1.0), 0);
             
-            // 필터용 고유값 추출 (구분: card_after '폐업' 포함, 없으면 항상 추가)
+            // 필터용 고유값 추출 (구분: 폐업만)
             const uniqueValues = {};
             availableColumns.forEach(col => {
                 let uniqueValuesList = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined && v !== ''))].map(v => typeof v === 'string' ? v.trim() : v);
@@ -1710,47 +1744,72 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         // 카테고리 적용 테이블 로드
         async function loadCategoryAppliedTable() {
             const btn = document.getElementById('generate-category-btn');
+            const appliedContent = document.getElementById('category-applied-content');
+            if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            const loadingMsg = '데이터 로딩 중';
+            let safetyTimeoutId = appliedContent ? setTimeout(() => {
+                if (appliedContent.textContent && appliedContent.textContent.includes(loadingMsg)) {
+                    appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">요청 시간이 초과되었습니다. 새로고침(F5) 후 다시 시도하세요.</div>';
+                }
+            }, 65000) : 0;
+            const clearSafety = () => { if (safetyTimeoutId) clearTimeout(safetyTimeoutId); safetyTimeoutId = 0; };
             try {
-                const response = await fetch(`${API_BASE}/api/category-applied-data`);
-                
-                // 응답 상태 확인
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+                const response = await fetch(`${API_BASE}/api/category-applied-data`, { signal: ctrl.signal });
+                clearTimeout(timeoutId);
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Server error:', response.status, errorText);
-                    throw new Error(`Server error: ${response.status} ${errorText}`);
+                    throw new Error(response.status + ' ' + (errorText || response.statusText));
                 }
-                
                 const data = await response.json();
                 
                 // 파일 존재 여부 확인 (file_exists 속성 사용)
                 const fileExists = data.file_exists === true;
                 
                 if (data.data && data.data.length > 0) {
+                    clearSafety();
                     categoryAppliedDataOriginal = data.data;
                     syncCategoryBankFilterFromData(data.data);
                     renderCategoryAppliedTable(data.data);
-                    // 그래프 업데이트는 테이블 렌더링 후 자동으로 updateChartFromTable 호출됨
                     loadMonthlyTrend();
                 } else {
-                    const noFileMsg = !fileExists
-                        ? 'cash_after.xlsx가 없습니다. 위 <strong>cash_after.xlsx 생성</strong> 버튼을 클릭하여 bank_after + card_after를 병합 생성하세요.'
-                        : '데이터 로딩 중...';
-                    document.getElementById('category-applied-content').innerHTML = 
-                        '<div class="loading" style="padding: 20px; text-align: center; color: #666;">' + noFileMsg + '</div>';
+                    // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
+                    if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...</div>';
+                    let createOk = false;
+                    try {
+                        const ctrl2 = new AbortController();
+                        const timeoutId2 = setTimeout(() => ctrl2.abort(), 60000);
+                        const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
+                        clearTimeout(timeoutId2);
+                        const createJson = await createRes.json().catch(() => ({}));
+                        if (createRes.ok && createJson.success) {
+                            clearSafety();
+                            createOk = true;
+                            await loadCategoryAppliedTable();
+                            return;
+                        }
+                        const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
+                        if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다.') + '</div>';
+                    } catch (createErr) {
+                        console.error('cash_after 자동 생성 실패:', createErr);
+                        const msg = (createErr && createErr.name === 'AbortError') ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
+                        if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+                    }
+                    if (!createOk && appliedContent) appliedContent.innerHTML = appliedContent.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 }
-                
-                // cash_after.xlsx 생성 버튼은 항상 활성화
+                clearSafety();
                 if (btn) {
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
                     btn.style.cursor = 'pointer';
                 }
             } catch (error) {
+                clearSafety();
                 console.error('Error loading category applied data:', error);
-                document.getElementById('category-applied-content').innerHTML = 
-                    '<div style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 중 오류가 발생했습니다.</div>';
-                
-                // 오류 발생 시 버튼 활성화 (파일이 없을 수 있음)
+                const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '데이터 로딩 중 오류가 발생했습니다.';
+                if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                 if (btn) {
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
