@@ -964,7 +964,7 @@
             word-break: break-word !important;
         }
 
-        /* 카테고리 조회 테이블: 할부 컬럼(7번째) 가운데 정렬 */
+        /* 카테고리 조회 테이블: 구분 컬럼(7번째) 가운데 정렬 */
         #category-query-table th:nth-child(7),
         #category-query-table td:nth-child(7) {
             text-align: center !important;
@@ -1598,7 +1598,7 @@
                     </div>
                     <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
-                            <div class="loading" style="padding: 20px; text-align: center; color: #666;">카테고리 적용 후 데이터를 확인할 수 있습니다.</div>
+                            <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
                         </div>
                     </div>
                 </div>
@@ -2106,7 +2106,7 @@
                 // 데이터 표시
                 if (data.data && data.data.length > 0) {
                     // 전처리후: card_before.xlsx만 사용. 카테고리·키워드 컬럼은 표시하지 않음
-                    const card_column_order = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '사업자번호', '할부'];
+                    const card_column_order = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '사업자번호', '구분'];
                     const exclude_cols = ['키워드', '카테고리'];
                     const data_columns = Object.keys(data.data[0]).filter(c => !exclude_cols.includes(c));
                     const columns = card_column_order.filter(col => data_columns.includes(col));
@@ -2139,14 +2139,14 @@
                                     displayValue = (col === '입금액' && numVal > 0) ? '-' + formatAmount(numVal) : formatAmount(value);
                                 } else if (col === '사업자번호') {
                                     displayValue = formatBusinessNumber(value);  /* 000-00-00000 */
-                                } else if (col === '할부') {
+                                } else if (col === '구분') {
                                     displayValue = String(value);
                                 } else {
                                     displayValue = value;
                                 }
                             }
                             let align = 'left';
-                            if (col === '카드사' || col === '이용일' || col === '이용시간' || col === '할부' || col === '사업자번호' || col === '취소') align = 'center';
+                            if (col === '카드사' || col === '이용일' || col === '이용시간' || col === '구분' || col === '사업자번호' || col === '취소') align = 'center';
                             else if (col === '입금액' || col === '출금액') align = 'right';
                             let cellStyle = ` style="white-space: nowrap; text-align: ${align} !important;"`;
                             html += `<td${cellStyle}>${displayValue}</td>`;
@@ -3042,7 +3042,7 @@
                 } else {
                     const noFileMsg = !fileExists
                         ? 'card_after.xlsx가 없습니다. 위 <strong>card_after.xlsx 생성</strong> 버튼을 클릭하여 생성하세요.'
-                        : '카테고리 적용 후 데이터를 확인할 수 있습니다.';
+                        : '데이터 로딩 중...';
                     contentEl.innerHTML =
                         '<div class="loading" style="padding: 20px; text-align: center; color: #666;">' + noFileMsg + '</div>';
                 }
@@ -3078,7 +3078,7 @@
                 return;
             }
             
-            const cardColumns = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '할부', '키워드', '카테고리', '가맹점명'];
+            const cardColumns = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '구분', '키워드', '카테고리', '가맹점명'];
             const bankColumns = [
                 '거래일', '거래시간', '은행명', '입금액', '출금액', '구분', '적요', '내용', 
                 '거래점', '송금메모', '키워드', '입출금', '카테고리', '기타거래'
@@ -3130,7 +3130,7 @@
             
             // 카테고리 조회 컬럼 너비 (비율) - 신용카드
             const columnWidthsCard = {
-                '카드사': 0.8, '카드번호': 1.2, '이용일': 0.8, '이용시간': 0.8, '입금액': 0.9, '출금액': 0.9, '취소': 0.7, '사업자번호': 1, '할부': 0.7, '키워드': 1, '카테고리': 1.5, '가맹점명': 2
+                '카드사': 0.8, '카드번호': 1.2, '이용일': 0.8, '이용시간': 0.8, '입금액': 0.9, '출금액': 0.9, '취소': 0.7, '사업자번호': 1, '구분': 0.7, '키워드': 1, '카테고리': 1.5, '가맹점명': 2
             };
             const columnWidthsBank = {
                 '거래일': 0.7, '은행명': 0.7, '입금액': 0.9, '출금액': 0.9, '구분': 0.7,
@@ -3152,7 +3152,7 @@
                 '카드사': 'rgba(33, 150, 243, 0.1)', '카드번호': 'rgba(33, 150, 243, 0.1)',
                 '이용일': 'rgba(33, 150, 243, 0.1)', '이용시간': 'rgba(33, 150, 243, 0.1)', '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)', '취소': 'rgba(33, 150, 243, 0.1)',
                 '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)',
-                '할부': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)'  // 할부: 사업자번호와 동일 배경색
+                '구분': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)'  // 구분: 사업자번호와 동일 배경색
             };
             
             const totalRatio = availableColumns.reduce((sum, col) => sum + (columnWidths[col] || 1.0), 0);
@@ -3160,7 +3160,7 @@
             const uniqueValues = {};
             availableColumns.forEach(col => {
                 let raw = data.map(row => getCell(row, col));
-                if (col === '할부') {
+                if (col === '구분') {
                     raw = raw.filter(v => v !== null && v !== undefined);
                 } else {
                     raw = raw.filter(v => v !== null && v !== undefined && v !== '');
@@ -3176,7 +3176,7 @@
                         if (isNaN(numB)) return -1;
                         return numA - numB;
                     });
-                } else if (col === '할부') {
+                } else if (col === '구분') {
                     uniqueValuesList = uniqueValuesList.sort((a, b) => {
                         const ea = (a === '' || a === null || a === undefined);
                         const eb = (b === '' || b === null || b === undefined);
@@ -3239,10 +3239,10 @@
                             if (!isNaN(numVal)) {
                                 displayVal = formatNumber(numVal);
                             }
-                        } else if (col === '할부') {
+                        } else if (col === '구분') {
                             displayVal = (val === '' || val === null || val === undefined) ? '일시불' : val;
                         }
-                        const optVal = (col === '할부' && (val === '' || val === null || val === undefined)) ? '일시불' : val;
+                        const optVal = (col === '구분' && (val === '' || val === null || val === undefined)) ? '일시불' : val;
                         html += `<option value="${optVal}">${displayVal}</option>`;
                     });
                 }
@@ -3276,7 +3276,7 @@
                             const numValue = parseFloat(String(displayValue).replace(/,/g, '')) || 0;
                             displayValue = formatNumber(numValue);
                         }
-                    } else if (col === '할부' && (displayValue === '' || String(displayValue).trim() === '일시불')) {
+                    } else if (col === '구분' && (displayValue === '' || String(displayValue).trim() === '일시불')) {
                         displayValue = '';
                     }
                     
@@ -3289,7 +3289,7 @@
                     if (col === '입금액' || col === '출금액') {
                         let amtColor = (col === '입금액' && !rowBlue) ? '#0000FF' : (col === '출금액' && !rowBlue) ? '#FF0000' : '';
                         cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd;${amtColor ? ` color: ${amtColor};` : ''} font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '구분' || col === '입출금' || col === '은행명' || col === '거래일' || col === '거래시간' || col === '카드사' || col === '카드번호' || col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '할부' || col === '취소') {
+                    } else if (col === '구분' || col === '입출금' || col === '은행명' || col === '거래일' || col === '거래시간' || col === '카드사' || col === '카드번호' || col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '구분' || col === '취소') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     }
                     
@@ -3413,7 +3413,7 @@
                             if (isNaN(filterNum) || isNaN(cellNum) || filterNum !== cellNum) {
                                 showRow = false;
                             }
-                        } else if (col === '할부') {
+                        } else if (col === '구분') {
                             const cellEmpty = (cellValue === '' || cellValue === null || cellValue === undefined || String(cellValue).trim() === '일시불');
                             const filter일시불 = (filterValue === '일시불');
                             if (filter일시불) {

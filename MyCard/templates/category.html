@@ -604,7 +604,13 @@
 
     <div class="charts-grid" style="grid-template-columns: 1fr; margin-top: 10px;">
         <div class="chart-card" style="grid-column: 1 / -1; display: flex; flex-direction: column;">
-            <h2>월별 입출금 추이 그래프</h2>
+            <div style="margin-bottom: 8px;">
+                <h2 style="margin: 0;">월별 입출금 추이 그래프 <span id="monthly-trend-category-label">(전체)</span></h2>
+            </div>
+            <div class="monthly-chart-legend" style="display: flex; justify-content: flex-end; gap: 16px; margin-bottom: 4px; font-size: 12px;">
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: rgba(0,0,255,0.5); margin-right: 4px; vertical-align: middle;"></span>입금액</span>
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: rgba(255,0,0,0.5); margin-right: 4px; vertical-align: middle;"></span>출금액</span>
+            </div>
             <div class="monthly-chart-container">
                 <canvas id="category-monthly-trend-chart"></canvas>
             </div>
@@ -1185,7 +1191,7 @@
                     categoryAppliedDataOriginalForIndex = data.data;
                     renderCategoryAppliedTableForIndex(data.data);
                 } else {
-                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">카테고리 적용 후 데이터를 확인할 수 있습니다.</div>';
+                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
                 }
             } catch (error) {
                 console.error('Error loading category applied data:', error);
@@ -1229,8 +1235,8 @@
             const uniqueValues = {};
             availableColumns.forEach(col => {
                 let raw = data.map(row => row[col]);
-                if (col === '할부') {
-                    raw = raw.filter(v => v !== null && v !== undefined);
+                if (col === '구분') {
+                    raw = raw.filter(v => v != null && v !== '' && String(v).trim() !== '' && String(v).trim() !== '일시불');
                 } else {
                     raw = raw.filter(v => v !== null && v !== undefined && v !== '');
                 }
@@ -1245,19 +1251,8 @@
                         if (isNaN(numB)) return -1;
                         return numA - numB;
                     });
-                } else if (col === '할부') {
-                    uniqueValuesList = uniqueValuesList.sort((a, b) => {
-                        const ea = (a === '' || a === null || a === undefined);
-                        const eb = (b === '' || b === null || b === undefined);
-                        if (ea && eb) return 0;
-                        if (ea) return -1;
-                        if (eb) return 1;
-                        const na = Number(a), nb = Number(b);
-                        if (isNaN(na) && isNaN(nb)) return 0;
-                        if (isNaN(na)) return 1;
-                        if (isNaN(nb)) return -1;
-                        return na - nb;
-                    });
+                } else if (col === '구분') {
+                    uniqueValuesList.sort((a, b) => String(a).localeCompare(String(b)));
                 } else {
                     uniqueValuesList.sort();
                 }
@@ -1329,11 +1324,8 @@
                             if (!isNaN(numVal)) {
                                 displayVal = formatNumber(numVal);
                             }
-                        } else if (col === '할부') {
-                            displayVal = (val === '' || val === null || val === undefined) ? '일시불' : val;
                         }
-                        const optVal = (col === '할부' && (val === '' || val === null || val === undefined)) ? '일시불' : val;
-                        html += `<option value="${optVal}">${displayVal}</option>`;
+                        html += `<option value="${val}">${displayVal}</option>`;
                     });
                 }
                 html += `</select>
@@ -1360,8 +1352,8 @@
                             const numValue = parseFloat(displayValue) || 0;
                             displayValue = formatNumber(numValue);
                         }
-                    } else if (col === '할부' && displayValue === '') {
-                        displayValue = '일시불';
+                    } else if (col === '구분' && displayValue === '') {
+                        displayValue = '';
                     }
                     
                     let cellBgColor = '';
@@ -1372,7 +1364,7 @@
                     let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     if (col === '입금액' || col === '출금액' || col === '잔액') {
                         cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: ${col === '입금액' ? '#0000FF' : col === '출금액' ? '#FF0000' : '#000000'}; font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '거래일' || col === '거래시간' || col === '카드사' || col === '구분' || col === '이용일' || col === '할부') {
+                    } else if (col === '거래일' || col === '거래시간' || col === '카드사' || col === '구분' || col === '이용일' || col === '구분') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     } else if (col === '입출금') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
@@ -1487,18 +1479,8 @@
                             if (isNaN(filterNum) || isNaN(cellNum) || filterNum !== cellNum) {
                                 shouldShow = false;
                             }
-                        } else if (col === '할부') {
-                            const filter일시불 = (filterValue === '일시불');
-                            const cellEmpty = (cellValue === '' || cellValue === '일시불');
-                            if (filter일시불) {
-                                if (!cellEmpty) shouldShow = false;
-                            } else {
-                                if (cellEmpty) shouldShow = false;
-                                else {
-                                    const fn = Number(filterValue), cn = Number(cellValue);
-                                    if (isNaN(fn) || isNaN(cn) || fn !== cn) shouldShow = false;
-                                }
-                            }
+                        } else if (col === '구분') {
+                            if (String(cellValue || '').trim() !== String(filterValue || '').trim()) shouldShow = false;
                         } else {
                             if (cellValue !== filterValue) {
                                 shouldShow = false;
@@ -1575,6 +1557,7 @@
                     tbody.insertAdjacentHTML('beforeend', sumRowHtml);
                 }
             }
+            loadMonthlyTrend();
         }
 
         // 페이지 로드 시 데이터 로드 (신용카드 카테고리: loadCategoryAppliedTable만 사용, loadCategoryAppliedDataForIndex는 은행 스타일이라 사용 안 함)
@@ -1866,7 +1849,7 @@
                 } else {
                     const noFileMsg = !fileExists
                         ? 'card_after.xlsx가 없습니다.'
-                        : '카테고리 적용 후 데이터를 확인할 수 있습니다.';
+                        : '데이터 로딩 중...';
                     document.getElementById('category-applied-content').innerHTML =
                         '<div class="loading" style="padding: 20px; text-align: center; color: #666;">' + noFileMsg + '</div>';
                 }
@@ -1914,17 +1897,8 @@
                     } else if (col === '가맹점명' && filterValue === '__가맹점명없음__') {
                         const cellEmpty = (cellValue === '' || cellValue === null || cellValue === undefined || String(cellValue).trim() === '');
                         if (!cellEmpty) showRow = false;
-                    } else if (col === '할부') {
-                        const cellEmpty = (cellValue === '' || cellValue === null || cellValue === undefined || String(cellValue).trim() === '일시불');
-                        const filter일시불 = (filterValue === '일시불');
-                        if (filter일시불) { if (!cellEmpty) showRow = false; }
-                        else {
-                            if (cellEmpty) showRow = false;
-                            else {
-                                const cn = Number(cellValue), fn = Number(filterValue);
-                                if (isNaN(cn) || isNaN(fn) || cn !== fn) showRow = false;
-                            }
-                        }
+                    } else if (col === '구분') {
+                        if (String(cellValue || '').trim() !== String(filterValue || '').trim()) showRow = false;
                     } else {
                         if (String(cellValue) !== String(filterValue)) showRow = false;
                     }
@@ -1942,16 +1916,16 @@
                 return;
             }
             const columns = [
-                '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '할부', '키워드', '카테고리', '가맹점명'
+                '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '구분', '키워드', '카테고리', '가맹점명'
             ];
             let availableColumns = columns.filter(col => data[0] && data[0].hasOwnProperty(col));
             if (availableColumns.length === 0 && data[0]) {
                 availableColumns = Object.keys(data[0]).filter(k => k && typeof data[0][k] !== 'object');
             }
-            const exportColWidths = { 카드사:1, 카드번호:1.5, 이용일:1, 이용시간:0.8, 입금액:1.0, 출금액:1.0, 취소:0.5, 사업자번호:1.0, 할부:0.5, 키워드:1.0, 카테고리:1.5, 가맹점명:2.5 };
+            const exportColWidths = { 카드사:1, 카드번호:1.5, 이용일:1, 이용시간:0.8, 입금액:1.0, 출금액:1.0, 취소:0.5, 사업자번호:1.0, 구분:0.5, 키워드:1.0, 카테고리:1.5, 가맹점명:2.5 };
             const totalRatio = availableColumns.reduce((s, c) => s + (exportColWidths[c] != null ? exportColWidths[c] : 1), 0);
             const getAlign = (col) => {
-                if (col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '카드번호' || col === '할부' || col === '취소') return 'center';
+                if (col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '카드번호' || col === '구분' || col === '취소') return 'center';
                 if (col === '입금액' || col === '출금액') return 'right';
                 return 'left';
             };
@@ -2032,10 +2006,9 @@
                 return;
             }
             
-            // card_after.xlsx 컬럼 순서
+            // card_after.xlsx 컬럼 순서 (카드 전용만 사용, 가맹점명 뒤 은행용 구분 등 제외)
             const columns = [
-                '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '할부', '키워드', '카테고리', '가맹점명',
-                '거래일', '구분', '적요', '내용', '거래점', '송금메모', '입출금', '거래유형', '기타거래'
+                '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '구분', '키워드', '카테고리', '가맹점명'
             ];
             
             // 카테고리분류를 입출금으로 매핑
@@ -2054,8 +2027,7 @@
             
             const columnWidths = {
                 '카드사': 0.8, '카드번호': 1.4, '이용일': 0.8, '이용시간': 0.8, '입금액': 1.0, '출금액': 1.0,
-                '취소': 0.5, '사업자번호': 1.0, '할부': 0.5, '키워드': 1.0, '카테고리': 1.5, '가맹점명': 2.5,
-                '거래일': 0.8
+                '취소': 0.5, '사업자번호': 1.0, '구분': 0.5, '키워드': 1.0, '카테고리': 1.5, '가맹점명': 2.5
             };
             availableColumns.forEach(col => { if (columnWidths[col] === undefined) columnWidths[col] = 1; });
             
@@ -2065,11 +2037,8 @@
             const columnBgColors = {
                 '카드사': 'rgba(33, 150, 243, 0.1)', '카드번호': 'rgba(33, 150, 243, 0.1)', '이용일': 'rgba(33, 150, 243, 0.1)', '이용시간': 'rgba(33, 150, 243, 0.1)',
                 '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)', '취소': 'rgba(33, 150, 243, 0.1)',
-                '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)', '할부': 'rgba(33, 150, 243, 0.1)',
+                '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)', '구분': 'rgba(33, 150, 243, 0.1)',
                 '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)',
-                '거래일': 'rgba(33, 150, 243, 0.1)', '구분': 'rgba(33, 150, 243, 0.1)', '적요': 'rgba(33, 150, 243, 0.1)',
-                '내용': 'rgba(33, 150, 243, 0.1)', '거래점': 'rgba(33, 150, 243, 0.1)', '송금메모': 'rgba(33, 150, 243, 0.1)',
-                '입출금': 'rgba(255, 152, 0, 0.1)', '거래유형': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)'
             };
             
             // 총 비율 계산
@@ -2079,8 +2048,9 @@
             const uniqueValues = {};
             availableColumns.forEach(col => {
                 let raw = data.map(row => row[col]);
-                if (col === '할부') {
-                    raw = raw.filter(v => v !== null && v !== undefined);
+                if (col === '구분') {
+                    raw = raw.map(v => (v === '일시불' || v === null || v === undefined || String(v).trim() === '') ? null : String(v).trim());
+                    raw = raw.filter(v => v != null && v !== '');
                 } else {
                     raw = raw.filter(v => v !== null && v !== undefined && v !== '');
                 }
@@ -2095,19 +2065,8 @@
                         if (isNaN(numB)) return -1;
                         return numA - numB;
                     });
-                } else if (col === '할부') {
-                    uniqueValuesList = uniqueValuesList.sort((a, b) => {
-                        const ea = (a === '' || a === null || a === undefined);
-                        const eb = (b === '' || b === null || b === undefined);
-                        if (ea && eb) return 0;
-                        if (ea) return -1;
-                        if (eb) return 1;
-                        const na = Number(a), nb = Number(b);
-                        if (isNaN(na) && isNaN(nb)) return 0;
-                        if (isNaN(na)) return 1;
-                        if (isNaN(nb)) return -1;
-                        return na - nb;
-                    });
+                } else if (col === '구분') {
+                    uniqueValuesList.sort((a, b) => String(a).localeCompare(String(b)));
                 } else {
                     uniqueValuesList.sort();
                 }
@@ -2177,11 +2136,8 @@
                             if (!isNaN(numVal)) {
                                 displayVal = formatNumber(numVal);
                             }
-                        } else if (col === '할부') {
-                            displayVal = (val === '' || val === null || val === undefined) ? '일시불' : val;
                         }
-                        const optVal = (col === '할부' && (val === '' || val === null || val === undefined)) ? '일시불' : val;
-                        html += `<option value="${optVal}">${displayVal}</option>`;
+                        html += `<option value="${val}">${displayVal}</option>`;
                     });
                 }
                 html += `</select>
@@ -2219,8 +2175,8 @@
                             const numValue = parseFloat(displayValue) || 0;
                             displayValue = formatNumber(numValue);
                         }
-                    } else if (col === '할부' && displayValue === '') {
-                        displayValue = '일시불';
+                    } else if (col === '구분') {
+                        if (displayValue === '' || String(value || '').trim() === '일시불') displayValue = '';
                     }
                     
                     // 셀 스타일 및 배경색 (전처리전/후 테이블과 동일한 방식)
@@ -2237,7 +2193,7 @@
                         cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: ${col === '입금액' ? '#0000FF' : '#FF0000'}; font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     } else if (col === '키워드' || col === '카테고리') {
                         cellStyle = ` style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '구분' || col === '입출금' || col === '카드사' || col === '카드번호' || col === '거래일' || col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '할부' || col === '취소' || col === '분류코드' || col === '업종분류') {
+                    } else if (col === '구분' || col === '입출금' || col === '카드사' || col === '카드번호' || col === '이용일' || col === '이용시간' || col === '사업자번호' || col === '취소' || col === '분류코드' || col === '업종분류') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     }
                     
@@ -2369,18 +2325,8 @@
                         } else if (col === '가맹점명' && filterValue === '__가맹점명없음__') {
                             const cellEmpty = (cellValue === '' || cellValue === null || cellValue === undefined || String(cellValue).trim() === '');
                             if (!cellEmpty) showRow = false;
-                        } else if (col === '할부') {
-                            const cellEmpty = (cellValue === '' || cellValue === null || cellValue === undefined || String(cellValue).trim() === '일시불');
-                            const filter일시불 = (filterValue === '일시불');
-                            if (filter일시불) {
-                                if (!cellEmpty) showRow = false;
-                            } else {
-                                if (cellEmpty) showRow = false;
-                                else {
-                                    const cn = Number(cellValue), fn = Number(filterValue);
-                                    if (isNaN(cn) || isNaN(fn) || cn !== fn) showRow = false;
-                                }
-                            }
+                        } else if (col === '구분') {
+                            if (String(cellValue || '').trim() !== String(filterValue || '').trim()) showRow = false;
                         } else {
                             if (String(cellValue) !== String(filterValue)) {
                                 showRow = false;
@@ -2524,20 +2470,44 @@
         // 월별 추이 차트 변수
         let categoryMonthlyTrendChart = null;
         
+        // 카테고리 적용후 테이블의 카테고리 드롭다운 값 반환
+        function getCategoryFilterFromAppliedTable() {
+            const idx = document.getElementById('filter-category-applied-index-카테고리');
+            if (idx && idx.value && idx.value !== '' && idx.value !== '전체') {
+                if (idx.value === '__미분류__') return '미분류';
+                return idx.value;
+            }
+            const sel = document.getElementById('filter-category-applied-카테고리');
+            if (sel && sel.value && sel.value !== '' && sel.value !== '전체') {
+                if (sel.value === '__미분류__') return '미분류';
+                return sel.value;
+            }
+            // fallback: category-applied-content 내 카테고리 컬럼 select 탐색
+            const content = document.getElementById('category-applied-content');
+            if (content) {
+                const anySel = content.querySelector('select[id*="카테고리"]');
+                if (anySel && anySel.value && anySel.value !== '' && anySel.value !== '전체') {
+                    if (anySel.value === '__미분류__') return '미분류';
+                    return anySel.value;
+                }
+            }
+            return '';
+        }
         // 월별 입출금 추이 그래프 로드 (필터링된 테이블 데이터 기반)
         function loadMonthlyTrend() {
             try {
+                const catFilter = getCategoryFilterFromAppliedTable();
                 // 필터링된 테이블에서 데이터 가져오기
                 const table = document.getElementById('category-applied-table');
                 if (table) {
-                    loadMonthlyTrendFromTable(table, categoryAppliedDataOriginal);
+                    loadMonthlyTrendFromTable(table, categoryAppliedDataOriginal, catFilter);
                     return;
                 }
                 
                 // 테이블이 없으면 category-applied-table-index 사용
                 const tableIndex = document.getElementById('category-applied-table-index');
                 if (tableIndex) {
-                    loadMonthlyTrendFromTable(tableIndex, categoryAppliedDataOriginalForIndex);
+                    loadMonthlyTrendFromTable(tableIndex, categoryAppliedDataOriginalForIndex, catFilter);
                     return;
                 }
                 
@@ -2590,8 +2560,8 @@
             return monthKey;
         }
         
-        // 테이블에서 월별 데이터 추출 및 그래프 생성 (x축: 거래시작일~거래종료일)
-        function loadMonthlyTrendFromTable(table, dataSource) {
+        // 테이블에서 월별 데이터 추출 및 그래프 생성 (categoryFilter: ''=전체, 또는 카테고리명)
+        function loadMonthlyTrendFromTable(table, dataSource, categoryFilter) {
             if (!dataSource || dataSource.length === 0) {
                 console.warn('월별 추이 그래프: 데이터가 없습니다.');
                 renderEmptyChart();
@@ -2617,9 +2587,10 @@
             
             const tbody = table ? table.querySelector('tbody') : null;
             const rows = tbody ? tbody.querySelectorAll('tr') : [];
-            const monthlyData = {}; // { 'YYYY-MM': { deposit: 0, withdraw: 0 } }
+            const monthlyData = {}; // { 'YYYY-MM': { '카테고리': { deposit, withdraw } } }
+            const categoriesSet = new Set();
             
-            // 필터링된 테이블의 보이는 행만으로 월별 입출금 합계 계산
+            // 필터링된 테이블의 보이는 행만으로 월별 입출금 합계 (카테고리별) 계산
             rows.forEach(row => {
                 const firstCell = row.querySelector('td');
                 if (firstCell && (firstCell.textContent.trim() === '합계' || row.getAttribute('data-sum-row') === 'true')) {
@@ -2636,17 +2607,45 @@
                 const dateVal = rowData['이용일'] || rowData['거래일'];
                 const 입금액 = parseFloat(rowData['입금액']) || 0;
                 const 출금액 = parseFloat(rowData['출금액']) || 0;
+                const 카테고리 = (rowData['카테고리'] || '').toString().trim() || '미분류';
                 if (!dateVal) return;
                 
                 const monthKey = extractMonthKey(dateVal);
                 if (!monthKey) return;
                 
                 if (!monthlyData[monthKey]) {
-                    monthlyData[monthKey] = { deposit: 0, withdraw: 0 };
+                    monthlyData[monthKey] = {};
                 }
-                monthlyData[monthKey].deposit += 입금액;
-                monthlyData[monthKey].withdraw += 출금액;
+                if (!monthlyData[monthKey][카테고리]) {
+                    monthlyData[monthKey][카테고리] = { deposit: 0, withdraw: 0 };
+                }
+                monthlyData[monthKey][카테고리].deposit += 입금액;
+                monthlyData[monthKey][카테고리].withdraw += 출금액;
+                categoriesSet.add(카테고리);
             });
+            
+            // 카테고리 정렬 (미분류 맨 뒤)
+            const categories = Array.from(categoriesSet).sort((a, b) => {
+                if (a === '미분류') return 1;
+                if (b === '미분류') return -1;
+                return a.localeCompare(b, 'ko');
+            });
+            
+            // 제목 업데이트 (카테고리 적용후 드롭다운 선택값 표시)
+            const catLabelEl = document.getElementById('monthly-trend-category-label');
+            if (catLabelEl) {
+                const selCat = categoryFilter || '';
+                catLabelEl.textContent = selCat ? `(${selCat})` : '(전체)';
+            }
+            
+            // 카테고리별 색상 팔레트
+            const CATEGORY_COLORS = [
+                'rgba(102, 126, 234, 0.8)', 'rgba(118, 75, 162, 0.8)', 'rgba(237, 100, 166, 0.8)',
+                'rgba(255, 154, 158, 0.8)', 'rgba(161, 196, 253, 0.8)', 'rgba(165, 214, 167, 0.8)',
+                'rgba(255, 183, 77, 0.8)', 'rgba(149, 117, 205, 0.8)', 'rgba(77, 208, 225, 0.8)',
+                'rgba(255, 138, 101, 0.8)', 'rgba(186, 104, 200, 0.8)', 'rgba(129, 199, 132, 0.8)',
+                'rgba(158, 158, 158, 0.8)'
+            ];
             
             // x축: 거래시작일~거래종료일 전체 월 목록
             const allMonths = [];
@@ -2673,13 +2672,26 @@
                 return month;
             });
             
-            // 모든 월에 대해 데이터 생성 (데이터가 없는 월은 0으로)
-            const deposits = allMonths.map(month => monthlyData[month] ? monthlyData[month].deposit : 0);
-            const withdraws = allMonths.map(month => monthlyData[month] ? monthlyData[month].withdraw : 0);
-            
-            // Y축 최대값 계산
-            const allValues = [...deposits, ...withdraws];
-            const maxValue = Math.max(...allValues, 0);
+            // 카테고리별 데이터셋 생성 (선택된 카테고리만 또는 전체 스택)
+            const datasets = [];
+            let maxValue = 0;
+            const catsToShow = (categoryFilter && categories.indexOf(categoryFilter) >= 0) ? [categoryFilter] : categories;
+            catsToShow.forEach((cat, idx) => {
+                const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+                const depData = allMonths.map(month => {
+                    const m = monthlyData[month] && monthlyData[month][cat] ? monthlyData[month][cat].deposit : 0;
+                    maxValue = Math.max(maxValue, m);
+                    return m;
+                });
+                const wdrawData = allMonths.map(month => {
+                    const m = monthlyData[month] && monthlyData[month][cat] ? monthlyData[month][cat].withdraw : 0;
+                    maxValue = Math.max(maxValue, m);
+                    return m;
+                });
+                const lblSuffix = catsToShow.length === 1 ? '' : ' ' + cat;
+                datasets.push({ label: '입금' + lblSuffix, data: depData, backgroundColor: color, stack: 'deposit' });
+                datasets.push({ label: '출금' + lblSuffix, data: wdrawData, backgroundColor: color.replace('0.8', '0.5'), stack: 'withdraw' });
+            });
             
             // stepSize 동적 계산
             let stepSize = 50000000; // 기본값: 5천만원
@@ -2707,23 +2719,19 @@
             
             try {
                 categoryMonthlyTrendChart = new Chart(trendCtx.getContext('2d'), {
-                    type: 'line',
+                    type: 'bar',
                     data: {
                         labels: formattedMonths,
-                        datasets: [{
+                        datasets: datasets.length ? datasets : [{
                             label: '입금액',
-                            data: deposits,
-                            borderColor: 'rgba(0, 0, 255, 0.5)',
+                            data: allMonths.map(() => 0),
                             backgroundColor: 'rgba(0, 0, 255, 0.5)',
-                            tension: 0.4,
-                            fill: true
+                            stack: 'deposit'
                         }, {
                             label: '출금액',
-                            data: withdraws,
-                            borderColor: 'rgba(255, 0, 0, 0.5)',
+                            data: allMonths.map(() => 0),
                             backgroundColor: 'rgba(255, 0, 0, 0.5)',
-                            tension: 0.4,
-                            fill: true
+                            stack: 'withdraw'
                         }]
                     },
                     options: {
@@ -2733,12 +2741,7 @@
                             padding: { top: 0, bottom: 5, left: 2, right: 2 }
                         },
                         plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                align: 'end',
-                                padding: { top: 0 }
-                            },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
@@ -2748,8 +2751,20 @@
                                 }
                             }
                         },
+                        datasets: {
+                            bar: { barPercentage: 0.6, categoryPercentage: 0.8 }
+                        },
                         scales: {
+                            x: {
+                                stacked: true,
+                                ticks: {
+                                    font: { size: 10 },
+                                    maxRotation: 45,
+                                    minRotation: 45
+                                }
+                            },
                             y: {
+                                stacked: true,
                                 beginAtZero: true,
                                 max: maxYValue,
                                 ticks: {
@@ -2760,13 +2775,6 @@
                                         return formatNumber(numValue) + '원';
                                     },
                                     maxTicksLimit: 8
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    font: { size: 10 },
-                                    maxRotation: 45,
-                                    minRotation: 45
                                 }
                             }
                         }
@@ -2823,12 +2831,7 @@
                             padding: { top: 0, bottom: 5, left: 2, right: 2 }
                         },
                         plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                align: 'end',
-                                padding: { top: 0 }
-                            },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {

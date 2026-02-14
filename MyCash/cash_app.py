@@ -34,6 +34,22 @@ INFO_CATEGORY_PATH = str(Path(PROJECT_ROOT) / 'info_category.xlsx')
 SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
 CASH_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'cash_before.xlsx')
 CASH_AFTER_PATH = os.path.join(SCRIPT_DIR, 'cash_after.xlsx')
+# 금융정보(MyCash): card·cash 테이블 연동만 하지 않음. 은행/카드 데이터 불러와 병합(cash_after 생성)은 진행.
+MYCASH_ONLY_NO_BANK_CARD_LINK = False
+# 금융정보 전처리전/전처리후: 은행거래·신용카드 after 파일 (MYCASH_ONLY_NO_BANK_CARD_LINK 시 미사용)
+BANK_AFTER_PATH = Path(PROJECT_ROOT) / 'MyBank' / 'bank_after.xlsx'
+CARD_AFTER_PATH = Path(PROJECT_ROOT) / 'MyCard' / 'card_after.xlsx'
+
+# 전처리전(은행거래) 출력 컬럼 · 계좌번호 1.0, 가맹점명 2.0 (index.html LEFT_WIDTHS)
+BANK_AFTER_DISPLAY_COLUMNS = ['은행명', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '가맹점명', '카테고리']
+# 전처리후(신용카드) 출력 컬럼 · 카드번호 1.0, 기타거래 2.0 (index.html RIGHT_WIDTHS)
+CARD_AFTER_DISPLAY_COLUMNS = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '기타거래', '카테고리']
+# 카테고리조회(cash_after) 테이블 출력 11컬럼 · 계좌번호 1.0, 기타거래 2.0 (index.html QUERY_WIDTHS)
+CATEGORY_QUERY_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호']
+# 카테고리 적용후(cash_after) 테이블 출력 15컬럼 · 사업자번호 뒤 구분, 업종코드, 업종분류, 위험도 (category.html)
+CATEGORY_APPLIED_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도']
+# cash_after 생성 시 저장 컬럼 (은행거래+신용카드 통합): 키워드 포함
+CASH_AFTER_CREATION_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도']
 # info_category.xlsx 단일 테이블(구분 없음, info_category_io로 읽기/쓰기)
 try:
     from info_category_io import (
@@ -193,6 +209,206 @@ def load_category_file():
         print(f"Error in load_category_file: {str(e)}")
         return pd.DataFrame()
 
+def load_bank_after_file():
+    """전처리전(은행거래)용: MyBank/bank_after.xlsx 로드. 출력용 컬럼만 정규화하여 반환."""
+    try:
+        path = BANK_AFTER_PATH
+        if not path.exists():
+            return pd.DataFrame()
+        df = pd.read_excel(str(path), engine='openpyxl')
+        if df.empty:
+            return df
+        # 구분 → 취소, 내용/거래점 → 가맹점명
+        if '구분' in df.columns and '취소' not in df.columns:
+            df = df.rename(columns={'구분': '취소'})
+        if '가맹점명' not in df.columns:
+            if '내용' in df.columns:
+                df['가맹점명'] = df['내용'].fillna('')
+            elif '거래점' in df.columns:
+                df['가맹점명'] = df['거래점'].fillna('')
+            else:
+                df['가맹점명'] = ''
+        out_cols = [c for c in BANK_AFTER_DISPLAY_COLUMNS if c in df.columns]
+        for c in BANK_AFTER_DISPLAY_COLUMNS:
+            if c not in df.columns:
+                df[c] = '' if c != '입금액' and c != '출금액' else 0
+        return df[BANK_AFTER_DISPLAY_COLUMNS].copy()
+    except Exception as e:
+        print(f"오류: bank_after.xlsx 로드 실패 - {e}", flush=True)
+        return pd.DataFrame()
+
+def load_card_after_file():
+    """전처리후(신용카드)용: MyCard/card_after.xlsx 로드. 출력용 컬럼만 정규화하여 반환."""
+    try:
+        path = CARD_AFTER_PATH
+        if not path.exists():
+            return pd.DataFrame()
+        df = pd.read_excel(str(path), engine='openpyxl')
+        if df.empty:
+            return df
+        if '기타거래' not in df.columns:
+            df['기타거래'] = df['키워드'].fillna('') if '키워드' in df.columns else ''
+        for c in CARD_AFTER_DISPLAY_COLUMNS:
+            if c not in df.columns:
+                df[c] = '' if c not in ('입금액', '출금액') else 0
+        return df[CARD_AFTER_DISPLAY_COLUMNS].copy()
+    except Exception as e:
+        print(f"오류: card_after.xlsx 로드 실패 - {e}", flush=True)
+        return pd.DataFrame()
+
+def _safe_keyword(val):
+    """키워드 값을 cash_after에 저장할 때 항상 문자열로 반환 (NaN/None → '')."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ''
+    return str(val).strip()
+
+
+def _safe_구분(val):
+    """card_after 구분 값을 cash_after에 저장할 때 '폐업'만 유지, 그 외·결측은 ''."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ''
+    s = str(val).strip()
+    return '폐업' if s == '폐업' else ''
+
+
+def _safe_사업자번호(val):
+    """사업자번호/사업자번호를 cash_after에 저장할 때 문자열로 반환 (NaN/float → 적절히 변환)."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ''
+    s = str(val).strip()
+    if s in ('', 'nan', 'None'):
+        return ''
+    if s.endswith('.0'):
+        s = s[:-2]
+    return s
+
+
+def _dataframe_to_cash_after_creation(df_bank, df_card):
+    """은행거래(bank_after) + 신용카드(card_after)를 통합하여 cash_after 생성용 DataFrame 반환. 키워드는 bank/card에서 반드시 복사."""
+    rows = []
+    def add_bank():
+        if df_bank is None or df_bank.empty:
+            return
+        kw_col = '키워드' if '키워드' in df_bank.columns else None
+        for _, r in df_bank.iterrows():
+            kw = _safe_keyword(r.get(kw_col) if kw_col else r.get('키워드', ''))
+            rows.append({
+                '금융사': r.get('은행명', '') or '',
+                '계좌번호': r.get('계좌번호', '') or '',
+                '거래일': r.get('거래일', '') or '',
+                '거래시간': r.get('거래시간', '') or '',
+                '입금액': r.get('입금액', 0) or 0,
+                '출금액': r.get('출금액', 0) or 0,
+                '취소': r.get('취소', '') or r.get('구분', '') or '',
+                '기타거래': r.get('가맹점명', '') or r.get('내용', '') or r.get('거래점', '') or '',
+                '키워드': kw,
+                '카테고리': r.get('카테고리', '') or '',
+                '사업자번호': '',
+                '구분': r.get('구분', '') or '',
+                '업종코드': '',
+                '업종분류': '',
+                '위험도': '',
+            })
+    def add_card():
+        if df_card is None or df_card.empty:
+            return
+        kw_col = '키워드' if '키워드' in df_card.columns else None
+        for _, r in df_card.iterrows():
+            kw = _safe_keyword(r.get(kw_col) if kw_col else r.get('키워드', ''))
+            rows.append({
+                '금융사': r.get('카드사', '') or '',
+                '계좌번호': r.get('카드번호', '') or '',
+                '거래일': r.get('이용일', '') or '',
+                '거래시간': r.get('이용시간', '') or '',
+                '입금액': r.get('입금액', 0) or 0,
+                '출금액': r.get('출금액', 0) or 0,
+                '취소': r.get('취소', '') or '',
+                '기타거래': r.get('기타거래', '') or r.get('가맹점명', '') or '',
+                '키워드': kw,
+                '카테고리': r.get('카테고리', '') or '',
+                '사업자번호': _safe_사업자번호(r.get('사업자번호')),
+                '구분': _safe_구분(r.get('구분')),
+                '업종코드': '',
+                '업종분류': '',
+                '위험도': '',
+            })
+    add_bank()
+    add_card()
+    if not rows:
+        return pd.DataFrame(columns=CASH_AFTER_CREATION_COLUMNS)
+    out = pd.DataFrame(rows)
+    for c in CASH_AFTER_CREATION_COLUMNS:
+        if c not in out.columns:
+            out[c] = '' if c not in ('입금액', '출금액') else 0
+    # 키워드 컬럼이 반드시 문자열로 채워지도록 보장 (NaN/결측 없음)
+    out['키워드'] = out['키워드'].fillna('').astype(str).str.strip()
+    return out[CASH_AFTER_CREATION_COLUMNS].copy()
+
+def _load_bank_after_for_merge():
+    """cash_after 병합용: MyBank/bank_after.xlsx 전체 컬럼 로드. 키워드 컬럼이 반드시 있도록 보장하고 NaN은 ''로 채움."""
+    try:
+        if not BANK_AFTER_PATH.exists():
+            return pd.DataFrame()
+        df = pd.read_excel(str(BANK_AFTER_PATH), engine='openpyxl')
+        if df.empty:
+            return df
+        if '구분' in df.columns and '취소' not in df.columns:
+            df = df.rename(columns={'구분': '취소'})
+        if '가맹점명' not in df.columns:
+            if '내용' in df.columns:
+                df['가맹점명'] = df['내용'].fillna('')
+            elif '거래점' in df.columns:
+                df['가맹점명'] = df['거래점'].fillna('')
+            else:
+                df['가맹점명'] = ''
+        if '키워드' not in df.columns:
+            df['키워드'] = ''
+        df['키워드'] = df['키워드'].fillna('').astype(str).str.strip()
+        return df
+    except Exception as e:
+        print(f"오류: bank_after.xlsx 병합용 로드 실패 - {e}", flush=True)
+        return pd.DataFrame()
+
+def merge_bank_card_to_cash_after():
+    """bank_after.xlsx + card_after.xlsx를 병합하여 cash_after.xlsx 생성.
+    은행거래/신용카드의 키워드·카테고리를 그대로 저장(키워드는 _load_bank_after_for_merge로 풀 컬럼 로드). 성공 시 True."""
+    try:
+        df_bank = _load_bank_after_for_merge()
+        df_card_raw = pd.DataFrame()
+        if CARD_AFTER_PATH.exists():
+            try:
+                df_card_raw = pd.read_excel(str(CARD_AFTER_PATH), engine='openpyxl')
+                df_card_raw.columns = df_card_raw.columns.astype(str).str.strip()
+                if '기타거래' not in df_card_raw.columns and '키워드' in df_card_raw.columns:
+                    df_card_raw['기타거래'] = df_card_raw['키워드'].fillna('')
+                if '키워드' not in df_card_raw.columns:
+                    df_card_raw['키워드'] = ''
+                df_card_raw['키워드'] = df_card_raw['키워드'].fillna('').astype(str).str.strip()
+                if '구분' not in df_card_raw.columns:
+                    df_card_raw['구분'] = ''
+                else:
+                    df_card_raw['구분'] = df_card_raw['구분'].fillna('').astype(str).str.strip()
+                if '사업자번호' not in df_card_raw.columns:
+                    if '사업자등록번호' in df_card_raw.columns:
+                        df_card_raw['사업자번호'] = df_card_raw['사업자등록번호'].fillna('').astype(str).str.strip()
+                    else:
+                        df_card_raw['사업자번호'] = ''
+                else:
+                    df_card_raw['사업자번호'] = df_card_raw['사업자번호'].fillna('').astype(str).str.strip()
+            except Exception:
+                pass
+        if df_bank.empty and df_card_raw.empty:
+            return False
+        df = _dataframe_to_cash_after_creation(df_bank, df_card_raw if not df_card_raw.empty else None)
+        if df.empty:
+            return False
+        df.to_excel(str(CASH_AFTER_PATH), index=False, engine='openpyxl')
+        return True
+    except Exception as e:
+        print(f"오류: cash_after.xlsx 병합 생성 실패 - {e}", flush=True)
+        traceback.print_exc()
+        return False
+
 @app.route('/')
 def index():
     workspace_path = str(SCRIPT_DIR)  # 전처리전 작업폴더(MyCash 경로)
@@ -235,106 +451,41 @@ def get_source_files():
             'files': []
         }), 500
 
-@app.route('/api/processed-data')
+@app.route('/api/bank-after-data')
 @ensure_working_directory
-def get_processed_data():
-    """전처리된 데이터 반환 (필터링 지원). cash_before/category/after 없으면 생성."""
+def get_bank_after_data():
+    """전처리전(은행거래): MyBank/bank_after.xlsx 로드."""
     try:
-        # cash_before, info_category(금융정보), cash_after 없으면 생성
-        _path_added = False
-        try:
-            _dir_str = str(SCRIPT_DIR)
-            if _dir_str not in sys.path:
-                sys.path.insert(0, _dir_str)
-                _path_added = True
-            import process_cash_data as _pbd
-            _pbd.ensure_all_cash_files()
-        except Exception as e:
-            error_msg = str(e)
-            hint = []
-            if 'cash_after' in error_msg or 'PermissionError' in error_msg or '사용 중' in error_msg:
-                hint.append('cash_after.xlsx를 열어둔 프로그램(Excel 등)을 닫아주세요.')
-            extra = '\n' + '\n'.join(hint) if hint else ''
-            return jsonify({
-                'error': f'파일 생성 실패: {error_msg}{extra}',
-                'count': 0,
-                'deposit_amount': 0,
-                'withdraw_amount': 0,
-                'data': []
-            }), 500
-        finally:
-            if _path_added and str(SCRIPT_DIR) in sys.path:
-                sys.path.remove(str(SCRIPT_DIR))
-
-        output_path = Path(CASH_BEFORE_PATH)
-        if not output_path.exists():
-            return jsonify({
-                'error': 'cash_before.xlsx 생성 실패. .source/Cash 폴더와 process_cash_data.py를 확인하세요.',
-                'count': 0,
-                'deposit_amount': 0,
-                'withdraw_amount': 0,
-                'data': []
-            }), 500
-
-        df = load_processed_file()
-        
-        # category_file_exists 변수 정의 (절대 경로)
+        df = load_bank_after_file()
         category_file_exists = Path(CASH_AFTER_PATH).exists()
-        
         if df.empty:
-            source_dir = Path(SOURCE_CASH_DIR)
-            source_files = []
-            if source_dir.exists():
-                source_files = list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx'))
-            error_msg = '전처리된 데이터가 없습니다.'
-            if output_path.exists() and output_path.stat().st_size > 0:
-                error_msg += '\ncash_before.xlsx는 존재하지만 읽은 데이터가 비어있습니다.'
-                error_msg += '\n파일이 Excel 등에서 열려 있으면 닫고, 내용·시트 구조를 확인해주세요.'
-            elif not source_dir.exists():
-                error_msg += '\n.source/Cash 폴더가 존재하지 않습니다.'
-            elif len(source_files) == 0:
-                error_msg += '\n.source/Cash 폴더에 .xls, .xlsx 파일이 없습니다.'
-            else:
-                error_msg += f'\n.source/Cash 폴더에 {len(source_files)}개의 .xls, .xlsx 파일이 있지만 데이터를 추출할 수 없었습니다.'
-                error_msg += '\n파일 형식이나 내용을 확인해주세요.'
-            
-            response = jsonify({
-                'error': error_msg,
+            return jsonify({
+                'error': 'MyBank/bank_after.xlsx가 없거나 비어 있습니다. 은행거래 전처리를 먼저 실행하세요.',
                 'count': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
                 'data': [],
                 'file_exists': category_file_exists
-            })
-            response.headers['Content-Type'] = 'application/json; charset=utf-8'
-            return response
-        
-        # 필터 파라미터
+            }), 200
         bank_filter = (request.args.get('bank') or '').strip()
-        date_filter = request.args.get('date', '')
+        date_filter = (request.args.get('date') or '').strip()
         account_filter = (request.args.get('account') or '').strip()
-        
-        # 전처리후 은행 필터: cash_before.xlsx(load_processed_file)의 '은행명' 컬럼에서 적용
-        bank_col = next((c for c in df.columns if str(c).strip() == '은행명'), None)
-        if bank_filter and bank_col is not None:
+        if bank_filter and '은행명' in df.columns:
             allowed = set(BANK_FILTER_ALIASES.get(bank_filter, [bank_filter]))
-            s = df[bank_col].fillna('').astype(str).str.strip()
+            s = df['은행명'].fillna('').astype(str).str.strip()
             df = df[s.isin(allowed)].copy()
-        
-        if date_filter:
-            df = df[df['거래일'].astype(str).str.startswith(date_filter)]
-        
+        if date_filter and '거래일' in df.columns:
+            d = date_filter.replace('-', '').replace('/', '')
+            if len(d) > 8:
+                d = d[:8]
+            s = df['거래일'].astype(str).str.replace(r'[\s\-/.]', '', regex=True)
+            df = df[s.str.startswith(d, na=False)]
         if account_filter and '계좌번호' in df.columns:
             df = df[df['계좌번호'].fillna('').astype(str).str.strip() == account_filter]
-        
-        # 집계 계산
         count = len(df)
         deposit_amount = df['입금액'].sum() if not df.empty else 0
         withdraw_amount = df['출금액'].sum() if not df.empty else 0
-        
-        # NaN 값을 None으로 변환
         df = df.where(pd.notna(df), None)
-        
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
@@ -348,45 +499,96 @@ def get_processed_data():
         return response
     except Exception as e:
         traceback.print_exc()
-        category_file_exists = Path(CASH_AFTER_PATH).exists()
         return jsonify({
             'error': str(e),
             'count': 0,
             'deposit_amount': 0,
             'withdraw_amount': 0,
             'data': [],
+            'file_exists': Path(CASH_AFTER_PATH).exists()
+        }), 500
+
+@app.route('/api/processed-data')
+@ensure_working_directory
+def get_processed_data():
+    """전처리후(신용카드): MyCard/card_after.xlsx 로드."""
+    try:
+        df = load_card_after_file()
+        category_file_exists = Path(CASH_AFTER_PATH).exists()
+        if df.empty:
+            return jsonify({
+                'error': 'MyCard/card_after.xlsx가 없거나 비어 있습니다. 신용카드 전처리를 먼저 실행하세요.',
+                'count': 0,
+                'deposit_amount': 0,
+                'withdraw_amount': 0,
+                'data': [],
+                'file_exists': category_file_exists
+            }), 200
+        bank_filter = (request.args.get('bank') or '').strip()
+        date_filter = (request.args.get('date') or '').strip()
+        account_filter = (request.args.get('account') or '').strip()
+        if bank_filter and '카드사' in df.columns:
+            df = df[df['카드사'].fillna('').astype(str).str.strip() == bank_filter]
+        if date_filter and '이용일' in df.columns:
+            d = date_filter.replace('-', '').replace('/', '')[:6]
+            df = df[df['이용일'].astype(str).str.replace(r'[\s\-/.]', '', regex=True).str.startswith(d)]
+        if account_filter and '카드번호' in df.columns:
+            df = df[df['카드번호'].fillna('').astype(str).str.strip() == account_filter]
+        count = len(df)
+        deposit_amount = df['입금액'].sum() if not df.empty else 0
+        withdraw_amount = df['출금액'].sum() if not df.empty else 0
+        df = df.where(pd.notna(df), None)
+        data = df.to_dict('records')
+        data = _json_safe(data)
+        response = jsonify({
+            'count': count,
+            'deposit_amount': int(deposit_amount),
+            'withdraw_amount': int(withdraw_amount),
+            'data': data,
             'file_exists': category_file_exists
+        })
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        return response
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'count': 0,
+            'deposit_amount': 0,
+            'withdraw_amount': 0,
+            'data': [],
+            'file_exists': Path(CASH_AFTER_PATH).exists()
         }), 500
 
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (필터링 지원). cash_after 없으면 생성."""
+    """카테고리 적용된 데이터 반환 (필터링 지원). cash_after 없거나 비면 bank_after+card_after 병합으로 자동 생성."""
     try:
-        # cash_before, info_category(금융정보), cash_after 없으면 생성
-        _path_added = False
-        try:
-            _dir_str = str(SCRIPT_DIR)
-            if _dir_str not in sys.path:
-                sys.path.insert(0, _dir_str)
-                _path_added = True
-            import process_cash_data as _pbd
-            _pbd.ensure_all_cash_files()
-        except Exception:
-            pass  # ensure 실패 시 기존 파일로 진행
-        finally:
-            if _path_added and str(SCRIPT_DIR) in sys.path:
-                sys.path.remove(str(SCRIPT_DIR))
-
-        category_file_exists = Path(CASH_AFTER_PATH).exists()
+        cash_after_path = Path(CASH_AFTER_PATH).resolve()
+        need_merge = not cash_after_path.exists() or cash_after_path.stat().st_size == 0
+        if need_merge and (BANK_AFTER_PATH.exists() or CARD_AFTER_PATH.exists()):
+            try:
+                merge_bank_card_to_cash_after()
+            except Exception as e:
+                print(f"cash_after 자동 생성 실패: {e}", flush=True)
+                traceback.print_exc()
         
         try:
             df = load_category_file()
         except Exception as e:
             print(f"Error loading category file: {str(e)}")
             traceback.print_exc()
-            # 파일 로드 실패 시 빈 DataFrame 반환
             df = pd.DataFrame()
+        
+        if df.empty and (BANK_AFTER_PATH.exists() or CARD_AFTER_PATH.exists()):
+            try:
+                if merge_bank_card_to_cash_after():
+                    df = load_category_file()
+            except Exception as e:
+                print(f"cash_after 재생성 실패: {e}", flush=True)
+        
+        category_file_exists = cash_after_path.exists()
         
         if df.empty:
             response = jsonify({
@@ -394,40 +596,67 @@ def get_category_applied_data():
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
                 'data': [],
-                'file_exists': category_file_exists  # 파일 존재 여부 추가
+                'file_exists': category_file_exists
             })
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
         
-        # 필터 파라미터 (전처리후 은행/계좌에 따라 필터링)
+        # 통합 컬럼 정규화: 은행명/카드사 → 금융사, 계좌번호/카드번호 → 계좌번호, 거래일/이용일 → 거래일, 거래시간/이용시간 → 거래시간, 기타거래/가맹점명 → 기타거래
+        if '금융사' not in df.columns:
+            if '은행명' in df.columns:
+                df['금융사'] = df['은행명'].fillna('')
+            elif '카드사' in df.columns:
+                df['금융사'] = df['카드사'].fillna('')
+            else:
+                df['금융사'] = ''
+        if '계좌번호' not in df.columns and '카드번호' in df.columns:
+            df['계좌번호'] = df['카드번호'].fillna('').astype(str)
+        if '거래일' not in df.columns and '이용일' in df.columns:
+            df['거래일'] = df['이용일'].fillna('')
+        if '거래시간' not in df.columns and '이용시간' in df.columns:
+            df['거래시간'] = df['이용시간'].fillna('')
+        if '기타거래' not in df.columns and '가맹점명' in df.columns:
+            df['기타거래'] = df['가맹점명'].fillna('')
+        if '취소' not in df.columns and '구분' in df.columns:
+            df['취소'] = df['구분'].fillna('')
+        if '사업자번호' not in df.columns and '사업자등록번호' in df.columns:
+            df['사업자번호'] = df['사업자등록번호'].fillna('').astype(str)
+        if '키워드' not in df.columns:
+            df['키워드'] = ''
+        
         bank_filter = (request.args.get('bank') or '').strip()
         date_filter = request.args.get('date', '')
         account_filter = (request.args.get('account') or '').strip()
         
-        # 필터 적용
-        if bank_filter and '은행명' in df.columns:
-            df = df[df['은행명'].fillna('').astype(str).str.strip() == bank_filter]
-        
+        if bank_filter and '금융사' in df.columns:
+            df = df[df['금융사'].fillna('').astype(str).str.strip() == bank_filter]
         if account_filter and '계좌번호' in df.columns:
             df = df[df['계좌번호'].fillna('').astype(str).str.strip() == account_filter]
-        
         if date_filter and '거래일' in df.columns:
             try:
-                # 거래일 컬럼을 안전하게 문자열로 변환
-                df['거래일_str'] = df['거래일'].astype(str)
-                df = df[df['거래일_str'].str.startswith(date_filter, na=False)]
-                df = df.drop('거래일_str', axis=1)
-            except Exception as e:
-                print(f"Error filtering by date: {str(e)}")
-                # 날짜 필터링 실패 시 필터 없이 진행
+                d = date_filter.replace('-', '').replace('/', '')[:8]
+                s = df['거래일'].astype(str).str.replace(r'[\s\-/.]', '', regex=True)
+                df = df[s.str.startswith(d, na=False)]
+            except Exception:
                 pass
+        
+        # 행 정렬: 거래일 → 거래시간 → 금융사
+        sort_cols = [c for c in ['거래일', '거래시간', '금융사'] if c in df.columns]
+        if sort_cols:
+            try:
+                df = df.sort_values(by=sort_cols, na_position='last')
+            except Exception:
+                pass
+        # 카테고리 적용후 테이블 출력 15컬럼 (구분, 업종코드, 업종분류, 위험도 포함)
+        for c in CATEGORY_APPLIED_DISPLAY_COLUMNS:
+            if c not in df.columns:
+                df[c] = '' if c not in ('입금액', '출금액') else 0
+        df = df[CATEGORY_APPLIED_DISPLAY_COLUMNS].copy()
         
         # 필수 컬럼 확인
         required_columns = ['입금액', '출금액']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns and not df.empty:
-            print(f"Warning: Missing columns in data: {missing_columns}")
-            # 누락된 컬럼 추가 (기본값 0)
             for col in missing_columns:
                 df[col] = 0
         
@@ -1389,46 +1618,21 @@ def get_date_range():
 @app.route('/api/generate-category', methods=['POST'])
 @ensure_working_directory
 def generate_category():
-    """카테고리 자동 생성 실행"""
+    """cash_after.xlsx 생성: 은행(bank_after) + 신용카드(card_after) 병합."""
     try:
-        # process_cash_data.py 같은 프로세스에서 실행 (subprocess 시 debugpy/venv 오류 방지)
-        script_path = Path(SCRIPT_DIR) / 'process_cash_data.py'
-        if not script_path.exists():
-            return jsonify({
-                'success': False,
-                'error': f'process_cash_data.py 파일을 찾을 수 없습니다. 경로: {script_path}'
-            }), 500
-        
-        _orig_cwd = os.getcwd()
-        _path_added = False
-        try:
-            os.chdir(SCRIPT_DIR)
-            _dir_str = str(SCRIPT_DIR)
-            if _dir_str not in sys.path:
-                sys.path.insert(0, _dir_str)
-                _path_added = True
-            import process_cash_data as _pbd
-            # 이미 cash_after.xlsx가 있으면 .bak으로 복사 후 새로 생성
-            output_path = Path(CASH_AFTER_PATH)
-            if output_path.exists() and output_path.stat().st_size > 0:
-                try:
-                    bak_path = output_path.with_suffix(output_path.suffix + '.bak')
-                    shutil.copy2(str(output_path), str(bak_path))
-                except Exception:
-                    pass
-            success = _pbd.classify_and_save()
-        finally:
-            os.chdir(_orig_cwd)
-            if _path_added and str(SCRIPT_DIR) in sys.path:
-                sys.path.remove(str(SCRIPT_DIR))
-        
+        output_path = Path(CASH_AFTER_PATH)
+        if output_path.exists() and output_path.stat().st_size > 0:
+            try:
+                bak_path = output_path.with_suffix(output_path.suffix + '.bak')
+                shutil.copy2(str(output_path), str(bak_path))
+            except Exception:
+                pass
+        success = merge_bank_card_to_cash_after()
         if not success:
             return jsonify({
                 'success': False,
                 'error': '카테고리 분류 중 오류가 발생했습니다.'
             }), 500
-        
-        # cash_after.xlsx 파일 확인 (MyCash 폴더)
         output_path = Path(CASH_AFTER_PATH)
         if output_path.exists():
             try:
@@ -1443,23 +1647,13 @@ def generate_category():
                     'success': False,
                     'error': f'cash_after.xlsx 파일을 읽을 수 없습니다: {str(e)}'
                 }), 500
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'cash_after.xlsx 파일이 생성되지 않았습니다. 경로: {output_path}'
-            }), 500
-            
-    except FileNotFoundError as e:
         return jsonify({
             'success': False,
-            'error': f'파일을 찾을 수 없습니다: {str(e)}'
+            'error': f'cash_after.xlsx 파일이 생성되지 않았습니다. 경로: {output_path}'
         }), 500
     except Exception as e:
-        error_trace = traceback.format_exc()
-        return jsonify({
-            'success': False,
-            'error': f'{str(e)}\n상세 정보는 서버 로그를 확인하세요.'
-        }), 500
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/help')
 def help():

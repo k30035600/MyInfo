@@ -83,9 +83,8 @@ OUTPUT_FILE = "cash_after.xlsx"
 
 
 def ensure_all_cash_files():
-    """cash_before, info_category(금융정보), cash_after 파일이 없으면 생성. before/after는 MyCash 폴더."""
+    """cash_before, info_category(금융정보) 파일이 없으면 생성. cash_after는 bank/card 병합(merge_bank_card)으로만 생성."""
     input_path = os.path.join(_SCRIPT_DIR, INPUT_FILE)
-    output_path = os.path.join(_SCRIPT_DIR, OUTPUT_FILE)
 
     if not os.path.exists(input_path) or (os.path.exists(input_path) and os.path.getsize(input_path) == 0):
         integrate_cash_transactions()
@@ -102,12 +101,6 @@ def ensure_all_cash_files():
                 create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: info_category(금융정보) 생성 실패 - {e}")
-
-    if not os.path.exists(output_path):
-        try:
-            classify_and_save()
-        except Exception as e:
-            print(f"오류: cash_after.xlsx 생성 실패 - {e}")
 
 
 # =========================================================
@@ -466,10 +459,6 @@ def integrate_cash_transactions(output_file=None):
             create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
-        try:
-            classify_and_save(input_file=output_file, output_file=os.path.join(_SCRIPT_DIR, OUTPUT_FILE))
-        except Exception as e:
-            print(f"오류: cash_after.xlsx 생성 실패 (빈 통합) - {e}")
         return combined_df
 
     combined_df = pd.concat(all_data, ignore_index=True)
@@ -554,11 +543,6 @@ def integrate_cash_transactions(output_file=None):
             create_empty_info_category(INFO_CATEGORY_FILE)
         except Exception as e:
             print(f"오류: 빈 info_category(금융정보) 생성 실패 - {e}")
-
-    try:
-        classify_and_save(input_file=output_file, output_file=os.path.join(_SCRIPT_DIR, OUTPUT_FILE))
-    except Exception as e:
-        print(f"오류: cash_after.xlsx 생성 실패 - {e}")
 
     return combined_df
 

@@ -129,10 +129,13 @@ def _call_integrate_card():
         _apply_카드사_사업자번호_기본값(df)
     # card_before에는 카테고리 미포함 (card_after에서만 카테고리·현금처리 적용)
     if df is not None:
-        # 할부: '일시불'/0 → 공백 (card_before.xlsx 저장 전 정규화)
+        # 저장 시 컬럼명 "할부" → "구분" 통일 (card_before.xlsx는 항상 구분 컬럼으로 저장)
         if not df.empty and '할부' in df.columns:
-            df['할부'] = df['할부'].apply(
-                lambda v: '' if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ('', '0', '일시불') else v
+            df = df.rename(columns={'할부': '구분'})
+        # 구분: 할부 미사용. 과세유형 '폐업'만 '폐업' 유지, 그 외는 공백
+        if not df.empty and '구분' in df.columns:
+            df['구분'] = df['구분'].apply(
+                lambda v: '폐업' if v is not None and str(v).strip() == '폐업' else ''
             )
         try:
             mod.safe_write_excel(df, str(card_before_path))
@@ -265,26 +268,43 @@ def load_source_files():
 
 def load_processed_file():
     """전처리된 카드 파일 로드 (card_after.xlsx만 사용).
-    이용금액 → 입금액/출금액 변환 적용."""
+    이용금액 → 입금액/출금액 변환 적용. 구분은 폐업/공란만 유지."""
     try:
         if not Path(CARD_AFTER_PATH).exists():
             return pd.DataFrame()
         df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
         if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
             _card_deposit_withdraw_from_이용금액(df)
+        if not df.empty:
+            if '할부' in df.columns and '구분' not in df.columns:
+                df = df.rename(columns={'할부': '구분'})
+            _normalize_구분_column(df)
         return df
     except Exception as e:
         print(f"오류: card_after.xlsx 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
 
+def _normalize_구분_column(df):
+    """구분 컬럼 정규화: '폐업'만 유지, 일시불·취소·그 외는 공백."""
+    if df is None or df.empty or '구분' not in df.columns:
+        return
+    df['구분'] = df['구분'].apply(
+        lambda v: '폐업' if v is not None and str(v).strip() == '폐업' else ''
+    )
+
+
 def load_card_before_file():
-    """전처리전 카드 통합 파일 card_before.xlsx 로드 (MyCard 폴더)"""
+    """전처리전 카드 통합 파일 card_before.xlsx 로드 (MyCard 폴더). 기존 할부 컬럼은 구분으로 통일."""
     try:
         path = Path(CARD_BEFORE_PATH)
         if not path.exists():
             return pd.DataFrame()
         df = pd.read_excel(str(path), engine='openpyxl')
+        if not df.empty and '할부' in df.columns and '구분' not in df.columns:
+            df = df.rename(columns={'할부': '구분'})
+        if not df.empty:
+            _normalize_구분_column(df)
         return df
     except Exception as e:
         print(f"오류: card_before.xlsx 파일 로드 실패 - {e}", flush=True)
@@ -299,6 +319,9 @@ def load_category_file():
                 df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
                 if not df.empty:
                     df.columns = [str(c).strip() for c in df.columns]
+                    if '할부' in df.columns and '구분' not in df.columns:
+                        df.rename(columns={'할부': '구분'}, inplace=True)
+                    _normalize_구분_column(df)
                 if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
                     _card_deposit_withdraw_from_이용금액(df)
                 return df
@@ -1565,6 +1588,8 @@ def _create_card_after():
 
         df_card = pd.read_excel(card_before_path, engine='openpyxl')
         df_card.columns = [str(c).strip() for c in df_card.columns]
+        if not df_card.empty and '할부' in df_card.columns and '구분' not in df_card.columns:
+            df_card = df_card.rename(columns={'할부': '구분'})
         Path(CARD_AFTER_PATH).parent.mkdir(parents=True, exist_ok=True)
         had_category_file = Path(INFO_CATEGORY_PATH).exists()
 
@@ -1635,10 +1660,10 @@ def _create_card_after():
         else:
             df_card['키워드'] = df_card['키워드'].fillna('').astype(str).str.strip()
         # 현금처리: 입금액/출금액 구조에서는 별도 변환 없음 (이미 입금액/출금액으로 저장됨)
-        # 할부 컬럼: '일시불' 등 → 공백으로 저장 (card_after.xlsx에는 일시불 텍스트 미저장)
-        if not df_card.empty and '할부' in df_card.columns:
-            df_card['할부'] = df_card['할부'].apply(
-                lambda v: '' if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ('', '0', '일시불') else v
+        # 구분: 할부 미사용. '폐업'만 유지, 그 외는 공백 (card_before 구분 그대로 반영)
+        if not df_card.empty and '구분' in df_card.columns:
+            df_card['구분'] = df_card['구분'].apply(
+                lambda v: '폐업' if v is not None and str(v).strip() == '폐업' else ''
             )
         # 이용시간 없으면 00:00:00으로 채움 (컬럼 없으면 추가, 값 비어 있으면 00:00:00)
         if not df_card.empty:
@@ -1662,8 +1687,8 @@ def _create_card_after():
                     return ''
                 return '취소' if '취소' in s else s
             df_card['취소'] = df_card['취소'].apply(_cancel_str)
-        # 컬럼 순서: 카드사, 카드번호, 이용일, 이용시간, 입금액, 출금액, 취소, 사업자번호, 할부, 키워드, 카테고리, 가맹점명
-        card_after_cols = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '할부', '키워드', '카테고리', '가맹점명']
+        # 컬럼 순서: 카드사, 카드번호, 이용일, 이용시간, 입금액, 출금액, 취소, 사업자번호, 구분, 키워드, 카테고리, 가맹점명 (구분은 card_before에서 유지)
+        card_after_cols = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '구분', '키워드', '카테고리', '가맹점명']
         existing = [c for c in card_after_cols if c in df_card.columns]
         extra = [c for c in df_card.columns if c not in card_after_cols]
         df_card = df_card.reindex(columns=existing + extra)

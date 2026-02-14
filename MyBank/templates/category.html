@@ -578,7 +578,13 @@
 
     <div class="charts-grid" style="grid-template-columns: 1fr; margin-top: 10px;">
         <div class="chart-card" style="grid-column: 1 / -1; display: flex; flex-direction: column;">
-            <h2>월별 입출금 추이 그래프</h2>
+            <div style="margin-bottom: 8px;">
+                <h2 style="margin: 0;">월별 입출금 추이 그래프 <span id="monthly-trend-category-label">(전체)</span></h2>
+            </div>
+            <div class="monthly-chart-legend" style="display: flex; justify-content: flex-end; gap: 16px; margin-bottom: 4px; font-size: 12px;">
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: rgba(0,0,255,0.5); margin-right: 4px; vertical-align: middle;"></span>입금액</span>
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: rgba(255,0,0,0.5); margin-right: 4px; vertical-align: middle;"></span>출금액</span>
+            </div>
             <div class="monthly-chart-container">
                 <canvas id="category-monthly-trend-chart"></canvas>
             </div>
@@ -1185,7 +1191,7 @@
                     renderCategoryAppliedTableForIndex(data.data);
                     loadMonthlyTrend();
                 } else {
-                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">카테고리 적용 후 데이터를 확인할 수 있습니다.</div>';
+                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
                 }
             } catch (error) {
                 console.error('Error loading category applied data:', error);
@@ -1713,7 +1719,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             if (exportAppliedBtn) {
                 exportAppliedBtn.addEventListener('click', exportCategoryAppliedTable);
             }
-            
+            // 월별 추이 그래프 카테고리 드롭다운
             // 카테고리 정의 테이블이 있는 경우에만 로드
             const categoryDefinitionTableBody = document.getElementById('category-definition-table-body');
             if (categoryDefinitionTableBody) {
@@ -1934,12 +1940,36 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         // 월별 추이 차트 변수
         let categoryMonthlyTrendChart = null;
         
+        // 카테고리 적용후 테이블의 카테고리 드롭다운 값 반환
+        function getCategoryFilterFromAppliedTable() {
+            const idx = document.getElementById('filter-category-applied-index-카테고리');
+            if (idx && idx.value && idx.value !== '' && idx.value !== '전체') {
+                if (idx.value === '__기타거래__') return '기타거래';
+                return idx.value;
+            }
+            const sel = document.getElementById('filter-category-applied-카테고리');
+            if (sel && sel.value && sel.value !== '' && sel.value !== '전체') {
+                if (sel.value === '__기타거래__') return '기타거래';
+                return sel.value;
+            }
+            // fallback: category-applied-content 내 카테고리 컬럼 select 탐색
+            const content = document.getElementById('category-applied-content');
+            if (content) {
+                const anySel = content.querySelector('select[id*="카테고리"]');
+                if (anySel && anySel.value && anySel.value !== '' && anySel.value !== '전체') {
+                    if (anySel.value === '__기타거래__') return '기타거래';
+                    return anySel.value;
+                }
+            }
+            return '';
+        }
         // 월별 입출금 추이 그래프 로드 (카테고리 적용후 Index 테이블 데이터 기반)
         function loadMonthlyTrend() {
             try {
                 const tableIndex = document.getElementById('category-applied-table-index');
+                const catFilter = getCategoryFilterFromAppliedTable();
                 if (tableIndex) {
-                    loadMonthlyTrendFromTable(tableIndex, categoryAppliedDataOriginalForIndex);
+                    loadMonthlyTrendFromTable(tableIndex, categoryAppliedDataOriginalForIndex, catFilter);
                     return;
                 }
                 console.warn('월별 추이 그래프: 테이블을 찾을 수 없습니다.');
@@ -1990,8 +2020,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             return monthKey;
         }
         
-        // 테이블에서 월별 데이터 추출 및 그래프 생성
-        function loadMonthlyTrendFromTable(table, dataSource) {
+        // 테이블에서 월별 데이터 추출 및 그래프 생성 (categoryFilter: ''=전체, 또는 카테고리명)
+        function loadMonthlyTrendFromTable(table, dataSource, categoryFilter) {
             if (!dataSource || dataSource.length === 0) {
                 console.warn('월별 추이 그래프: 데이터가 없습니다.');
                 renderEmptyChart();
@@ -2049,7 +2079,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             }
             
             const rows = tbody.querySelectorAll('tr');
-            const monthlyData = {}; // { 'YYYY-MM': { deposit: 0, withdraw: 0 } }
+            const monthlyData = {}; // { 'YYYY-MM': { '카테고리': { deposit, withdraw } } }
+            const categoriesSet = new Set();
             
             rows.forEach(row => {
                 // 합계 행은 제외
@@ -2074,6 +2105,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 let 거래일 = rowData['거래일'];
                 const 입금액 = parseFloat(rowData['입금액']) || 0;
                 const 출금액 = parseFloat(rowData['출금액']) || 0;
+                const 카테고리 = (rowData['카테고리'] || '').toString().trim() || '미분류';
                 
                 if (!거래일) return;
                 
@@ -2083,11 +2115,38 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 }
                 
                 if (!monthlyData[monthKey]) {
-                    monthlyData[monthKey] = { deposit: 0, withdraw: 0 };
+                    monthlyData[monthKey] = {};
                 }
-                monthlyData[monthKey].deposit += 입금액;
-                monthlyData[monthKey].withdraw += 출금액;
+                if (!monthlyData[monthKey][카테고리]) {
+                    monthlyData[monthKey][카테고리] = { deposit: 0, withdraw: 0 };
+                }
+                monthlyData[monthKey][카테고리].deposit += 입금액;
+                monthlyData[monthKey][카테고리].withdraw += 출금액;
+                categoriesSet.add(카테고리);
             });
+            
+            // 카테고리 정렬 (미분류 맨 뒤)
+            const categories = Array.from(categoriesSet).sort((a, b) => {
+                if (a === '미분류') return 1;
+                if (b === '미분류') return -1;
+                return a.localeCompare(b, 'ko');
+            });
+            
+            // 제목 업데이트 (카테고리 적용후 드롭다운 선택값 표시)
+            const catLabelEl = document.getElementById('monthly-trend-category-label');
+            if (catLabelEl) {
+                const selCat = categoryFilter || '';
+                catLabelEl.textContent = selCat ? `(${selCat})` : '(전체)';
+            }
+            
+            // 카테고리별 색상 팔레트
+            const CATEGORY_COLORS = [
+                'rgba(102, 126, 234, 0.8)', 'rgba(118, 75, 162, 0.8)', 'rgba(237, 100, 166, 0.8)',
+                'rgba(255, 154, 158, 0.8)', 'rgba(161, 196, 253, 0.8)', 'rgba(165, 214, 167, 0.8)',
+                'rgba(255, 183, 77, 0.8)', 'rgba(149, 117, 205, 0.8)', 'rgba(77, 208, 225, 0.8)',
+                'rgba(255, 138, 101, 0.8)', 'rgba(186, 104, 200, 0.8)', 'rgba(129, 199, 132, 0.8)',
+                'rgba(158, 158, 158, 0.8)'
+            ];
             
             // yyyy-mm을 yy-mm으로 변환
             const formattedMonths = allMonths.map(month => {
@@ -2097,13 +2156,26 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 return month;
             });
             
-            // 모든 월에 대해 데이터 생성 (데이터가 없는 월은 0으로)
-            const deposits = allMonths.map(month => monthlyData[month] ? monthlyData[month].deposit : 0);
-            const withdraws = allMonths.map(month => monthlyData[month] ? monthlyData[month].withdraw : 0);
-            
-            // Y축 최대값 계산
-            const allValues = [...deposits, ...withdraws];
-            const maxValue = Math.max(...allValues, 0);
+            // 카테고리별 데이터셋 생성 (선택된 카테고리만 또는 전체 스택)
+            const datasets = [];
+            let maxValue = 0;
+            const catsToShow = (categoryFilter && categories.indexOf(categoryFilter) >= 0) ? [categoryFilter] : categories;
+            catsToShow.forEach((cat, idx) => {
+                const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+                const depData = allMonths.map(month => {
+                    const m = monthlyData[month] && monthlyData[month][cat] ? monthlyData[month][cat].deposit : 0;
+                    maxValue = Math.max(maxValue, m);
+                    return m;
+                });
+                const wdrawData = allMonths.map(month => {
+                    const m = monthlyData[month] && monthlyData[month][cat] ? monthlyData[month][cat].withdraw : 0;
+                    maxValue = Math.max(maxValue, m);
+                    return m;
+                });
+                const lblSuffix = catsToShow.length === 1 ? '' : ' ' + cat;
+                datasets.push({ label: '입금' + lblSuffix, data: depData, backgroundColor: color, stack: 'deposit' });
+                datasets.push({ label: '출금' + lblSuffix, data: wdrawData, backgroundColor: color.replace('0.8', '0.5'), stack: 'withdraw' });
+            });
             
             // stepSize 동적 계산
             let stepSize = 50000000; // 기본값: 5천만원
@@ -2131,23 +2203,19 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             
             try {
                 categoryMonthlyTrendChart = new Chart(trendCtx.getContext('2d'), {
-                    type: 'line',
+                    type: 'bar',
                     data: {
                         labels: formattedMonths,
-                        datasets: [{
+                        datasets: datasets.length ? datasets : [{
                             label: '입금액',
-                            data: deposits,
-                            borderColor: 'rgba(0, 0, 255, 0.5)',
+                            data: allMonths.map(() => 0),
                             backgroundColor: 'rgba(0, 0, 255, 0.5)',
-                            tension: 0.4,
-                            fill: true
+                            stack: 'deposit'
                         }, {
                             label: '출금액',
-                            data: withdraws,
-                            borderColor: 'rgba(255, 0, 0, 0.5)',
+                            data: allMonths.map(() => 0),
                             backgroundColor: 'rgba(255, 0, 0, 0.5)',
-                            tension: 0.4,
-                            fill: true
+                            stack: 'withdraw'
                         }]
                     },
                     options: {
@@ -2157,12 +2225,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                             padding: { top: 0, bottom: 5, left: 2, right: 2 }
                         },
                         plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                align: 'end',
-                                padding: { top: 0 }
-                            },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
@@ -2172,8 +2235,22 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                                 }
                             }
                         },
+                        datasets: {
+                            bar: { barPercentage: 0.6, categoryPercentage: 0.8 }
+                        },
                         scales: {
+                            x: {
+                                stacked: true,
+                                offset: false,
+                                ticks: {
+                                    font: { size: 10 },
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    padding: 2
+                                }
+                            },
                             y: {
+                                stacked: true,
                                 beginAtZero: true,
                                 max: maxYValue,
                                 ticks: {
@@ -2184,15 +2261,6 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                                         return formatNumber(numValue) + '원';
                                     },
                                     maxTicksLimit: 8
-                                }
-                            },
-                            x: {
-                                offset: false,
-                                ticks: {
-                                    font: { size: 10 },
-                                    maxRotation: 45,
-                                    minRotation: 45,
-                                    padding: 2
                                 }
                             }
                         }
@@ -2249,12 +2317,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                             padding: { top: 0, bottom: 5, left: 2, right: 2 }
                         },
                         plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                align: 'end',
-                                padding: { top: 0 }
-                            },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {

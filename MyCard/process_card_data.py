@@ -9,7 +9,7 @@ process_card_data.py — 카드 전용. (은행 관련 역할 없음)
 - 신용카드 Source → card_before: .source 폴더 엑셀 읽기
   → 행의 컬럼이 모두 공백이면 skip
   → HEADER_TO_STANDARD에 해당하는 행은 헤더 행으로 간주, 해당 행에서 인덱스 취득 후 다음 헤더 행이 나올 때까지 그 인덱스로 card_before 컬럼에 매핑
-  → 카드사는 파일명에서 취득, 할부 0은 공백 처리
+  → 카드사는 파일명에서 취득, 구분(할부) 0은 공백 처리. 과세유형 '폐업'이면 구분에 '폐업' 저장
   → 카테고리는 info_category.xlsx(신용카드 구분) 키워드로 분류
 
 [기능]
@@ -56,10 +56,10 @@ SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
 CARD_BEFORE_FILE = "card_before.xlsx"
 # card_before.xlsx 컬럼 (추출 시 이용금액 사용 → 저장 전 입금액/출금액/취소로 변환)
 _EXTRACT_COLUMNS = [
-    '카드사', '카드번호', '이용일', '이용시간', '이용금액', '가맹점명', '사업자번호', '할부', '취소여부'
+    '카드사', '카드번호', '이용일', '이용시간', '이용금액', '가맹점명', '사업자번호', '구분', '취소여부'
 ]
 CARD_BEFORE_COLUMNS = [
-    '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '사업자번호', '할부'
+    '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '사업자번호', '구분'
 ]
 EXCEL_EXTENSIONS = ('*.xls', '*.xlsx')
 SEARCH_COLUMNS = ['적요', '내용', '거래점', '송금메모', '가맹점명']
@@ -74,8 +74,9 @@ HEADER_TO_STANDARD = {
     '취소여부': ['취소여부', '취소'],
     '가맹점명': ['가맹점명', '이용처', '승인가맹점'],
     '사업자번호': ['사업자번호', '가맹점사업자번호', '가맹점 사업자번호', '사업자등록번호'],
-    '할부': ['할부', '할부기간'],
+    # 할부 컬럼은 사용하지 않음. 구분은 과세유형 '폐업'일 때만 '폐업' 저장 (아래 과세유형_헤더키워드로 처리)
 }
+과세유형_헤더키워드 = '과세유형'
 # 금액 컬럼으로 간주할 헤더 키워드 (포함 시 숫자로 변환)
 AMOUNT_COLUMN_KEYWORDS = ('금액', '입금', '출금', '잔액')
 
@@ -208,8 +209,8 @@ def _normalize_business_number(value):
     return f'{digits[:3]}-{digits[3:5]}-{digits[5:]}'
 
 
-def _normalize_할부(val):
-    """할부를 숫자(int) 또는 일시불('')로 정규화. 0/일시불 → '', 3/6/12 등 → int. '3개월' 등에서 숫자만 추출."""
+def _normalize_구분(val):
+    """구분(할부)을 숫자(int) 또는 일시불('')로 정규화. 0/일시불 → '', 3/6/12 등 → int. '3개월' 등에서 숫자만 추출."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return ''
     s = str(val).strip()
@@ -286,7 +287,7 @@ _HEADER_LIKE_STRINGS = None
 
 
 def _get_header_like_strings():
-    """HEADER_TO_STANDARD 키워드 + 표준 컬럼명 모음."""
+    """HEADER_TO_STANDARD 키워드 + 표준 컬럼명 + 과세유형(헤더 행 판별용)."""
     global _HEADER_LIKE_STRINGS
     if _HEADER_LIKE_STRINGS is not None:
         return _HEADER_LIKE_STRINGS
@@ -294,6 +295,7 @@ def _get_header_like_strings():
     for keywords in HEADER_TO_STANDARD.values():
         for kw in keywords:
             s.add(str(kw).strip())
+    s.add(과세유형_헤더키워드)  # 신한카드 등 '과세유형' 있는 행을 헤더로 인식
     _HEADER_LIKE_STRINGS = s
     return s
 
@@ -322,18 +324,25 @@ def _looks_like_header_row(row, columns):
 
 
 def _build_mapping_from_header_row(row):
-    """헤더 행에서 컬럼 인덱스 → 표준 컬럼 매핑 구함. 다음 헤더 행이 나올 때까지 사용."""
+    """헤더 행에서 컬럼 인덱스 → 표준 컬럼 매핑 구함. 과세유형 컬럼 인덱스도 반환(폐업→구분 저장용)."""
     idx_to_std = {}
+    idx_과세유형 = None
     for i in row.index:
         try:
             col_idx = int(i)
         except (TypeError, ValueError):
             continue
         val = row.get(i, row.get(str(i)))
+        raw = _normalize_header_string(val)
+        # 전각/공백 제거 후 '과세유형' 포함 여부로 컬럼 인덱스 저장 (신한카드 등)
+        if raw:
+            raw_compact = _normalize_fullwidth(raw).replace(' ', '')
+            if 과세유형_헤더키워드 in raw_compact:
+                idx_과세유형 = col_idx
         std_col = _map_source_header_to_standard(val)
         if std_col:
             idx_to_std[col_idx] = std_col
-    return idx_to_std
+    return (idx_to_std, idx_과세유형)
 
 
 def _row_as_dict(row_tuple, num_cols):
@@ -358,8 +367,8 @@ def _row_as_dict(row_tuple, num_cols):
     return r
 
 
-def _row_from_mapping(row, idx_to_std, card_company_from_file):
-    """인덱스 매핑으로 한 행을 추출용 컬럼 dict로 변환. 카드사는 파일명에서, 할부 0은 공백."""
+def _row_from_mapping(row, idx_to_std, card_company_from_file, idx_과세유형=None):
+    """인덱스 매핑으로 한 행을 추출용 컬럼 dict로 변환. 카드사는 파일명에서. 구분은 할부 미사용, 과세유형 '폐업'일 때만 '폐업' 저장."""
     new_row = {col: '' for col in _EXTRACT_COLUMNS}
     for i in sorted(idx_to_std.keys()):
         std_col = idx_to_std[i]
@@ -374,6 +383,12 @@ def _row_from_mapping(row, idx_to_std, card_company_from_file):
                     new_row['이용일'] = str(alt).strip()
                 continue
             new_row[std_col] = str(val).strip()
+    if idx_과세유형 is not None:
+        v = row.get(idx_과세유형, row.get(str(idx_과세유형)))
+        if pd.notna(v):
+            v_norm = _normalize_fullwidth(str(v).strip())
+            if v_norm == '폐업' or '폐업' in v_norm:
+                new_row['구분'] = '폐업'
     if card_company_from_file:
         new_row['카드사'] = card_company_from_file
     return _normalize_row_values(new_row)
@@ -386,7 +401,7 @@ def _normalize_fullwidth(val):
     return unicodedata.normalize('NFKC', str(val).strip())
 
 def _normalize_row_values(new_row):
-    """표준 행의 이용금액·사업자번호·할부·이용일 값을 정규화."""
+    """표준 행의 이용금액·사업자번호·구분·이용일 값을 정규화."""
     for col in ['카드사', '카드번호', '가맹점명']:
         if new_row.get(col):
             new_row[col] = _normalize_fullwidth(new_row[col])
@@ -398,8 +413,10 @@ def _normalize_row_values(new_row):
                 pass
         elif col == '사업자번호' and new_row.get(col):
             new_row[col] = _normalize_business_number(new_row[col])
-        elif col == '할부':
-            new_row[col] = _normalize_할부(new_row[col])
+        elif col == '구분':
+            # 구분은 과세유형 '폐업'일 때만 '폐업'. 할부 컬럼은 사용하지 않으므로 그 외는 공백 유지
+            if str(new_row.get(col, '')).strip() != '폐업':
+                new_row[col] = ''
         elif col == '이용일' and new_row.get(col):
             date_part, time_part = _split_datetime_value(new_row[col])
             new_row[col] = _normalize_date_value(date_part) if date_part else _normalize_date_value(new_row[col])
@@ -519,22 +536,23 @@ def _extract_rows_from_sheet(df, card_company_from_file):
     rows = []
     num_cols = len(df.columns)
     idx_to_std = None
+    idx_과세유형 = None
     for row_tuple in df.itertuples(index=False):
         row = _row_as_dict(row_tuple, num_cols)
         if all(pd.isna(row.get(i, None)) or str(row.get(i, '')).strip() == '' for i in range(num_cols)):
             continue
         if idx_to_std is None:
-            idx_to_std = _build_mapping_from_header_row(row)
+            idx_to_std, idx_과세유형 = _build_mapping_from_header_row(row)
             continue
         if _looks_like_header_row(row, range(num_cols)):
-            new_map = _build_mapping_from_header_row(row)
-            # 이전 매핑 유지: 새 헤더에서 매핑되지 않은 인덱스는 기존 idx_to_std 보존 (국민카드 등 2행 헤더에서 취소여부 누락 방지)
+            new_map, new_과세 = _build_mapping_from_header_row(row)
             for idx, std_col in list(idx_to_std.items()):
                 if idx not in new_map:
                     new_map[idx] = std_col
             idx_to_std = new_map
+            idx_과세유형 = new_과세 if new_과세 is not None else idx_과세유형
             continue
-        new_row = _row_from_mapping(row, idx_to_std, card_company_from_file)
+        new_row = _row_from_mapping(row, idx_to_std, card_company_from_file, idx_과세유형)
         if all(not v or (isinstance(v, str) and not str(v).strip()) for v in new_row.values()):
             continue
         card_no = new_row.get('카드번호', '')
@@ -610,7 +628,7 @@ def _apply_prepost_to_columns(df, columns_to_apply):
 
 
 def _postprocess_combined_df(df):
-    """통합 DataFrame 후처리: 가맹점명 채우기, 할부 정규화."""
+    """통합 DataFrame 후처리: 가맹점명 채우기. 구분은 할부 미사용, '폐업'만 유지."""
     if df.empty:
         return df
     required = ['카드사', '카드번호', '이용일', '이용금액', '가맹점명']
@@ -623,15 +641,15 @@ def _postprocess_combined_df(df):
             df['이용금액'].notna() & empty_merchant
         )
         df.loc[has_card, '가맹점명'] = df.loc[has_card, '카드사']
-        # 신한카드에서 가맹점명이 '신한카드'인 경우(카드론 등): '신한카드_카드론'으로 수정
         sh_mask = (
             df['카드사'].fillna('').astype(str).str.strip().str.contains('신한', na=False) &
             (df['가맹점명'].fillna('').astype(str).str.strip() == '신한카드')
         )
         df.loc[sh_mask, '가맹점명'] = '신한카드_카드론'
-    if '할부' in df.columns:
-        df['할부'] = df['할부'].apply(
-            lambda v: '' if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ('', '0', '일시불') else v
+    # 구분: 할부 미사용. 과세유형 '폐업'만 '폐업' 유지, 그 외는 모두 공백
+    if '구분' in df.columns:
+        df['구분'] = df['구분'].apply(
+            lambda v: '폐업' if v is not None and str(v).strip() == '폐업' else ''
         )
     return df
 
@@ -639,7 +657,7 @@ def _postprocess_combined_df(df):
 def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
     """MyInfo/.source/Card 의 카드 엑셀을 모아 MyCard/card_before.xlsx 생성.
 
-    - 테이블 헤더: 카드사, 카드번호, 이용일, 이용시간, 입금액, 출금액, 취소, 가맹점명, 사업자번호, 할부
+    - 테이블 헤더: 카드사, 카드번호, 이용일, 이용시간, 입금액, 출금액, 취소, 가맹점명, 사업자번호, 구분
     - skip_write=True 이면 파일 쓰지 않고 DataFrame만 반환.
 
     base_dir: 무시됨. 원본: .source/Card, 출력: MyCard 폴더.

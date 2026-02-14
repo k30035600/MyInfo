@@ -151,7 +151,7 @@ python app.py</div>
             <p>신용카드 관련 파일은 모두 <strong>MyCard</strong> 폴더 안에서 다룹니다.</p>
             <ul>
                 <li><strong>MyInfo/.source/Card</strong>: 각 카드사에서 내려받은 거래 내역 원본(.xls, .xlsx)을 넣는 폴더입니다. 파일명에 <strong>국민카드</strong>, <strong>신한카드</strong>, <strong>현대카드</strong>, <strong>하나카드</strong>가 포함되어야 인식합니다.</li>
-                <li><strong>card_before.xlsx</strong>: 전처리 결과가 MyInfo/.source에 저장됩니다. .source/Card 파일들을 통합·표준화한 결과입니다. 컬럼: 카드사, 카드번호, 이용일, 이용시간(승인시간), 입금액, 출금액, 취소, 가맹점명, 사업자번호, 할부</li>
+                <li><strong>card_before.xlsx</strong>: 전처리 결과가 MyInfo/.source에 저장됩니다. .source/Card 파일들을 통합·표준화한 결과입니다. 컬럼: 카드사, 카드번호, 이용일, 이용시간(승인시간), 입금액, 출금액, 취소, 가맹점명, 사업자번호, 구분</li>
                 <li><strong>info_category.xlsx</strong>: 카테고리 분류 규칙(분류, 키워드, 카테고리)이 저장되는 파일입니다. 계정과목·업종분류로 가맹점명 기반 자동 분류를 지원합니다.</li>
                 <li><strong>card_after.xlsx</strong>: 카테고리를 적용한 최종 거래 데이터입니다. 기본분석은 이 파일을 사용합니다.</li>
             </ul>
@@ -175,7 +175,7 @@ python app.py</div>
             <div class="feature-list">
                 <div class="feature-card">
                     <h4>📊 전처리</h4>
-                    <p>MyInfo/.source/Card의 .xls/.xlsx를 읽어 표준 컬럼으로 통합합니다. 카드사는 파일명에서, 할부 0은 공백으로 저장됩니다. MyInfo/.source/card_before.xlsx로 저장됩니다.</p>
+                    <p>MyInfo/.source/Card의 .xls/.xlsx를 읽어 표준 컬럼으로 통합합니다. 카드사는 파일명에서, 구분 0은 공백으로 저장됩니다. MyInfo/.source/card_before.xlsx로 저장됩니다.</p>
                 </div>
                 <div class="feature-card">
                     <h4>🏷️ 카테고리</h4>
