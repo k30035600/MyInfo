@@ -928,56 +928,6 @@ def compute_기타거래(row):
     return s.strip('_')
 
 
-def classify_etc(row_idx, df, category_tables):
-    """기타거래 분류 (레거시; 현재는 compute_기타거래 사용)"""
-    row = df.iloc[row_idx]
-    before_text_raw = row.get("before_text", "")
-    before_text = normalize_text(before_text_raw)
-
-    if not before_text_raw or not before_text_raw.strip():
-        적요 = safe_str(row.get("적요", ""))
-        if 적요:
-            return 적요[:30] if len(적요) > 30 else 적요
-        return ""
-
-    result = ""
-    if "기타거래" in category_tables:
-        category_table = category_tables["기타거래"]
-        category_rows_list = list(category_table.iterrows())
-        sorted_rows = sorted(category_rows_list, key=lambda x: len(str(x[1].get("키워드", ""))), reverse=True)
-
-        for _, cat_row in sorted_rows:
-            keyword_raw = cat_row.get("키워드", "")
-            if pd.isna(keyword_raw) or not keyword_raw:
-                continue
-
-            keyword = normalize_text(keyword_raw)
-
-            if keyword and before_text and keyword in before_text:
-                category_raw = cat_row.get("카테고리", "")
-
-                original_before_text = safe_str(row.get("before_text", ""))
-                updated_before_text = original_before_text.replace(str(keyword_raw), "").strip()
-                df.at[row_idx, "before_text"] = updated_before_text
-
-                if pd.notna(category_raw):
-                    category_str = str(category_raw).strip()
-                    if category_str:
-                        result = category_str
-
-                break
-
-    current_before_text = safe_str(row.get("before_text", ""))
-    normalized_current = normalize_text(current_before_text)
-    if normalized_current in ['space']:
-        df.at[row_idx, "before_text"] = ""
-        return ""
-
-    if result:
-        return result
-
-    return ""
-
 # =========================================================
 # 5. 메인 처리 함수
 # =========================================================
