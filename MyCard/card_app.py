@@ -28,57 +28,20 @@ app.config['JSON_AS_ASCII'] = False
 # 스크립트 디렉토리 = MyCard 폴더
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-# category: MyInfo/info_category.xlsx 하나만 사용 (info_category_io 모듈로 읽기/쓰기)
-INFO_CATEGORY_PATH = str(Path(PROJECT_ROOT) / 'info_category.xlsx')
+# category: MyInfo/.source/category_table.json 하나만 사용 (category_table_io 모듈로 읽기/쓰기)
+CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 try:
-    from info_category_io import load_info_category, normalize_category_df, get_category_table as _io_get_category_table, apply_category_action
+    from category_table_io import (
+        load_category_table, normalize_category_df,
+        get_category_table as _io_get_category_table,
+        apply_category_action,
+    )
 except ImportError:
-    def load_info_category(path, default_empty=True):
-        if not path or not Path(path).exists(): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
-        return pd.read_excel(path, engine='openpyxl')
-    def normalize_category_df(df):
-        if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        df = df.copy().fillna(''); df = df.drop(columns=['구분'], errors='ignore')
-        for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
-        return df[['분류', '키워드', '카테고리']].copy()
-
-    def _io_get_category_table(path):
-        import os
-        cols = ['분류', '키워드', '카테고리']
-        pe = bool(path and os.path.exists(path) and os.path.getsize(path) > 0)
-        if not pe: return (pd.DataFrame(columns=cols), False)
-        full = load_info_category(path, default_empty=True)
-        if full is None or full.empty: return (pd.DataFrame(columns=cols), pe)
-        df = normalize_category_df(full).fillna('')
-        for c in cols: df[c] = df[c] if c in df.columns else ''
-        return (df, pe)
-
-    def apply_category_action(path, action, data):
-        import unicodedata
-        def _n(v):
-            if v is None or (isinstance(v, str) and not str(v).strip()): return '' if v is None else v
-            return unicodedata.normalize('NFKC', str(v).strip())
-        _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '금전대부')
-        try:
-            df, _ = _io_get_category_table(path)
-            df = df.fillna('')
-            if action == 'add':
-                v = _n(data.get('분류', '')).strip()
-                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
-                df = pd.concat([df, pd.DataFrame([{'분류': _n(data.get('분류','')), '키워드': _n(data.get('키워드','')), '카테고리': _n(data.get('카테고리',''))}])], ignore_index=True)
-            elif action == 'update':
-                o1, o2, o3 = data.get('original_분류',''), data.get('original_키워드',''), data.get('original_카테고리','')
-                v = _n(data.get('분류','')).strip()
-                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
-                mask = (df['분류']==o1)&(df['키워드']==o2)&(df['카테고리']==o3)
-                if mask.any(): df.loc[mask, '분류'], df.loc[mask, '키워드'], df.loc[mask, '카테고리'] = v, _n(data.get('키워드','')), _n(data.get('카테고리',''))
-                else: return (False, '수정할 데이터를 찾을 수 없습니다.', 0)
-            elif action == 'delete':
-                df = df[~((df['분류']==data.get('original_분류',data.get('분류','')))&(df['키워드']==data.get('original_키워드',data.get('키워드','')))&(df['카테고리']==data.get('original_카테고리',data.get('카테고리',''))))]
-            else: return (False, f'unknown action: {action}', 0)
-            df.to_excel(str(path), index=False, engine='openpyxl')
-            return (True, None, len(df))
-        except Exception as e: return (False, str(e), 0)
+    from category_table_fallback import (
+        load_category_table, normalize_category_df,
+        get_category_table as _io_get_category_table,
+        apply_category_action,
+    )
 # 원본 카드 파일: .source/Card. before/after: MyCard 폴더
 SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
 CARD_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'card_before.xlsx')
@@ -99,15 +62,15 @@ def _load_process_card_data_module():
 
 
 def _ensure_card_category_file():
-    """info_category.xlsx가 없으면 기본 규칙으로 생성 (구분 없음)."""
-    path = Path(INFO_CATEGORY_PATH)
+    """category_table.json이 없으면 기본 규칙으로 생성 (구분 없음)."""
+    path = Path(CATEGORY_TABLE_PATH)
     if path.exists():
         return
     try:
         mod = _load_process_card_data_module()
-        mod.create_category_table(None, category_filepath=INFO_CATEGORY_PATH)
+        mod.create_category_table(None, category_filepath=CATEGORY_TABLE_PATH)
     except Exception as e:
-        print(f"[card_app] info_category.xlsx 생성 실패: {e}")
+        print(f"[card_app] category_table.json 생성 실패: {e}")
 
 
 def _call_integrate_card():
@@ -336,7 +299,8 @@ def load_category_file():
 @app.route('/')
 def index():
     workspace_path = str(SCRIPT_DIR)
-    return render_template('index.html', workspace_path=workspace_path, category_filename='info_category.xlsx')
+    folder_name = os.path.basename(SCRIPT_DIR)
+    return render_template('index.html', workspace_path=workspace_path, folder_name=folder_name, category_filename='category_table.json')
 
 @app.route('/favicon.ico')
 def favicon():
@@ -462,7 +426,7 @@ def get_processed_data():
         if not df.empty:
             df = df.drop(columns=['키워드', '카테고리'], errors='ignore')
 
-        category_file_exists = Path(INFO_CATEGORY_PATH).exists()
+        category_file_exists = Path(CATEGORY_TABLE_PATH).exists()
         
         if df.empty:
             response = jsonify({
@@ -748,12 +712,12 @@ def get_source_data():
 @app.route('/category')
 def category():
     """카테고리 페이지"""
-    return render_template('category.html', category_filename='info_category.xlsx')
+    return render_template('category.html', category_filename='category_table.json')
 
 @app.route('/api/card_category')
 def get_category_table():
-    """info_category.xlsx 전체 반환 (구분 없음)."""
-    path = str(Path(INFO_CATEGORY_PATH))
+    """category_table.json 전체 반환 (구분 없음)."""
+    path = str(Path(CATEGORY_TABLE_PATH))
     try:
         df, _ = _io_get_category_table(path)
         data = df.to_dict('records')
@@ -770,15 +734,15 @@ def get_category_table():
         response = jsonify({
             'error': str(e),
             'data': [],
-            'file_exists': Path(INFO_CATEGORY_PATH).exists()
+            'file_exists': Path(CATEGORY_TABLE_PATH).exists()
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response, 500
 
 @app.route('/api/card_category', methods=['POST'])
 def save_category_table():
-    """info_category.xlsx 전체 갱신 (구분 없음)"""
-    path = str(Path(INFO_CATEGORY_PATH))
+    """category_table.json 전체 갱신 (구분 없음)"""
+    path = str(Path(CATEGORY_TABLE_PATH))
     try:
         data = request.json or {}
         action = data.get('action', 'add')
@@ -786,7 +750,7 @@ def save_category_table():
         if not success:
             return jsonify({'success': False, 'error': error_msg}), 400
         try:
-            from info_category_defaults import sync_category_create_from_xlsx
+            from category_table_defaults import sync_category_create_from_xlsx
             sync_category_create_from_xlsx(path)
         except Exception:
             pass
@@ -1588,7 +1552,7 @@ def _create_card_after():
         if not df_card.empty and '할부' in df_card.columns and '구분' not in df_card.columns:
             df_card = df_card.rename(columns={'할부': '구분'})
         Path(CARD_AFTER_PATH).parent.mkdir(parents=True, exist_ok=True)
-        had_category_file = Path(INFO_CATEGORY_PATH).exists()
+        had_category_file = Path(CATEGORY_TABLE_PATH).exists()
 
         # 카드사/카드번호/입금액 또는 출금액이 있으면서 가맹점명이 공란이면 가맹점명에 카드사 저장
         if not df_card.empty and all(c in df_card.columns for c in ['카드사', '카드번호', '가맹점명']):
@@ -1608,7 +1572,7 @@ def _create_card_after():
             if sh_merchant.any():
                 df_card.loc[sh_merchant, '가맹점명'] = '신한카드_카드론'
 
-        # 카테고리(info_category.xlsx) 전처리/후처리 규칙 적용 (가맹점명, 카드사)
+        # 카테고리(category_table.json) 전처리/후처리 규칙 적용 (가맹점명, 카드사)
         if hasattr(mod, '_apply_prepost_to_columns'):
             df_card = mod._apply_prepost_to_columns(df_card, ['가맹점명', '카드사'])
 
@@ -1625,7 +1589,7 @@ def _create_card_after():
 
         if had_category_file:
             try:
-                full = load_info_category(INFO_CATEGORY_PATH, default_empty=True)
+                full = load_category_table(CATEGORY_TABLE_PATH, default_empty=True)
                 if full is not None and not full.empty:
                     df_cat = normalize_category_df(full)
                     if not df_cat.empty:
@@ -1701,9 +1665,9 @@ def _create_card_after():
 
         if not had_category_file:
             try:
-                mod.create_category_table(df_card, category_filepath=INFO_CATEGORY_PATH)
+                mod.create_category_table(df_card, category_filepath=CATEGORY_TABLE_PATH)
             except Exception as e:
-                print(f"info_category.xlsx 신용카드 섹션 생성 실패: {e}")
+                print(f"category_table.json 신용카드 섹션 생성 실패: {e}")
 
         return (True, None, len(df_card))
     except FileNotFoundError as e:
@@ -1716,14 +1680,14 @@ def _create_card_after():
 @app.route('/api/generate-category', methods=['POST'])
 @ensure_working_directory
 def generate_category():
-    """card_before → card_after 생성. info_category(신용카드) 규칙으로 카테고리(계정과목/업종분류) 적용 후 저장."""
+    """card_before → card_after 생성. category_table(신용카드) 규칙으로 카테고리(계정과목 등) 적용 후 저장."""
     success, error, count = _create_card_after()
     if success:
-        had_category_file = Path(INFO_CATEGORY_PATH).exists()
+        had_category_file = Path(CATEGORY_TABLE_PATH).exists()
         return jsonify({
             'success': True,
             'message': f'card_after.xlsx 생성 완료: {count}건' + (
-                ' (카테고리 적용 없이 미분류로 저장 후 info_category 신용카드 섹션 생성)' if not had_category_file else ' (info_category 적용)'
+                ' (카테고리 적용 없이 미분류로 저장 후 category_table 신용카드 섹션 생성)' if not had_category_file else ' (category_table 적용)'
             ),
             'count': count,
             'folder': str(Path(CARD_AFTER_PATH).parent),
@@ -1855,7 +1819,7 @@ def print_analysis():
         traceback.print_exc()
         return f"오류 발생: {str(e)}", 500
 
-# info_category(신용카드) 섹션 없으면 기본 규칙으로 생성 (모듈 로드 시 한 번)
+# category_table(신용카드) 섹션 없으면 기본 규칙으로 생성 (모듈 로드 시 한 번)
 _ensure_card_category_file()
 
 if __name__ == '__main__':

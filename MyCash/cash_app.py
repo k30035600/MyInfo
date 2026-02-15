@@ -28,8 +28,10 @@ app.config['JSON_AS_ASCII'] = False
 # 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-# category: MyInfo/info_category.xlsx 하나만 사용
-INFO_CATEGORY_PATH = str(Path(PROJECT_ROOT) / 'info_category.xlsx')
+# category: MyInfo/.source/category_table.json (금융정보에서는 사용 안 함, linkage_table만 사용)
+CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
+# 금융정보 업종분류: MyInfo/.source/linkage_table.json만 사용 (xlsx 없으면 xlsx에서 json 생성)
+LINKAGE_TABLE_JSON = str(Path(PROJECT_ROOT) / '.source' / 'linkage_table.json')
 # 원본 업로드용: .source/Cash. after: MyCash 폴더 (cash_before 미사용)
 SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
 CASH_AFTER_PATH = os.path.join(SCRIPT_DIR, 'cash_after.xlsx')
@@ -49,61 +51,19 @@ CATEGORY_QUERY_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거
 CATEGORY_APPLIED_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도']
 # cash_after 생성 시 저장 컬럼. 구분 = '폐업' 또는 ''
 CASH_AFTER_CREATION_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도']
-# info_category.xlsx 단일 테이블(구분 없음, info_category_io로 읽기/쓰기)
+# category_table.json 단일 테이블(구분 없음, category_table_io로 읽기/쓰기)
 try:
-    from info_category_io import (
-        load_info_category, normalize_category_df, INFO_CATEGORY_COLUMNS,
+    from category_table_io import (
+        load_category_table, normalize_category_df, CATEGORY_TABLE_COLUMNS,
         get_category_table as _io_get_category_table,
         apply_category_action,
     )
 except ImportError:
-    def load_info_category(path, default_empty=True):
-        if not path or not Path(path).exists(): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
-        return pd.read_excel(path, engine='openpyxl')
-    def normalize_category_df(df):
-        if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        df = df.copy().fillna(''); df = df.drop(columns=['구분'], errors='ignore')
-        for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
-        return df[['분류', '키워드', '카테고리']].copy()
-    INFO_CATEGORY_COLUMNS = ['분류', '키워드', '카테고리']
-
-    def _io_get_category_table(path):
-        cols = INFO_CATEGORY_COLUMNS
-        pe = bool(path and os.path.exists(path) and os.path.getsize(path) > 0)
-        if not pe: return (pd.DataFrame(columns=cols), False)
-        full = load_info_category(path, default_empty=True)
-        if full is None or full.empty: return (pd.DataFrame(columns=cols), pe)
-        df = normalize_category_df(full).fillna('')
-        for c in cols: df[c] = df[c] if c in df.columns else ''
-        return (df, pe)
-
-    def _n(v):
-        import unicodedata
-        if v is None or (isinstance(v, str) and not str(v).strip()): return '' if v is None else v
-        return unicodedata.normalize('NFKC', str(v).strip())
-    _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '금전대부')
-
-    def apply_category_action(path, action, data):
-        try:
-            df, _ = _io_get_category_table(path)
-            df = df.fillna('')
-            if action == 'add':
-                v = _n(data.get('분류', '')).strip()
-                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
-                df = pd.concat([df, pd.DataFrame([{'분류': _n(data.get('분류','')), '키워드': _n(data.get('키워드','')), '카테고리': _n(data.get('카테고리',''))}])], ignore_index=True)
-            elif action == 'update':
-                o1, o2, o3 = data.get('original_분류',''), data.get('original_키워드',''), data.get('original_카테고리','')
-                v = _n(data.get('분류','')).strip()
-                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
-                mask = (df['분류']==o1)&(df['키워드']==o2)&(df['카테고리']==o3)
-                if mask.any(): df.loc[mask, '분류'], df.loc[mask, '키워드'], df.loc[mask, '카테고리'] = v, _n(data.get('키워드','')), _n(data.get('카테고리',''))
-                else: return (False, '수정할 데이터를 찾을 수 없습니다.', 0)
-            elif action == 'delete':
-                df = df[~((df['분류']==data.get('original_분류',data.get('분류','')))&(df['키워드']==data.get('original_키워드',data.get('키워드','')))&(df['카테고리']==data.get('original_카테고리',data.get('카테고리',''))))]
-            else: return (False, f'unknown action: {action}', 0)
-            df.to_excel(str(path), index=False, engine='openpyxl')
-            return (True, None, len(df))
-        except Exception as e: return (False, str(e), 0)
+    from category_table_fallback import (
+        load_category_table, normalize_category_df, CATEGORY_TABLE_COLUMNS,
+        get_category_table as _io_get_category_table,
+        apply_category_action,
+    )
 
 # 전처리후 은행 필터: 드롭다운 값 → 실제 데이터에 있을 수 있는 은행명 별칭
 # 적용 위치: get_processed_data() 등에서 사용하는 DataFrame의 '은행명' 컬럼 (금융정보는 cash_after 기준)
@@ -350,43 +310,25 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
     return out[CASH_AFTER_CREATION_COLUMNS].copy()
 
 
-def _apply_업종분류_from_category(df):
-    """cash_after DataFrame에 대해: 업종코드가 있는 행은 info_category.xlsx의 업종분류(분류='업종분류')에서
-    키워드와 매칭하여 카테고리를 업종분류에 채우고, 위험도는 매칭 시 5, 미매칭/업종코드 없음 시 0. in-place 수정."""
+def _apply_업종분류_from_linkage(df):
+    """cash_after DataFrame에 대해: linkage_table.json만 사용. 업종코드로 업종분류·위험도(리스크) 매칭. in-place 수정."""
     if df is None or df.empty or '업종코드' not in df.columns:
         return
     try:
-        cat_df = load_info_category(INFO_CATEGORY_PATH, default_empty=True)
-        if cat_df is None or cat_df.empty or '분류' not in cat_df.columns:
+        from linkage_table_io import get_linkage_map_for_apply
+        code_to_업종분류, code_to_리스크 = get_linkage_map_for_apply()
+        if not code_to_업종분류:
             return
-        cat_df = normalize_category_df(cat_df)
-        업종분류_rows = cat_df[cat_df['분류'].fillna('').astype(str).str.strip() == '업종분류']
-        if 업종분류_rows.empty:
-            return
-        # 키워드가 '552201/552202' 형태일 수 있음 → 각 코드별로 카테고리 매핑 (먼저 나온 것 우선)
-        code_to_category = {}
-        for _, r in 업종분류_rows.iterrows():
-            kw = (r.get('키워드') or '')
-            if isinstance(kw, float) and pd.isna(kw):
-                kw = ''
-            kw = str(kw).strip()
-            cat = (r.get('카테고리') or '')
-            if isinstance(cat, float) and pd.isna(cat):
-                cat = ''
-            cat = str(cat).strip()
-            for part in kw.replace(' ', '').split('/'):
-                code = part.strip()
-                if code and code not in code_to_category:
-                    code_to_category[code] = cat
-        if not code_to_category:
-            return
-        # 각 행: 업종코드가 있으면 매칭 후 업종분류·위험도 설정
         codes = df['업종코드'].fillna('').astype(str).str.strip()
         for i in df.index:
             c = codes.at[i] if i in codes.index else ''
             if c:
-                업종분류_val = code_to_category.get(c, '')
-                위험도_val = 5 if 업종분류_val else 0
+                업종분류_val = code_to_업종분류.get(c, '')
+                리스크_str = code_to_리스크.get(c, '')
+                try:
+                    위험도_val = float(리스크_str) if 리스크_str else (5 if 업종분류_val else 0)
+                except (ValueError, TypeError):
+                    위험도_val = 5 if 업종분류_val else 0
                 df.at[i, '업종분류'] = 업종분류_val
                 df.at[i, '위험도'] = 위험도_val
             else:
@@ -400,12 +342,12 @@ RISK_CATEGORY_CHASU = ('가상자산', '증권투자', '금전대부')
 
 
 def _apply_risk_category_by_keywords(df):
-    """cash_after DataFrame에 대해: info_category의 가상자산/증권투자/금전대부 규칙으로
+    """cash_after DataFrame에 대해: category_table의 가상자산/증권투자/금전대부 규칙으로
     기타거래·키워드·금융사 텍스트를 매칭하여 업종분류·위험도 5.0 설정. in-place 수정."""
     if df is None or df.empty:
         return
     try:
-        cat_df = load_info_category(INFO_CATEGORY_PATH, default_empty=True)
+        cat_df = load_category_table(CATEGORY_TABLE_PATH, default_empty=True)
         if cat_df is None or cat_df.empty or '분류' not in cat_df.columns:
             return
         cat_df = normalize_category_df(cat_df)
@@ -518,8 +460,7 @@ def merge_bank_card_to_cash_after():
         df = _dataframe_to_cash_after_creation(df_bank, df_card_raw if not df_card_raw.empty else None)
         if df.empty:
             return (False, '병합 결과 데이터가 비어 있습니다.')
-        _apply_업종분류_from_category(df)
-        _apply_risk_category_by_keywords(df)
+        _apply_업종분류_from_linkage(df)
         df.to_excel(str(CASH_AFTER_PATH), index=False, engine='openpyxl')
         return (True, None)
     except Exception as e:
@@ -899,33 +840,21 @@ def category():
     """카테고리 페이지"""
     return render_template('category.html')
 
-# 카테고리: MyInfo/info_category.xlsx 단일 테이블(구분 없음)
+# 카테고리: MyInfo/.source/category_table.json 단일 테이블(구분 없음)
 @app.route('/api/bank_category')
 @ensure_working_directory
 def get_category_table():
-    """info_category.xlsx 전체 반환 (구분 없음)."""
-    path = str(Path(INFO_CATEGORY_PATH))
+    """category_table.json 전체 반환 (구분 없음)."""
+    path = str(Path(CATEGORY_TABLE_PATH))
     try:
-        _path_added = False
-        try:
-            _dir_str = str(SCRIPT_DIR)
-            if _dir_str not in sys.path:
-                sys.path.insert(0, _dir_str)
-                _path_added = True
-            import process_cash_data as _pbd
-            _pbd.ensure_all_cash_files()
-        except Exception:
-            pass
-        finally:
-            if _path_added and str(SCRIPT_DIR) in sys.path:
-                sys.path.remove(str(SCRIPT_DIR))
-        df, _ = _io_get_category_table(path)
+        # 금융정보에서는 category_table.json을 생성하지 않음. 있으면 읽기만 함.
+        df, file_existed = _io_get_category_table(path)
         data = df.to_dict('records')
         response = jsonify({
             'data': data,
             'columns': ['분류', '키워드', '카테고리'],
             'count': len(df),
-            'file_exists': True
+            'file_exists': file_existed
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response
@@ -934,7 +863,30 @@ def get_category_table():
         response = jsonify({
             'error': str(e),
             'data': [],
-            'file_exists': Path(INFO_CATEGORY_PATH).exists()
+            'file_exists': Path(CATEGORY_TABLE_PATH).exists()
+        })
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        return response, 500
+
+@app.route('/api/linkage-table')
+@ensure_working_directory
+def get_linkage_table():
+    """업종분류 조회용: linkage_table.json 반환 (없으면 xlsx에서 생성). 업종분류, 리스크, 업종코드_업종코드세세분류."""
+    try:
+        from linkage_table_io import get_linkage_table_data
+        data = get_linkage_table_data()
+        response = jsonify({
+            'data': data,
+            'columns': ['업종분류', '리스크', '업종코드_업종코드세세분류'],
+            'count': len(data),
+        })
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        return response
+    except Exception as e:
+        traceback.print_exc()
+        response = jsonify({
+            'error': str(e),
+            'data': [],
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response, 500
@@ -942,8 +894,8 @@ def get_category_table():
 @app.route('/api/bank_category', methods=['POST'])
 @ensure_working_directory
 def save_category_table():
-    """info_category.xlsx 전체 갱신 (구분 없음)"""
-    path = str(Path(INFO_CATEGORY_PATH))
+    """category_table.json 전체 갱신 (구분 없음)"""
+    path = str(Path(CATEGORY_TABLE_PATH))
     try:
         data = request.json or {}
         action = data.get('action', 'add')
@@ -951,7 +903,7 @@ def save_category_table():
         if not success:
             return jsonify({'success': False, 'error': error_msg}), 400
         try:
-            from info_category_defaults import sync_category_create_from_xlsx
+            from category_table_defaults import sync_category_create_from_xlsx
             sync_category_create_from_xlsx(path)
         except Exception:
             pass

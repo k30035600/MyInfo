@@ -10,15 +10,15 @@ process_card_data.py — 카드 전용. (은행 관련 역할 없음)
   → 행의 컬럼이 모두 공백이면 skip
   → HEADER_TO_STANDARD에 해당하는 행은 헤더 행으로 간주, 해당 행에서 인덱스 취득 후 다음 헤더 행이 나올 때까지 그 인덱스로 card_before 컬럼에 매핑
   → 카드사는 파일명에서 취득, 구분(할부) 0은 공백 처리. 과세유형 '폐업'이면 구분에 '폐업' 저장
-  → 카테고리는 info_category.xlsx(신용카드 구분) 키워드로 분류
+  → 카테고리는 category_table.json(신용카드 구분) 키워드로 분류
 
 [기능]
 - integrate_card_excel(): Source 루트 *.xls/*.xlsx만 모아 card_before.xlsx 생성
-- create_category_table: info_category.xlsx(신용카드 구분) 생성·갱신
+- create_category_table: category_table.json(신용카드 구분) 생성·갱신
 
 [카테고리 테이블 분류 구분]
 - 은행거래(bank_category): 분류 = 전처리, 후처리, 거래방법, 거래지점
-- 신용카드(info_category 구분): 분류 = 계정과목, 업종분류 (본 모듈)
+- 신용카드(category_table 구분): 분류 = 계정과목 등 (업종분류는 카테고리테이블 미사용)
 
 .source는 .xls, .xlsx만 취급.
 """
@@ -63,7 +63,7 @@ CARD_BEFORE_COLUMNS = [
 ]
 EXCEL_EXTENSIONS = ('*.xls', '*.xlsx')
 SEARCH_COLUMNS = ['적요', '내용', '거래점', '송금메모', '가맹점명']
-# .source 헤더명 → card_before.xlsx 표준 컬럼 (카테고리는 info_category 신용카드 규칙으로 분류)
+# .source 헤더명 → card_before.xlsx 표준 컬럼 (카테고리는 category_table 신용카드 규칙으로 분류)
 # 헤더 행에서 인덱스를 취득하고, 다음 헤더 행이 나올 때까지 해당 인덱스로 매핑
 HEADER_TO_STANDARD = {
     '카드사': ['카드사', '카드명'],
@@ -85,7 +85,7 @@ AMOUNT_COLUMN_KEYWORDS = ('금액', '입금', '출금', '잔액')
 # =========================================================
 
 try:
-    from info_category_io import normalize_주식회사_for_match
+    from category_table_io import normalize_주식회사_for_match
 except ImportError:
     def normalize_주식회사_for_match(text):
         if text is None or (isinstance(text, str) and not str(text).strip()):
@@ -269,7 +269,7 @@ def _normalize_header_string(s):
 
 
 def _map_source_header_to_standard(source_header):
-    """Source 엑셀 헤더명 → card_before 표준 컬럼 (카테고리는 info_category 신용카드 규칙으로 채움)."""
+    """Source 엑셀 헤더명 → card_before 표준 컬럼 (카테고리는 category_table 신용카드 규칙으로 채움)."""
     sh = _normalize_header_string(source_header)
     if not sh:
         return None
@@ -563,13 +563,13 @@ def _extract_rows_from_sheet(df, card_company_from_file):
 
 
 def _load_prepost_rules(category_path=None):
-    """info_category.xlsx에서 전처리/후처리 규칙만 로드. 반환: (전처리_list, 후처리_list), 각 항목은 {'키워드': str, '카테고리': str}."""
-    path = Path(category_path or os.path.join(PROJECT_ROOT, 'info_category.xlsx'))
+    """category_table.json에서 전처리/후처리 규칙만 로드. 반환: (전처리_list, 후처리_list), 각 항목은 {'키워드': str, '카테고리': str}."""
+    path = Path(category_path or os.path.join(PROJECT_ROOT, '.source', 'category_table.json'))
     if not path.exists():
         return [], []
     try:
-        from info_category_io import load_info_category, normalize_category_df
-        full = load_info_category(str(path), default_empty=True)
+        from category_table_io import load_category_table, normalize_category_df
+        full = load_category_table(str(path), default_empty=True)
         if full is None or full.empty:
             return [], []
         full = normalize_category_df(full).fillna('')
@@ -598,7 +598,7 @@ def _load_prepost_rules(category_path=None):
 
 
 def _apply_prepost_to_columns(df, columns_to_apply):
-    """DataFrame의 지정 컬럼에 info_category 전처리·후처리 규칙 적용 (키워드 → 카테고리 치환).
+    """DataFrame의 지정 컬럼에 category_table 전처리·후처리 규칙 적용 (키워드 → 카테고리 치환).
     적용 전에 해당 컬럼을 주식회사→(주) 등으로 정규화. 가맹점명 등 표시용 컬럼은 셀 전체가 키워드와 일치하면 치환하지 않음 (예: '(주)진프랜드산'이 '(주)'로 줄어드는 것 방지)."""
     if df is None or df.empty or not columns_to_apply:
         return df
@@ -761,26 +761,26 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
 
 
 # =========================================================
-# 2. 카테고리 테이블: info_category.xlsx(신용카드 구분) 생성·갱신
+# 2. 카테고리 테이블: category_table.json(신용카드 구분) 생성·갱신
 # =========================================================
 
-# info_category(신용카드): category_create.md 파싱 또는 info_category_defaults 기본값 사용
+# category_table(신용카드): category_create.md 파싱 또는 category_table_defaults 기본값 사용
 # 카테고리 분류: apply_category_from_merchant에서 계정과목만 사용, 키워드 길이 순, 기본값 기타거래
 
 
 def create_category_table(df=None, category_filepath=None):
-    """info_category.xlsx 생성·갱신 (구분 없음). 분류 = 계정과목, 업종분류. category_create.md 파싱 또는 기본값 사용."""
+    """category_table.json 생성·갱신 (구분 없음). 분류 = 계정과목 등. category_create.md 파싱 또는 기본값 사용."""
     try:
-        from info_category_defaults import get_default_rules
+        from category_table_defaults import get_default_rules
     except ImportError:
         _root = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
         if _root not in sys.path:
             sys.path.insert(0, _root)
-        from info_category_defaults import get_default_rules
+        from category_table_defaults import get_default_rules
     unique_category_data = get_default_rules('card')
     category_df = pd.DataFrame(unique_category_data).drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
     _root = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-    default_info = os.path.join(_root, 'info_category.xlsx')
+    default_info = os.path.join(_root, '.source', 'category_table.json')
     out_path = str(Path(category_filepath).resolve()) if category_filepath else default_info
     try:
         parent_dir = os.path.dirname(out_path)
@@ -789,30 +789,30 @@ def create_category_table(df=None, category_filepath=None):
         _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
         if _root not in sys.path:
             sys.path.insert(0, _root)
-        from info_category_io import safe_write_info_category_xlsx, load_info_category, normalize_category_df, INFO_CATEGORY_COLUMNS
+        from category_table_io import safe_write_category_table, load_category_table, normalize_category_df, CATEGORY_TABLE_COLUMNS
         if len(category_df) == 0:
-            category_df = pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
-        out = category_df[INFO_CATEGORY_COLUMNS].copy()
+            category_df = pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS)
+        out = category_df[CATEGORY_TABLE_COLUMNS].copy()
         if os.path.exists(out_path):
-            full = load_info_category(out_path, default_empty=True)
+            full = load_category_table(out_path, default_empty=True)
             if full is not None and not full.empty:
                 full = normalize_category_df(full)
                 if not full.empty:
-                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
-        safe_write_info_category_xlsx(out_path, out)
+                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=CATEGORY_TABLE_COLUMNS, keep='first')
+        safe_write_category_table(out_path, out)
         if not os.path.exists(out_path):
             raise FileNotFoundError(f"오류: 파일 생성 후에도 {out_path} 파일이 존재하지 않습니다.")
     except PermissionError as e:
         print(f"오류: 파일 쓰기 권한이 없습니다 - {out_path}")
         raise
     except Exception as e:
-        print(f"오류: info_category 생성 실패 - {e}")
+        print(f"오류: category_table 생성 실패 - {e}")
         raise
     return category_df
 
 
 def apply_category_from_merchant(df, category_df):
-    """가맹점명을 기초로 info_category(신용카드) 규칙을 적용해 df['카테고리'] 채움.
+    """가맹점명을 기초로 category_table(신용카드) 규칙을 적용해 df['카테고리'] 채움.
     분류=계정과목만 사용. 키워드 길이 긴 순 적용. 기본값 기타거래, 매칭된 행만 계정과목으로 덮어씀."""
     if df is None or df.empty or category_df is None or category_df.empty:
         return df

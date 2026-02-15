@@ -566,8 +566,7 @@
     <!-- 카테고리 적용후 -->
     <div class="chart-card" style="margin-top: 0; margin-bottom: 10px; display: flex; flex-direction: column;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-            <h2 style="margin: 0;">카테고리 적용후</h2>
-            <div style="font-size: 14px; opacity: 0.5;"><span id="category-applied-filename">bank_after.xlsx</span></div>
+            <h2 style="margin: 0;">은행거래(카테고리) 적용후</h2>
         </div>
         <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -579,7 +578,7 @@
     <div class="charts-grid" style="grid-template-columns: 1fr; margin-top: 10px;">
         <div class="chart-card" style="grid-column: 1 / -1; display: flex; flex-direction: column;">
             <div style="margin-bottom: 8px;">
-                <h2 style="margin: 0;">월별 입출금 추이 그래프 <span id="monthly-trend-category-label">(전체)</span></h2>
+                <h2 style="margin: 0;">은행거래(월별 입출금) 추이 그래프 <span id="monthly-trend-category-label">(전체)</span></h2>
             </div>
             <div class="monthly-chart-legend" style="display: flex; justify-content: flex-end; gap: 16px; margin-bottom: 4px; font-size: 12px;">
                 <span><span style="display: inline-block; width: 10px; height: 10px; background: rgba(0,0,255,0.5); margin-right: 4px; vertical-align: middle;"></span>입금액</span>
@@ -712,7 +711,7 @@
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
                     // 테이블에 에러 메시지 표시
-                    const fileErr = (data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'category_table.json 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -747,7 +746,7 @@
                 
                 if (!data.data || data.data.length === 0) {
                     document.getElementById('category-definition-table-body').innerHTML = 
-                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666; white-space: normal;">카테고리 데이터가 없습니다.</td></tr>';
                     allCategoryTableData = [];
                     return;
                 }
@@ -777,7 +776,7 @@
             }
         }
         
-        // info_category.xlsx 파일 생성 함수
+        // category_table.json 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-bank_category-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -800,10 +799,10 @@
                 clearTimeout(timeoutId);
                 const result = await response.json().catch(() => ({}));
                 if (result.success) {
-                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`category_table.json 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${(result.error || 'info_category.xlsx 파일 생성 실패').replace(/\n/g, ' ')}`);
+                    alert(`오류: ${(result.error || 'category_table.json 파일 생성 실패').replace(/\n/g, ' ')}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -813,7 +812,7 @@
             } catch (error) {
                 console.error('Error generating category table:', error);
                 const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '오류가 발생했습니다.';
-                alert('info_category.xlsx 파일 생성 중 오류: ' + msg);
+                alert('category_table.json 파일 생성 중 오류: ' + msg);
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -877,7 +876,7 @@
             
             if (filteredData.length === 0) {
                 document.getElementById('category-definition-table-body').innerHTML = 
-                    '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                    '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666; white-space: normal;">카테고리 데이터가 없습니다.</td></tr>';
                 updateDropdownOptions();
                 return;
             }

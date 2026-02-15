@@ -88,12 +88,12 @@ app.config['JSON_AS_ASCII'] = False
 
 # MyInfo 프로젝트 루트 및 통합 카테고리 파일 (은행/카드/금융 공통)
 _root = os.path.dirname(os.path.abspath(__file__))
-INFO_CATEGORY_PATH = os.path.join(_root, 'info_category.xlsx')
+CATEGORY_TABLE_PATH = os.path.join(_root, '.source', 'category_table.json')
 os.environ['MYINFO_ROOT'] = _root
 
 # Railway 등 배포 환경: .source는 gitignore되어 없음 → 빈 폴더 생성해 오류 방지
 try:
-    for _d in (os.path.join(_root, '.source'), os.path.join(_root, '.source', 'Bank'), os.path.join(_root, '.source', 'Card')):
+    for _d in (os.path.join(_root, '.source'), os.path.join(_root, '.source', 'Bank'), os.path.join(_root, '.source', 'Card'), os.path.join(_root, '.source', 'Cash')):
         os.makedirs(_d, exist_ok=True)
 except Exception:
     pass
@@ -120,13 +120,13 @@ def _clear_startup_caches():
                     pass
     except Exception:
         pass
-    # 3) info_category_io 원자적 쓰기 시 남은 .info_cat_*.xlsx 임시 파일 삭제
+    # 3) category_table_io 원자적 쓰기 시 남은 .cat_tbl_*.json 임시 파일 삭제
     try:
         _root = os.path.dirname(os.path.abspath(__file__))
-        for _d in (_root, os.path.join(_root, 'MyBank'), os.path.join(_root, 'MyCard'), os.path.join(_root, 'MyCash')):
+        for _d in (_root, os.path.join(_root, '.source'), os.path.join(_root, 'MyBank'), os.path.join(_root, 'MyCard'), os.path.join(_root, 'MyCash')):
             if os.path.isdir(_d):
                 for _f in os.listdir(_d):
-                    if _f.startswith('.info_cat_') and _f.endswith('.xlsx'):
+                    if _f.startswith('.cat_tbl_') and (_f.endswith('.json') or _f.endswith('.xlsx')):
                         try:
                             os.unlink(os.path.join(_d, _f))
                         except OSError:
@@ -147,13 +147,13 @@ def _cleanup_and_exit():
         sys.exit(0)
 
 
-def _ensure_info_category_file():
-    """info_category.xlsx가 없으면 빈 파일(분류·키워드·카테고리 컬럼) 생성. (info_category_io.create_empty_info_category 사용)"""
-    if os.path.isfile(INFO_CATEGORY_PATH):
+def _ensure_category_table_file():
+    """category_table.json이 없으면 빈 파일 생성. (category_table_io.create_empty_category_table 사용)"""
+    if os.path.isfile(CATEGORY_TABLE_PATH):
         return
     try:
-        from info_category_io import create_empty_info_category
-        create_empty_info_category(INFO_CATEGORY_PATH)
+        from category_table_io import create_empty_category_table
+        create_empty_category_table(CATEGORY_TABLE_PATH)
     except Exception:
         pass
 
@@ -298,9 +298,9 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
         subapp_module.__file__ = app_file
         if hasattr(subapp_module, 'SCRIPT_DIR'):
             subapp_module.SCRIPT_DIR = subapp_dir
-        # info_category.xlsx는 before 파일(bank/card/cash) 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
-        if hasattr(subapp_module, 'INFO_CATEGORY_PATH'):
-            subapp_module.INFO_CATEGORY_PATH = INFO_CATEGORY_PATH
+        # category_table.json은 before 파일(bank/card/cash) 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
+        if hasattr(subapp_module, 'CATEGORY_TABLE_PATH'):
+            subapp_module.CATEGORY_TABLE_PATH = CATEGORY_TABLE_PATH
         if subapp_path == 'MyBank':
             import os as _os
             subapp_module.BANK_BEFORE_PATH = _os.path.join(subapp_dir, 'bank_before.xlsx')
@@ -310,7 +310,7 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
             mycard_path = Path(subapp_dir)
             if hasattr(subapp_module, 'CARD_AFTER_PATH'):
                 subapp_module.CARD_AFTER_PATH = mycard_path / 'card_after.xlsx'
-            # info_category.xlsx는 card_before 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
+            # category_table.json은 card_before 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
         
         # 서브 앱 로드 후 즉시 stdout/stderr를 sys.__stdout__/__stderr__로 복원
         sys.stdout = sys.__stdout__

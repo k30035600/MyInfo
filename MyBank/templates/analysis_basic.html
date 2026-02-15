@@ -548,14 +548,14 @@
             width: 23%;
         }
 
-        /* 계좌별 집계 컬럼 너비: 1 : 2 : 0.8 : 1 : 1 (총 5.8), 계좌번호 말줄임 */
+        /* 계좌별 집계 컬럼 너비: 17% : 28% : 15% : 20% : 20%, 계좌번호 말줄임 */
         #account-table th:nth-child(1),
         #account-table td:nth-child(1) {
             width: 17%;
         }
         #account-table th:nth-child(2),
         #account-table td:nth-child(2) {
-            width: 34%;
+            width: 28%;
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -563,13 +563,13 @@
         }
         #account-table th:nth-child(3),
         #account-table td:nth-child(3) {
-            width: 14%;
+            width: 15%;
         }
         #account-table th:nth-child(4),
         #account-table th:nth-child(5),
         #account-table td:nth-child(4),
         #account-table td:nth-child(5) {
-            width: 17%;
+            width: 20%;
         }
 
         .loading {
@@ -819,7 +819,7 @@
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
                 <h1>은행거래 기본분석</h1>
-                <div style="font-size: 14px; opacity: 0.5;">bank_after.xlsx</div>
+                <div style="font-size: 14px; opacity: 0.5;">bank_after</div>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
                 <div class="filter-group">
@@ -845,7 +845,7 @@
 
     <div class="charts-grid three-columns">
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리별 입출금 내역</h2>
+            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래 입출금내역</h2>
             <div class="category-table-container">
                 <div class="category-table-scroll">
                     <table id="category-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
@@ -870,7 +870,7 @@
             </div>
         </div>
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 id="transaction-section-title" style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 거래내역</h2>
+            <h2 id="transaction-section-title" style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래 세부내역</h2>
             <div class="transaction-table-container" style="min-width: 0;">
                 <table id="transaction-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                     <thead>
@@ -884,7 +884,7 @@
                     </thead>
                     <tbody id="transaction-table-body">
                         <tr>
-                            <td colspan="5" style="padding: 20px; text-align: center; color: #666;">카테고리별 입출금 내역에서 카테고리를 선택하면 거래 내역이 표시됩니다.</td>
+                            <td colspan="5" style="padding: 20px; text-align: center; color: #666;">은행거래 입출금내역에서 카테고리를 선택하면 거래 내역이 표시됩니다.</td>
                         </tr>
                     </tbody>
                     <tfoot id="transaction-table-footer" style="position: sticky; bottom: 0; background-color: #f5f5f5; border-top: 2px solid #ddd;">
@@ -900,7 +900,7 @@
             </div>
         </div>
         <div class="chart-card category-pie-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 원그래프</h2>
+            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래 원그래프</h2>
             <div class="category-pie-row" style="display: flex; flex-direction: row; align-items: stretch; flex: 1; min-height: 0; gap: 12px;">
                 <div class="chart-container" style="flex: 1; min-width: 0; min-height: 0; height: auto; max-height: none;">
                     <canvas id="category-combined-chart"></canvas>
@@ -998,7 +998,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div id="account-table-footer" class="bank-stats-footer" style="flex-shrink: 0; background-color: #f5f5f5; border-top: 2px solid #ddd; padding: 3px; font-weight: bold; display: grid; grid-template-columns: 17% 34% 14% 17% 17%; gap: 0; font-size: 11px;">
+                <div id="account-table-footer" class="bank-stats-footer" style="flex-shrink: 0; background-color: #f5f5f5; border-top: 2px solid #ddd; padding: 3px; font-weight: bold; display: grid; grid-template-columns: 17% 28% 15% 20% 20%; gap: 0; font-size: 11px;">
                     <span>합계</span><span></span><span id="account-table-total-count" class="text-right"></span><span id="account-table-total-deposit" style="text-align:right;color:#0000FF;">0</span><span id="account-table-total-withdraw" style="text-align:right;color:#FF0000;">0</span>
                 </div>
             </div>
@@ -1528,10 +1528,10 @@
             if (!selectedCategory) {
                 tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">카테고리를 선택하세요.</td></tr>';
                 setFooterSums(0, 0);
-                if (titleEl) titleEl.textContent = '카테고리 거래내역';
+                if (titleEl) titleEl.textContent = '은행거래 세부내역';
                 return;
             }
-            if (titleEl) titleEl.textContent = '카테고리 거래내역 (' + selectedCategory + ')';
+            if (titleEl) titleEl.textContent = '은행거래 세부내역 (' + selectedCategory + ')';
             tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td></tr>';
             try {
                 const bankFilter = document.getElementById('bank-filter').value;

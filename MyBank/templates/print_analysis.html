@@ -471,7 +471,7 @@
         </div>
         <div class="row-half">
             <div class="section">
-                <div class="section-title">카테고리별 입출금 내역</div>
+                <div class="section-title">은행거래 입출금내역</div>
                 <table>
                     <thead>
                         <tr>
@@ -499,7 +499,7 @@
                 </table>
             </div>
             <div class="section">
-                <div class="section-title">카테고리 거래내역{% if selected_category %} ({{ selected_category }}){% endif %}</div>
+                <div class="section-title">은행거래 세부내역{% if selected_category %} ({{ selected_category }}){% endif %}</div>
                 <table class="transaction-detail">
                     <thead>
                         <tr>
@@ -658,7 +658,7 @@
             </div>
         </div>
         <div class="section section-pie-wrap section-category-pie">
-            <div class="section-title">카테고리 원그래프</div>
+            <div class="section-title">은행거래 원그래프</div>
             {% set category_total_amount = category_stats|sum(attribute='입금액')|int + category_stats|sum(attribute='출금액')|int %}
             {% set cat_pie_colors = ['#0000FF', '#00AA00', '#FF8000', '#9C27B0', '#00BCD4', '#E91E63', '#009688'] %}
             {% set ns_cat = namespace(cum=0, segs=[]) %}

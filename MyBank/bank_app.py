@@ -30,63 +30,20 @@ app.config['JSON_AS_ASCII'] = False
 # 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-# category: MyInfo/info_category.xlsx 하나만 사용 (info_category_io로 읽기/쓰기)
-INFO_CATEGORY_PATH = str(Path(PROJECT_ROOT) / 'info_category.xlsx')
+# category: MyInfo/.source/category_table.json 하나만 사용 (category_table_io로 읽기/쓰기)
+CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 try:
-    from info_category_io import (
-        load_info_category, normalize_category_df, INFO_CATEGORY_COLUMNS,
+    from category_table_io import (
+        load_category_table, normalize_category_df, CATEGORY_TABLE_COLUMNS,
         get_category_table as _io_get_category_table,
         apply_category_action,
     )
 except ImportError:
-    def load_info_category(path, default_empty=True):
-        path = Path(path) if not isinstance(path, Path) else path
-        if not path or not path.exists(): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
-        return pd.read_excel(str(path), engine='openpyxl')
-    def normalize_category_df(df):
-        if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
-        df = df.copy().fillna(''); df = df.drop(columns=['구분'], errors='ignore')
-        for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
-        return df[['분류', '키워드', '카테고리']].copy()
-    INFO_CATEGORY_COLUMNS = ['분류', '키워드', '카테고리']
-
-    def _io_get_category_table(path):
-        cols = INFO_CATEGORY_COLUMNS
-        pe = bool(path and os.path.exists(path) and os.path.getsize(path) > 0)
-        if not pe: return (pd.DataFrame(columns=cols), False)
-        full = load_info_category(path, default_empty=True)
-        if full is None or full.empty: return (pd.DataFrame(columns=cols), pe)
-        df = normalize_category_df(full).fillna('')
-        for c in cols: df[c] = df[c] if c in df.columns else ''
-        return (df, pe)
-
-    def _n(v):
-        import unicodedata
-        if v is None or (isinstance(v, str) and not str(v).strip()): return '' if v is None else v
-        return unicodedata.normalize('NFKC', str(v).strip())
-    _VALID = ('전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '금전대부')
-
-    def apply_category_action(path, action, data):
-        try:
-            df, _ = _io_get_category_table(path)
-            df = df.fillna('')
-            if action == 'add':
-                v = _n(data.get('분류', '')).strip()
-                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
-                df = pd.concat([df, pd.DataFrame([{'분류': _n(data.get('분류','')), '키워드': _n(data.get('키워드','')), '카테고리': _n(data.get('카테고리',''))}])], ignore_index=True)
-            elif action == 'update':
-                o1, o2, o3 = data.get('original_분류',''), data.get('original_키워드',''), data.get('original_카테고리','')
-                v = _n(data.get('분류','')).strip()
-                if v and v not in _VALID: return (False, f'분류는 {", ".join(_VALID)}만 입력할 수 있습니다.', 0)
-                mask = (df['분류']==o1)&(df['키워드']==o2)&(df['카테고리']==o3)
-                if mask.any(): df.loc[mask, '분류'], df.loc[mask, '키워드'], df.loc[mask, '카테고리'] = v, _n(data.get('키워드','')), _n(data.get('카테고리',''))
-                else: return (False, '수정할 데이터를 찾을 수 없습니다.', 0)
-            elif action == 'delete':
-                df = df[~((df['분류']==data.get('original_분류',data.get('분류','')))&(df['키워드']==data.get('original_키워드',data.get('키워드','')))&(df['카테고리']==data.get('original_카테고리',data.get('카테고리',''))))]
-            else: return (False, f'unknown action: {action}', 0)
-            df.to_excel(str(path), index=False, engine='openpyxl')
-            return (True, None, len(df))
-        except Exception as e: return (False, str(e), 0)
+    from category_table_fallback import (
+        load_category_table, normalize_category_df, CATEGORY_TABLE_COLUMNS,
+        get_category_table as _io_get_category_table,
+        apply_category_action,
+    )
 # 원본 은행 파일: .source/Bank. before/after: MyBank 폴더
 SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
 BANK_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'bank_before.xlsx')
@@ -324,11 +281,11 @@ def get_source_files():
 @app.route('/api/processed-data')
 @ensure_working_directory
 def get_processed_data():
-    """전처리된 데이터 반환 (필터링 지원). bank_before/info_category만 준비, 카테고리 분류( bank_after 생성)는 하지 않음."""
+    """전처리된 데이터 반환 (필터링 지원). bank_before/category_table만 준비, 카테고리 분류( bank_after 생성)는 하지 않음."""
     try:
         output_path = Path(BANK_BEFORE_PATH)
         bank_before_existed = output_path.exists()  # 요청 시작 시 존재 여부 (이번 요청에서 생성됐으면 에러 문구 구분)
-        # bank_before, info_category만 준비 (bank_after 생성/카테고리분류는 하지 않음)
+        # bank_before, category_table만 준비 (bank_after 생성/카테고리분류는 하지 않음)
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -469,9 +426,9 @@ def get_processed_data():
 @app.route('/api/simya-ranges')
 @ensure_working_directory
 def get_simya_ranges():
-    """info_category.xlsx에서 분류=심야구분인 행의 키워드(시작/종료 hh:mm:ss)를 파싱하여 반환."""
+    """category_table.json에서 분류=심야구분인 행의 키워드(시작/종료 hh:mm:ss)를 파싱하여 반환."""
     try:
-        df = load_info_category(INFO_CATEGORY_PATH, default_empty=True)
+        df = load_category_table(CATEGORY_TABLE_PATH, default_empty=True)
         if df is None or df.empty or '분류' not in df.columns:
             return jsonify({'ranges': []})
         simya = df[df['분류'].fillna('').astype(str).str.strip() == '심야구분'].copy()
@@ -510,9 +467,9 @@ def get_simya_ranges():
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (필터링 지원). bank_before/info_category만 준비, bank_after는 생성하지 않음."""
+    """카테고리 적용된 데이터 반환 (필터링 지원). bank_before/category_table만 준비, bank_after는 생성하지 않음."""
     try:
-        # bank_before, info_category만 준비 (테이블/출력 시 카테고리 분류 미수행)
+        # bank_before, category_table만 준비 (테이블/출력 시 카테고리 분류 미수행)
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -723,12 +680,12 @@ def category():
     """카테고리 페이지"""
     return render_template('category.html')
 
-# 카테고리: MyInfo/info_category.xlsx 단일 테이블(구분 없음, 은행/신용카드 공통)
+# 카테고리: MyInfo/.source/category_table.json 단일 테이블(구분 없음, 은행/신용카드 공통)
 @app.route('/api/bank_category')
 @ensure_working_directory
 def get_category_table():
-    """info_category.xlsx 전체 반환 (구분 없음). 없으면 생성 후 반환."""
-    path = Path(INFO_CATEGORY_PATH)
+    """category_table.json 전체 반환 (구분 없음). 없으면 생성 후 반환."""
+    path = Path(CATEGORY_TABLE_PATH)
     try:
         _path_added = False
         try:
@@ -741,9 +698,15 @@ def get_category_table():
             if path.exists():
                 _pbd.migrate_bank_category_file(str(path))
         except Exception as _e:
-            _err = str(_e).lower()
-            if _is_bad_zip_error(_e) or 'zip' in _err or 'not a zip' in _err or 'badzip' in _err:
-                _backup_bad_xlsx(path, recreate_empty=['분류', '키워드', '카테고리'])
+            if str(path).endswith('.json'):
+                try:
+                    if path.exists() and path.stat().st_size > 0:
+                        shutil.copy2(str(path), str(path) + '.bak')
+                        path.unlink()
+                    from category_table_io import create_empty_category_table
+                    create_empty_category_table(str(path))
+                except Exception:
+                    pass
             else:
                 raise
         finally:
@@ -751,9 +714,16 @@ def get_category_table():
                 sys.path.remove(str(SCRIPT_DIR))
 
         df, file_existed = _io_get_category_table(str(path))
-        cols = INFO_CATEGORY_COLUMNS
+        cols = CATEGORY_TABLE_COLUMNS
         if file_existed and (df is None or df.empty) and path.exists() and path.stat().st_size > 0:
-            _backup_bad_xlsx(path, recreate_empty=cols)
+            if str(path).endswith('.json'):
+                try:
+                    shutil.copy2(str(path), str(path) + '.bak')
+                    path.unlink()
+                    from category_table_io import create_empty_category_table
+                    create_empty_category_table(str(path))
+                except Exception:
+                    pass
             df = pd.DataFrame(columns=cols)
         if len(df) == 0 and path.exists():
             _orig_cwd = os.getcwd()
@@ -782,8 +752,15 @@ def get_category_table():
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).lower()
-        if (_is_bad_zip_error(e) or 'zip' in err_msg or 'not a zip' in err_msg or 'bad zip' in err_msg or 'badzip' in err_msg):
-            _backup_bad_xlsx(path, recreate_empty=['분류', '키워드', '카테고리'])
+        if str(path).endswith('.json'):
+            try:
+                if path.exists() and path.stat().st_size > 0:
+                    shutil.copy2(str(path), str(path) + '.bak')
+                    path.unlink()
+                from category_table_io import create_empty_category_table
+                create_empty_category_table(str(path))
+            except Exception:
+                pass
             df = pd.DataFrame(columns=['분류', '키워드', '카테고리'])
             response = jsonify({
                 'data': df.to_dict('records'),
@@ -805,16 +782,16 @@ def get_category_table():
 @app.route('/api/bank_category', methods=['POST'])
 @ensure_working_directory
 def save_category_table():
-    """info_category.xlsx 전체 갱신 (구분 없음)"""
+    """category_table.json 전체 갱신 (구분 없음)"""
     try:
-        path = str(Path(INFO_CATEGORY_PATH))
+        path = str(Path(CATEGORY_TABLE_PATH))
         data = request.json or {}
         action = data.get('action', 'add')
         success, error_msg, count = apply_category_action(path, action, data)
         if not success:
             return jsonify({'success': False, 'error': error_msg}), 400
         try:
-            from info_category_defaults import sync_category_create_from_xlsx
+            from category_table_defaults import sync_category_create_from_xlsx
             sync_category_create_from_xlsx(path)
         except Exception:
             pass
@@ -1761,7 +1738,7 @@ def generate_category():
                 sys.path.insert(0, _dir_str)
                 _path_added = True
             import process_bank_data as _pbd
-            _pbd.ensure_bank_before_and_category()  # bank_before, info_category 준비 (생성 시에만 카테고리 분류)
+            _pbd.ensure_bank_before_and_category()  # bank_before, category_table 준비 (생성 시에만 카테고리 분류)
             # 이미 bank_after.xlsx가 있으면 .bak으로 복사 후 새로 생성
             output_path = Path(BANK_AFTER_PATH)
             if output_path.exists() and output_path.stat().st_size > 0:

@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-info_category 기본 규칙 로드.
+category_table 기본 규칙 로드.
 category_create.md 파싱 또는 코드 기본값 반환.
 domain: 'bank' | 'cash' | 'card'
 """
 import os
 import re
 
+try:
+    from category_constants import CATEGORY_TABLE_COLUMNS
+except ImportError:
+    CATEGORY_TABLE_COLUMNS = ['분류', '키워드', '카테고리']
+
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '.'))
-CATEGORY_CREATE_MD = os.path.join(PROJECT_ROOT, 'category_create.md')
+CATEGORY_CREATE_MD = os.path.join(PROJECT_ROOT, '.source', 'category_create.md')
 
 # md 파싱 실패 시 사용할 코드 기본값
 _DEFAULT_PREPOST = [
@@ -85,24 +90,7 @@ _DEFAULT_ACCOUNT_RULES = [
     {'분류': '계정과목', '키워드': '신한은행/하나은행/신한카드/리볼빙', '카테고리': '현금처리'},
 ]
 
-_DEFAULT_INDUSTRY_RULES = [
-    {'분류': '업종분류', '키워드': '369101', '카테고리': '귀금속및관련제품제조업'},
-    {'분류': '업종분류', '키워드': '512293', '카테고리': '복권발행및판매업'},
-    {'분류': '업종분류', '키워드': '513934', '카테고리': '시계및귀금속제품도매업'},
-    {'분류': '업종분류', '키워드': '522082/924906', '카테고리': '복권발행및판매업'},
-    {'분류': '업종분류', '키워드': '924917', '카테고리': '기타사행시설관리및운영업'},
-    {'분류': '업종분류', '키워드': '552201/552202/552203/552204/552206', '카테고리': '일반유흥주점업'},
-    {'분류': '업종분류', '키워드': '552207/552208/552209/552210/552211/552211/552211', '카테고리': '기타주점업'},
-    {'분류': '업종분류', '키워드': '513942/523931', '카테고리': '운동및경기용품도매업'},
-    {'분류': '업종분류', '키워드': '551001', '카테고리': '호텔업'},
-    {'분류': '업종분류', '키워드': '621000', '카테고리': '항공여객운송업'},
-    {'분류': '업종분류', '키워드': '621001', '카테고리': '항공화물운송업'},
-    {'분류': '업종분류', '키워드': '630101', '카테고리': '항공및육상화물취급업'},
-    {'분류': '업종분류', '키워드': '921904', '카테고리': '무도장운영업'},
-    {'분류': '업종분류', '키워드': '924303', '카테고리': '골프장운영업'},
-    {'분류': '업종분류', '키워드': '924307', '카테고리': '골프연습장운영업'},
-    {'분류': '업종분류', '키워드': '924308', '카테고리': '골프연습장운영업'},
-]
+# 업종분류: 카테고리테이블에서 미사용(linkage_table.json으로만 적용). 기본값 제거.
 
 # 가상자산 거래소 (분류=가상자산, 키워드=회사명/서비스명, 카테고리=사업자번호)
 _DEFAULT_VIRTUAL_ASSET_RULES = [
@@ -161,7 +149,7 @@ def _parse_md_table(lines):
             if parts[0] == '분류' or '분류' in parts:
                 cols = parts
                 continue
-            cols = ['분류', '키워드', '카테고리']
+            cols = CATEGORY_TABLE_COLUMNS
         # 구분선 행 스킵 (|---|-----| 형태)
         if parts[0] and all(c in '-:' for c in str(parts[0])):
             continue
@@ -205,35 +193,33 @@ def _parse_category_create_md(path=None):
     return sections
 
 
-def get_precedence_rules():
-    """카드 가맹점명 선매칭용 3건 (파리바게뜨/씨유/이마트 등). apply_category_from_merchant에서 사용."""
-    return [
-        {'분류': '계정과목', '키워드': '파리바게뜨/베이커리', '카테고리': '외식/회식/간식'},
-        {'분류': '계정과목', '키워드': '씨유/CU', '카테고리': '기타잡비'},
-        {'분류': '계정과목', '키워드': '(주)이마트/롯데마트/식자재/이마트', '카테고리': '주식비/부식비'},
-    ]
-
-
 def sync_category_create_from_xlsx(category_xlsx_path, md_path=None):
-    """info_category.xlsx 내용을 category_create.md에 반영. 입력/수정/삭제 후 호출."""
+    """category_table.json(.xlsx) 내용을 category_create.md에 반영. 입력/수정/삭제 후 호출."""
     try:
         import pandas as pd
         path = md_path or CATEGORY_CREATE_MD
         if not category_xlsx_path or not os.path.exists(category_xlsx_path):
             return False
-        df = pd.read_excel(category_xlsx_path, engine='openpyxl')
+        if str(category_xlsx_path).lower().endswith('.json'):
+            import json
+            with open(category_xlsx_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            df = pd.DataFrame(data) if data else pd.DataFrame()
+        else:
+            df = pd.read_excel(category_xlsx_path, engine='openpyxl')
         if df is None or df.empty:
             return False
-        for c in ['분류', '키워드', '카테고리']:
+        for c in CATEGORY_TABLE_COLUMNS:
             if c not in df.columns:
                 df[c] = ''
         df = df.fillna('').astype(str)
+        # 카테고리테이블에서는 업종분류 미사용 — md에 반영하지 않음
+        df = df[df['분류'].astype(str).str.strip() != '업종분류'].copy()
         # 섹션 매핑: 분류 -> md 헤더
         section_map = {
             '전처리': '전처리/후처리 (bank, cash 공통)',
             '후처리': '전처리/후처리 (bank, cash 공통)',
             '계정과목': '계정과목 (bank, card)',
-            '업종분류': '업종분류 (card 전용)',
             '가상자산': '가상자산',
             '증권투자': '증권투자',
             '해외송금': '해외송금',
@@ -259,9 +245,9 @@ def sync_category_create_from_xlsx(category_xlsx_path, md_path=None):
             sections['전처리/후처리 (bank, cash 공통)'] = rows
         # md 생성
         lines = [
-            '# info_category 기본 규칙',
+            '# category_table 기본 규칙',
             '',
-            '은행거래·금융정보·신용카드 공통 info_category.xlsx 생성 시 사용.',
+            '은행거래·금융정보·신용카드 공통 category_table.json 생성 시 사용.',
             'create_category_table(bank/cash/card) 호출 시 이 파일 또는 코드 기본값을 참조.',
             '',
             '---',
@@ -270,7 +256,6 @@ def sync_category_create_from_xlsx(category_xlsx_path, md_path=None):
         order = [
             '전처리/후처리 (bank, cash 공통)',
             '계정과목 (bank, card)',
-            '업종분류 (card 전용)',
             '가상자산', '증권투자', '해외송금', '심야구분',
         ]
         for header in order:
@@ -315,13 +300,12 @@ def get_default_rules(domain, md_path=None):
     domain별 기본 규칙 반환.
     - bank: 전처리/후처리 + 계정과목
     - cash: 전처리/후처리만
-    - card: 계정과목 + 업종분류
+    - card: 계정과목 + 가상자산/금전대부/증권투자 (업종분류는 카테고리테이블 미사용)
     """
     sections = _parse_category_create_md(md_path)
     result = []
     prepost = sections.get('전처리/후처리 (bank, cash 공통)', sections.get('전처리/후처리', []))
     account = sections.get('계정과목 (bank, card)', sections.get('계정과목', []))
-    industry = sections.get('업종분류 (card 전용)', sections.get('업종분류', []))
     if not prepost:
         prepost = _DEFAULT_PREPOST
     if domain == 'bank':
@@ -331,7 +315,6 @@ def get_default_rules(domain, md_path=None):
         result.extend(prepost)
     elif domain == 'card':
         result.extend(account if account else _DEFAULT_ACCOUNT_RULES)
-        result.extend(industry if industry else _DEFAULT_INDUSTRY_RULES)
         result.extend(_DEFAULT_VIRTUAL_ASSET_RULES)
         result.extend(_DEFAULT_LOAN_RULES)
         result.extend(_DEFAULT_SECURITIES_RULES)

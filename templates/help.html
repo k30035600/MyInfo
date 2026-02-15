@@ -73,7 +73,7 @@
         <div class="help-section" id="overview">
             <h2>1. 개요</h2>
             <p>금융거래 통합정보(MyInfo)는 <strong>은행거래 통합정보(MyBank)</strong>, <strong>신용카드 통합정보(MyCard)</strong>, <strong>금융정보 종합분석(MyCash)</strong> 세 서비스를 한곳에서 제공하는 웹 기반 시스템입니다. 은행·신용카드 거래 내역을 전처리, 카테고리 분류, 기본·고급 분석을 통해 통합 관리하고 종합 분석할 수 있습니다.</p>
-            <p>공통 사용 순서는 <strong>전처리 → 카테고리 분류 → 분석</strong>입니다. <strong>.source</strong> 아래 xls/xlsx는 <strong>클라이언트용</strong> 원본·업로드 데이터이고, category·before·after 관련 xlsx는 <strong>서버에서 사용</strong>합니다. 원본은 <strong>MyInfo/.source/Bank</strong>(은행·금융), <strong>MyInfo/.source/Card</strong>(카드)에 두고, *_before·*_after는 <strong>MyInfo/.source</strong>에, 카테고리 규칙은 <strong>MyInfo/info_category.xlsx</strong> 하나만 사용합니다.</p>
+            <p>공통 사용 순서는 <strong>전처리 → 카테고리 분류 → 분석</strong>입니다. <strong>.source</strong> 아래 xls/xlsx는 <strong>클라이언트용</strong> 원본·업로드 데이터이고, category·before·after 관련 xlsx는 <strong>서버에서 사용</strong>합니다. 원본은 <strong>MyInfo/.source/Bank</strong>(은행·금융), <strong>MyInfo/.source/Card</strong>(카드)에 두고, *_before·*_after는 <strong>MyInfo/.source</strong>에, 카테고리 규칙은 <strong>MyInfo/category_table.json</strong> 하나만 사용합니다.</p>
         </div>
 
         <div class="help-section" id="system">
@@ -99,7 +99,7 @@ python app.py</div>
             <h2>4. 프로젝트 폴더 구조</h2>
             <ul>
                 <li><strong>MyInfo (루트)</strong>: app.py(통합 서버), start-server.bat, start-server.ps1, requirements.txt, VERSION, templates/(메인 템플릿) 등.</li>
-                <li><strong>MyInfo/.source/Bank</strong>: 은행·금융 원본(.xls, .xlsx, 클라이언트용). <strong>MyInfo/.source</strong>: bank_before.xlsx, bank_after.xlsx, cash_*.xlsx, card_*.xlsx(서버 사용). 카테고리: <strong>MyInfo/info_category.xlsx</strong>만 사용. <strong>MyBank</strong>: bank_app.py, process_bank_data.py, templates/.</li>
+                <li><strong>MyInfo/.source/Bank</strong>: 은행·금융 원본(.xls, .xlsx, 클라이언트용). <strong>MyInfo/.source</strong>: bank_before.xlsx, bank_after.xlsx, cash_*.xlsx, card_*.xlsx(서버 사용). 카테고리: <strong>MyInfo/category_table.json</strong>만 사용. <strong>MyBank</strong>: bank_app.py, process_bank_data.py, templates/.</li>
                 <li><strong>MyInfo/.source/Card</strong>: 카드 원본(.xls, .xlsx). <strong>MyCard</strong>: card_app.py, process_card_data.py, templates/.</li>
                 <li><strong>MyCash</strong>: cash_app.py, process_cash_data.py, templates/. (금융 원본은 .source/Bank, 결과 파일은 Source/ 사용)</li>
             </ul>
@@ -110,7 +110,7 @@ python app.py</div>
             <h3>1단계: 전처리</h3>
             <p><strong>은행·금융</strong> 원본은 <strong>MyInfo/.source/Bank</strong>에, <strong>카드</strong> 원본은 <strong>MyInfo/.source/Card</strong>에 넣습니다. 파일명에 은행명 또는 카드사명이 포함되어야 인식됩니다. 전처리 페이지에서 "전처리 실행"을 클릭하면 MyInfo/.source에 *_before.xlsx가 생성·갱신됩니다.</p>
             <h3>2단계: 카테고리</h3>
-            <p>카테고리 페이지에서 "카테고리 생성"으로 <strong>info_category.xlsx</strong> 규칙을 만든 뒤, 필요 시 키워드·카테고리를 수정합니다. "카테고리 적용"을 실행하면 *_after.xlsx가 생성·갱신됩니다.</p>
+            <p>카테고리 페이지에서 "카테고리 생성"으로 <strong>category_table.json</strong> 규칙을 만든 뒤, 필요 시 키워드·카테고리를 수정합니다. "카테고리 적용"을 실행하면 *_after.xlsx가 생성·갱신됩니다.</p>
             <h3>3단계: 분석</h3>
             <p>기본분석 페이지에서 전체 통계, 적요/가맹점별·월별·은행/카드사별 집계, 차트를 확인합니다. 상단 "은행명" 또는 "카드사" 필터와 "📄 출력" 버튼으로 인쇄용 뷰를 만들 수 있습니다.</p>
         </div>
@@ -119,7 +119,7 @@ python app.py</div>
             <h2>6. 주요 기능 상세</h2>
             <div class="feature-list">
                 <div class="feature-card"><h4>📊 전처리</h4><p>여러 은행·카드사의 거래 내역을 하나의 표준 형식으로 통합합니다. MyInfo/.source/Bank 또는 .source/Card의 .xls/.xlsx를 읽어 MyInfo/.source에 bank_before.xlsx(은행), cash_before.xlsx(금융통합), card_before.xlsx(카드)를 저장합니다. 은행은 거래일·적요·입출금·은행명·계좌 등, 카드는 이용일·가맹점명·이용금액·카드사 등으로 컬럼이 통일됩니다.</p></div>
-                <div class="feature-card"><h4>🏷️ 카테고리</h4><p>키워드 기반 자동 분류로 거래를 카테고리별로 정리합니다. 은행·신용카드 공통: 전처리, 후처리, 계정과목, 업종분류 등 (거래방법/거래지점 미사용) 등 분류와 키워드→카테고리 매핑을 관리하고, "카테고리 적용" 시 *_after.xlsx를 생성합니다.</p></div>
+                <div class="feature-card"><h4>🏷️ 카테고리</h4><p>키워드 기반 자동 분류로 거래를 카테고리별로 정리합니다. 은행·신용카드 공통: 전처리, 후처리, 계정과목 등 (거래방법/거래지점 미사용) 등 분류와 키워드→카테고리 매핑을 관리하고, "카테고리 적용" 시 *_after.xlsx를 생성합니다.</p></div>
                 <div class="feature-card"><h4>📈 기본분석</h4><p>전체 통계, 입출금 추이, 적요/가맹점별·월별·은행/계좌별 또는 카드사/카드별 집계, 막대·파이 차트를 통해 거래 패턴을 한눈에 파악합니다. 페이지 상단 필터와 "📄 출력" 버튼으로 범위 지정 및 인쇄가 가능합니다.</p></div>
             </div>
         </div>
@@ -127,11 +127,11 @@ python app.py</div>
         <div class="help-section" id="services">
             <h2>7. 서비스별 요약</h2>
             <h3>은행거래 통합정보 (MyBank)</h3>
-            <p>지원 은행: <strong>국민은행, 신한은행, 하나은행</strong>. 파일명에 은행명이 포함되어야 인식합니다. 전처리 결과는 <strong>bank_before.xlsx</strong>, 카테고리 규칙은 <strong>info_category.xlsx</strong>(은행거래 구분), 카테고리 적용 후 최종 데이터는 <strong>bank_after.xlsx</strong>입니다. before→after 생성 시 category 전처리/후처리를 적용합니다. 기본분석은 bank_after.xlsx를 사용합니다. 상세 사용법은 <a href="/bank/help">은행거래 도움말</a>을 참고하세요.</p>
+            <p>지원 은행: <strong>국민은행, 신한은행, 하나은행</strong>. 파일명에 은행명이 포함되어야 인식합니다. 전처리 결과는 <strong>bank_before.xlsx</strong>, 카테고리 규칙은 <strong>category_table.json</strong>(은행거래 구분), 카테고리 적용 후 최종 데이터는 <strong>bank_after.xlsx</strong>입니다. before→after 생성 시 category 전처리/후처리를 적용합니다. 기본분석은 bank_after.xlsx를 사용합니다. 상세 사용법은 <a href="/bank/help">은행거래 도움말</a>을 참고하세요.</p>
             <h3>금융정보 종합분석 (MyCash)</h3>
-            <p>은행·신용카드 거래를 하나로 모아 통합 관리합니다. 전처리 결과는 <strong>cash_before.xlsx</strong>, 카테고리 규칙은 <strong>info_category.xlsx</strong>(금융정보 구분), 카테고리 적용 후 최종 데이터는 <strong>cash_after.xlsx</strong>입니다. before→after 시 category 전처리/후처리 적용. 상세 사용법·카테고리 체계·문제 해결은 <a href="/cash/help">금융거래 고급분석</a>을 참고하세요.</p>
+            <p>은행·신용카드 거래를 하나로 모아 통합 관리합니다. 전처리 결과는 <strong>cash_before.xlsx</strong>, 카테고리 규칙은 <strong>category_table.json</strong>(금융정보 구분), 카테고리 적용 후 최종 데이터는 <strong>cash_after.xlsx</strong>입니다. before→after 시 category 전처리/후처리 적용. 상세 사용법·카테고리 체계·문제 해결은 <a href="/cash/help">금융거래 고급분석</a>을 참고하세요.</p>
             <h3>신용카드 통합정보 (MyCard)</h3>
-            <p>지원 카드사: <strong>국민카드, 신한카드, 현대카드, 하나카드</strong>. 파일명 형식은 <code>카드사_기타.xlsx</code>(예: 신한카드_김찬식_2024.xlsx)이며, 첫 번째 밑줄 앞이 카드사명으로 사용됩니다. 전처리 결과는 <strong>card_before.xlsx</strong>, 카테고리 규칙은 <strong>info_category.xlsx</strong>(신용카드 구분), 카테고리 적용 후 최종 데이터는 <strong>card_after.xlsx</strong>입니다. 상세 내용은 <a href="/card/help">신용카드 도움말</a>을 참고하세요.</p>
+            <p>지원 카드사: <strong>국민카드, 신한카드, 현대카드, 하나카드</strong>. 파일명 형식은 <code>카드사_기타.xlsx</code>(예: 신한카드_김찬식_2024.xlsx)이며, 첫 번째 밑줄 앞이 카드사명으로 사용됩니다. 전처리 결과는 <strong>card_before.xlsx</strong>, 카테고리 규칙은 <strong>category_table.json</strong>(신용카드 구분), 카테고리 적용 후 최종 데이터는 <strong>card_after.xlsx</strong>입니다. 상세 내용은 <a href="/card/help">신용카드 도움말</a>을 참고하세요.</p>
         </div>
 
         <div class="help-section" id="pages">
@@ -151,7 +151,7 @@ python app.py</div>
             <h3>신용카드 전처리 (/card/)</h3>
             <ul><li>MyInfo/.source/Card에 .xls/.xlsx를 넣고 "전처리 실행"을 클릭합니다. 전처리 전·후 데이터 비교, <strong>카드사</strong>, <strong>년·월</strong> 필터를 사용할 수 있습니다.</li></ul>
             <h3>신용카드 카테고리 (/card/category)</h3>
-            <ul><li>카테고리 테이블(계정과목, 업종분류)을 관리하고, "카테고리 생성" → "카테고리 적용"으로 card_after.xlsx를 갱신합니다. 헤더의 "카드사" 필터와 "📄 출력" 버튼을 사용할 수 있습니다.</li></ul>
+            <ul><li>카테고리 테이블(계정과목 등)을 관리하고, "카테고리 생성" → "카테고리 적용"으로 card_after.xlsx를 갱신합니다. 헤더의 "카드사" 필터와 "📄 출력" 버튼을 사용할 수 있습니다.</li></ul>
             <h3>신용카드 기본분석 (/card/analysis/basic)</h3>
             <ul><li>전체 통계, 가맹점별·월별·카드사별 분석, 차트를 제공합니다. "카드사" 필터와 "📄 출력" 버튼으로 범위 지정 및 인쇄가 가능합니다.</li></ul>
         </div>
@@ -165,7 +165,7 @@ python app.py</div>
             <h3>데이터가 표시되지 않음</h3>
             <ul><li>MyInfo/.source/Bank 또는 .source/Card에 .xls/.xlsx가 있고, 파일명에 은행명/카드사명이 포함되는지 확인하세요.</li><li>전처리 후 bank_before.xlsx, cash_before.xlsx 또는 card_before.xlsx가 MyInfo/.source에 생성되었는지 확인하세요. 파일이 Excel 등에서 열려 있으면 읽기 실패할 수 있습니다.</li><li>브라우저 F12 → Console에서 오류 메시지를 확인하세요.</li></ul>
             <h3>카테고리가 적용되지 않음</h3>
-            <ul><li>MyInfo/info_category.xlsx가 있는지, "카테고리 생성"을 먼저 실행했는지 확인하세요.</li><li>*_after.xlsx를 Excel에서 열어둔 상태면 쓰기 오류가 날 수 있으니 파일을 닫고 다시 "카테고리 적용"을 실행하세요.</li></ul>
+            <ul><li>MyInfo/category_table.json가 있는지, "카테고리 생성"을 먼저 실행했는지 확인하세요.</li><li>*_after.xlsx를 Excel에서 열어둔 상태면 쓰기 오류가 날 수 있으니 파일을 닫고 다시 "카테고리 적용"을 실행하세요.</li></ul>
         </div>
 
         <div class="help-section" id="faq">

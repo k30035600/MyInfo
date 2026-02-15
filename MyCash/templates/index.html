@@ -812,6 +812,13 @@
             background-color: rgba(255, 152, 0, 0.1);
         }
 
+        /* 업종분류 조회 테이블: 너비 1.0 : 0.6 : 3.4 (20% : 12% : 68%), 말줄임 */
+        #linkage-query-table { table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse; }
+        #linkage-query-table th, #linkage-query-table td { padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 20%; }
+        #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 12%; }
+        #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 68%; }
+
         /* 전처리전/전처리후/카테고리조회 테이블: 행 높이 동일 (padding, line-height 통일) */
         #source-data-table th, #source-data-table td,
         #processed-data-table th, #processed-data-table td,
@@ -1376,7 +1383,6 @@
                         <div class="box-header-row">
                             <div class="box-header-left">
                                 <div class="box-title">은행거래</div>
-                                <span id="left-workspace-path" class="header-workspace-folder path-filename-text" style="margin-left: 8px;">bank_after.xlsx</span>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1413,7 +1419,6 @@
                         <div class="box-header-row">
                             <div class="box-header-left">
                                 <div class="box-title">신용카드</div>
-                                <span id="right-work-file" class="header-work-file path-filename-text" style="margin-left: 8px;">card_after.xlsx</span>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1460,101 +1465,38 @@
         </div>
     </div>
     
-    <!-- 카테고리 테이블, 카테고리 조회, 카테고리 그래프 (단일 컨테이너) -->
+    <!-- 금융정보: 업종분류 조회 + 금융정보(카테고리) 조회 + 금융정보(카테고리) 그래프 (신용카드 전처리와 동일 너비/높이) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
+            <!-- 좌측: 업종분류 조회 (신용카드 전처리 카테고리 테이블과 동일 25%, 높이 600px) -->
             <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <h2 style="margin: 0;">카테고리 테이블</h2>
-                        <div class="path-filename-text" style="margin-left: 10px;"><span>info_category.xlsx</span></div>
-                    </div>
-                    <button id="export-bank_category-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
+                    <h2 style="margin: 0;">업종분류 조회</h2>
+                    <div class="path-filename-text" style="font-size: 14px; opacity: 0.5; margin-left: 10px;">linkage_table.json</div>
                 </div>
-                <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 600px; max-height: 600px; min-height: 600px; flex: none; position: relative;">
-                    <table id="category-definition-table" style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                    <thead style="position: sticky; top: 0; background-color: #f5f5f5;">
-                        <tr>
-                            <th style="text-align: left; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">분류</th>
-                            <th style="text-align: left; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">키워드</th>
-                            <th style="text-align: left; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">카테고리</th>
-                        </tr>
-                        <tr style="background-color: #f9f9f9;">
-                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
-                                <select id="new-category-chasu" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
-                                    <option value="">전체</option>
-                                    <option value="입력">입력</option>
-                                    <option value="수정">수정</option>
-                                    <option value="삭제">삭제</option>
-                                    <option value="전처리">전처리</option>
-                                    <option value="후처리">후처리</option>
-                                    <option value="심야구분">심야구분</option>
-                                    <option value="계정과목">계정과목</option>
-                                    <option value="업종분류">업종분류</option>
-                                    <option value="신용카드">신용카드</option>
-                                    <option value="가상자산">가상자산</option>
-                                    <option value="증권투자">증권투자</option>
-                                    <option value="해외송금">해외송금</option>
-                                </select>
-                            </td>
-                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
-                                <select id="new-category-keyword-filter" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
-                                    <option value="">전체</option>
-                                </select>
-                            </td>
-                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
-                                <select id="new-category-name-filter" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px;">
-                                    <option value="">전체</option>
-                                </select>
-                            </td>
-                        </tr>
-                        <tr style="background-color: #f9f9f9;">
-                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
-                                <select id="new-category-chasu-input" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box;">
-                                    <option value="" selected>분류선택</option>
-                                    <option value="계정과목">계정과목</option>
-                                    <option value="전처리">전처리</option>
-                                    <option value="후처리">후처리</option>
-                                    <option value="업종분류">업종분류</option>
-                                    <option value="신용카드">신용카드</option>
-                                    <option value="가상자산">가상자산</option>
-                                    <option value="증권투자">증권투자</option>
-                                    <option value="해외송금">해외송금</option>
-                                    <option value="심야구분">심야구분</option>
-                                </select>
-                            </td>
-                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
-                                <input type="text" id="new-category-keyword-input" placeholder="키워드 직접 입력" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box;">
-                            </td>
-                            <td style="border: 1px solid #ddd; padding: 2px 2px;">
-                                <input type="text" id="new-category-name-input" placeholder="카테고리 직접 입력" style="padding: 1px 2px; width: 100%; font-size: 11px; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box;">
-                            </td>
-                        </tr>
-                    </thead>
-                    <tbody id="category-definition-table-body">
-                        <tr>
-                            <td colspan="3" class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td>
-                        </tr>
-                    </tbody>
-                    </table>
+                <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 600px; max-height: 600px; min-height: 600px; flex: none; position: relative;">
+                    <div id="linkage-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
+                        <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
+                    </div>
                 </div>
             </div>
+            <!-- 우측: 금융정보(카테고리) 조회 + 금융정보(카테고리) 그래프 (신용카드 전처리와 동일 75%, 조회 300px·그래프 250px) -->
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <h2 style="margin: 0;">카테고리 조회</h2>
-                            <div class="path-filename-text" style="margin-left: 10px;"><span>cash_after.xlsx</span></div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(카테고리) 조회</h2>
                         </div>
+                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()">cash_after.xlsx 생성</button>
                     </div>
-                    <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
+                    <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
                             <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
                         </div>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column;">
-                    <h2>카테고리 그래프</h2>
+                    <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(카테고리) 그래프</h2>
                     <div class="chart-container" style="height: 250px; max-height: 250px;">
                         <canvas id="category-combined-chart"></canvas>
                     </div>
@@ -2467,8 +2409,8 @@
                 }
             });
             
-            // 카테고리 테이블, 카테고리 조회, 카테고리 그래프 로드
-            loadCategoryDefinitionTable();
+            // 금융정보: 업종분류 카테고리 + 카테고리 조회 + 카테고리 그래프 (bank+card와 동일)
+            loadLinkageTable();
             loadCategoryQueryTable();
         });
         
@@ -2500,8 +2442,9 @@
         // 차트 변수
         let categoryCombinedChart = null;
         
-        // 카테고리 테이블 로드
+        // 카테고리 테이블 로드 (금융정보 페이지에는 해당 DOM 없음 → no-op)
         async function loadCategoryDefinitionTable() {
+            if (!document.getElementById('category-definition-table-body')) return;
             try {
                 const response = await fetch(`${API_BASE}/api/bank_category`);
                 const data = await response.json().catch(() => ({}));
@@ -2527,7 +2470,7 @@
                         updatedBtn.style.background = '#FF9800';
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
-                    const fileErr = (data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'category_table.json 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -2559,7 +2502,7 @@
                 
                 if (!data.data || data.data.length === 0) {
                     document.getElementById('category-definition-table-body').innerHTML = 
-                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666; white-space: normal;">카테고리 데이터가 없습니다.</td></tr>';
                     allCategoryTableData = [];
                     return;
                 }
@@ -2587,7 +2530,7 @@
             }
         }
         
-        // info_category.xlsx 파일 생성 함수
+        // category_table.json 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-bank_category-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -2609,10 +2552,10 @@
                 clearTimeout(timeoutId);
                 const result = await response.json().catch(() => ({}));
                 if (result.success) {
-                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`category_table.json 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${(result.error || 'info_category.xlsx 파일 생성 실패').replace(/\n/g, ' ')}`);
+                    alert(`오류: ${(result.error || 'category_table.json 파일 생성 실패').replace(/\n/g, ' ')}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -2622,7 +2565,7 @@
             } catch (error) {
                 console.error('Error generating category table:', error);
                 const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '오류가 발생했습니다.';
-                alert('info_category.xlsx 파일 생성 중 오류: ' + msg);
+                alert('category_table.json 파일 생성 중 오류: ' + msg);
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -2677,11 +2620,16 @@
             }
         }
 
-        // 카테고리 테이블 렌더링 (필터 적용)
+        // 카테고리 테이블 렌더링 (필터 적용). 금융정보 페이지에는 해당 DOM 없음 → no-op
         function renderCategoryDefinitionTable() {
-            const chasuFilter = document.getElementById('new-category-chasu').value;
-            const keywordFilter = document.getElementById('new-category-keyword-filter').value;
-            const categoryFilter = document.getElementById('new-category-name-filter').value;
+            const tbody = document.getElementById('category-definition-table-body');
+            if (!tbody) return;
+            const chasuEl = document.getElementById('new-category-chasu');
+            const chasuFilter = chasuEl ? chasuEl.value : '';
+            const kwEl = document.getElementById('new-category-keyword-filter');
+            const catEl = document.getElementById('new-category-name-filter');
+            const keywordFilter = kwEl ? kwEl.value : '';
+            const categoryFilter = catEl ? catEl.value : '';
             
             let filteredData = allCategoryTableData;
             
@@ -2707,8 +2655,7 @@
             if (categorySelect) updateCategoryFilterBackground(categorySelect);
             
             if (filteredData.length === 0) {
-                document.getElementById('category-definition-table-body').innerHTML = 
-                    '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666; white-space: normal;">카테고리 데이터가 없습니다.</td></tr>';
                 updateDropdownOptions();
                 return;
             }
@@ -2753,16 +2700,16 @@
                 </tr>`;
             });
             
-            document.getElementById('category-definition-table-body').innerHTML = tableHtml;
+            tbody.innerHTML = tableHtml;
             updateDropdownOptions();
         }
 
         // 분류 입력 검증 (전처리/후처리/계정과목만, 거래방법/거래지점 미사용)
-        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
         function validateChasuInput(input) {
             const value = (input.value || '').toString().trim();
             if (value && !VALID_CHASU_VALUES.includes(value)) {
-                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
                 if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
@@ -2771,9 +2718,13 @@
 
         // 입력 필드 활성화/비활성화
         function toggleInputFields(enable) {
-            document.getElementById('new-category-chasu-input').disabled = !enable;
-            document.getElementById('new-category-keyword-input').disabled = !enable;
-            document.getElementById('new-category-name-input').disabled = !enable;
+            const a = document.getElementById('new-category-chasu-input');
+            const b = document.getElementById('new-category-keyword-input');
+            const c = document.getElementById('new-category-name-input');
+            if (!a || !b || !c) return;
+            a.disabled = !enable;
+            b.disabled = !enable;
+            c.disabled = !enable;
         }
 
         // 선택된 행 정보 저장
@@ -2894,7 +2845,7 @@
             }
             
             if (!VALID_CHASU_VALUES.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -3024,6 +2975,47 @@
             printWindow.document.close();
         }
         
+        // 업종분류 카테고리 테이블 로드 (linkage_table.json, 카테고리 조회와 동일 스타일)
+        async function loadLinkageTable() {
+            const contentEl = document.getElementById('linkage-query-content');
+            if (!contentEl) return;
+            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            try {
+                const response = await fetch(`${API_BASE}/api/linkage-table`);
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const err = (result.error || '로딩 실패').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">' + err + '</div>';
+                    return;
+                }
+                const data = result.data || [];
+                const cols = ['업종분류', '리스크', '업종코드_업종코드세세분류'];
+                if (data.length === 0) {
+                    contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">업종분류 데이터가 없습니다. .source/linkage_table.xlsx를 넣고 새로고침하세요.</div>';
+                    return;
+                }
+                let html = '<table id="linkage-query-table" style="background-color: white;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;"><tr>';
+                cols.forEach(c => { html += '<th style="text-align: center; border: 1px solid #ddd;">' + c + '</th>'; });
+                html += '</tr></thead><tbody>';
+                data.forEach((row, i) => {
+                    const isEven = i % 2 === 1;
+                    const bg = isEven ? ' background-color: rgba(33, 150, 243, 0.08);' : '';
+                    html += '<tr style="' + bg + '">';
+                    cols.forEach((c, j) => {
+                        const align = j === 2 ? 'left' : 'center';
+                        const v = (row[c] != null && row[c] !== '') ? String(row[c]) : '';
+                        html += '<td style="text-align: ' + align + '; border: 1px solid #ddd;" title="' + v.replace(/"/g, '&quot;') + '">' + (v.replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</td>';
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                contentEl.innerHTML = html;
+            } catch (e) {
+                console.error('loadLinkageTable error:', e);
+                contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">업종분류 카테고리 로딩 오류</div>';
+            }
+        }
+
         // 카테고리 조회 테이블 로드 (전처리후 은행/계좌에 따라 필터링, 드롭다운 모두 전체이면 전처리후와 연동)
         async function loadCategoryQueryTable() {
             const btn = document.getElementById('generate-category-btn');

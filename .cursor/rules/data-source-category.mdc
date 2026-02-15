@@ -1,5 +1,5 @@
 ---
-description: .source=클라이언트, category/before/after=서버, category는 info_category.xlsx만 사용
+description: .source=클라이언트·카테고리, category_table.json·category_create.md는 MyInfo/.source 사용
 alwaysApply: true
 ---
 
@@ -12,7 +12,9 @@ alwaysApply: true
 
 ## 서버에서 사용하는 xlsx (경로)
 
-- **카테고리**: **MyInfo/info_category.xlsx** 한 파일만 사용 (은행·신용카드·금융정보 공통).
+- **카테고리·기본 규칙**: **MyInfo/.source** 폴더를 사용합니다.
+  - **category_table.json**: **MyInfo/.source/category_table.json** 한 파일만 사용 (은행·신용카드·금융정보 공통).
+  - **category_create.md**: **MyInfo/.source/category_create.md** — category_table 기본 규칙 파싱용.
 - **before / after** 파일은 **각 앱 폴더**에 둡니다.
   - **은행거래**: `MyBank/` — `bank_before.xlsx`, `bank_after.xlsx`
   - **신용카드**: `MyCard/` — `card_before.xlsx`, `card_after.xlsx`
@@ -23,19 +25,19 @@ alwaysApply: true
   - 금융정보: **.source/Cash**
   - Git에는 **.source/** 전체를 포함하지 않습니다.
 
-## info_category.xlsx 읽기/쓰기 통합 (info_category_io.py)
+## category_table.json 읽기/쓰기 통합 (category_table_io.py)
 
-- **MyInfo/info_category_io.py**에서 읽기/쓰기 기능을 일관되게 제공합니다.
-- `load_info_category(path)`: 안전한 읽기 (손상된 zip 시 빈 DataFrame 반환)
-- `create_empty_info_category(path)`: 빈 [분류, 키워드, 카테고리] 생성·저장 (기존 있으면 보존)
+- **MyInfo/category_table_io.py**에서 읽기/쓰기 기능을 일관되게 제공합니다.
+- `load_category_table(path)`: 안전한 읽기 (JSON, 손상 시 빈 DataFrame 반환)
+- `create_empty_category_table(path)`: 빈 [분류, 키워드, 카테고리] 생성·저장 (기존 있으면 보존)
 - `normalize_category_df(df)`: 구분 제거, 표준 컬럼 보장, fillna
-- `INFO_CATEGORY_COLUMNS`, `safe_write_info_category_xlsx`
+- `CATEGORY_TABLE_COLUMNS`, `safe_write_category_table`
 - process_bank_data, process_card_data, process_cash_data, bank_app, card_app, cash_app는 모두 이 모듈을 사용합니다.
 
-## info_category.xlsx 생성·읽기 순서
+## category_table.json 생성·읽기 순서
 
-- **info_category.xlsx는 bank_before, card_before, cash_before 파일 생성·읽기 후에만** 생성·읽기를 시도합니다.
-- 앱 로드 시점에 빈 info_category를 생성하지 않습니다. 각 모듈(ensure_all_bank_files, ensure_all_cash_files, card 전처리)에서 before 파일을 먼저 확보한 뒤 info_category를 생성·갱신합니다.
+- **category_table.json는 bank_before, card_before, cash_before 파일 생성·읽기 후에만** 생성·읽기를 시도합니다.
+- 앱 로드 시점에 빈 category_table를 생성하지 않습니다. 각 모듈(ensure_all_bank_files, ensure_all_cash_files, card 전처리)에서 before 파일을 먼저 확보한 뒤 category_table를 생성·갱신합니다.
 
 ## 카테고리 파일 (상세)
 
@@ -46,5 +48,5 @@ alwaysApply: true
 ## before → after 생성 시
 
 - **before에서 after 파일을 만들 때는 반드시 category의 전처리/후처리를 수행**합니다.
-- MyBank·MyCash: `classify_and_save()`에서 `load_category_table()`(info_category.xlsx 은행거래/금융정보) 로드 후 `classify_2_chasu` 등으로 전처리·후처리 적용.
-- MyCard: card_after 생성 시 info_category.xlsx(신용카드) 규칙으로 가맹점명 기반 카테고리 적용.
+- MyBank·MyCash: `classify_and_save()`에서 `load_category_table()`(category_table.json 은행거래/금융정보) 로드 후 `classify_2_chasu` 등으로 전처리·후처리 적용.
+- MyCard: card_after 생성 시 category_table.json(신용카드) 규칙으로 가맹점명 기반 카테고리 적용.

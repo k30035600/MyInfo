@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""가상자산 회사 목록을 info_category.xlsx에 추가 (분류=가상자산)."""
+"""가상자산 회사 목록을 category_table.json에 추가 (분류=가상자산)."""
 import os
 import sys
 import pandas as pd
@@ -8,12 +8,12 @@ import pandas as pd
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-from info_category_io import (
-    load_info_category,
+from category_table_io import (
+    load_category_table,
     normalize_category_df,
-    safe_write_info_category_xlsx,
-    get_info_category_path,
-    INFO_CATEGORY_COLUMNS,
+    safe_write_category_table,
+    get_category_table_path,
+    CATEGORY_TABLE_COLUMNS,
 )
 
 # 분류, 키워드, 카테고리
@@ -48,17 +48,17 @@ VIRTUAL_ASSET_ROWS = [
 ]
 
 def main():
-    path = get_info_category_path(SCRIPT_DIR)
-    full = load_info_category(path, default_empty=True)
+    path = get_category_table_path(SCRIPT_DIR)
+    full = load_category_table(path, default_empty=True)
     if full is None:
-        full = pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
+        full = pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS)
     full = normalize_category_df(full)
 
-    new_df = pd.DataFrame(VIRTUAL_ASSET_ROWS, columns=INFO_CATEGORY_COLUMNS)
+    new_df = pd.DataFrame(VIRTUAL_ASSET_ROWS, columns=CATEGORY_TABLE_COLUMNS)
     key_cols = ['분류', '키워드', '카테고리']
     combined = pd.concat([full, new_df], ignore_index=True)
     combined = combined.drop_duplicates(subset=key_cols, keep='first')
-    safe_write_info_category_xlsx(path, combined)
+    safe_write_category_table(path, combined)
     print(f"저장 완료: {path} (가상자산 {len(VIRTUAL_ASSET_ROWS)}건 반영)")
 
 if __name__ == '__main__':

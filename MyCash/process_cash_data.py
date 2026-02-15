@@ -3,7 +3,7 @@
 process_cash_data.py — 금융정보(MyCash) 전용. (카드 관련 역할 없음)
 
 [역할]
-- 카테고리: MyInfo/info_category.xlsx(금융정보 구분) 사용
+- 카테고리: MyInfo/.source/category_table.json(금융정보 구분) 사용
 - cash_after.xlsx는 bank_after + card_after 병합으로만 생성(cash_app.merge_bank_card_to_cash_after).
 """
 import pandas as pd
@@ -36,31 +36,32 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
 # 금융정보 원본 업로드용: .source/Cash
 SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
-INFO_CATEGORY_FILE = os.path.join(os.environ.get('MYINFO_ROOT', PROJECT_ROOT), 'info_category.xlsx')
+CATEGORY_TABLE_FILE = os.path.join(os.environ.get('MYINFO_ROOT', PROJECT_ROOT), '.source', 'category_table.json')
 CASH_CATEGORY_LABEL = '금융정보'
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 try:
-    from info_category_defaults import get_default_rules
+    from category_table_defaults import get_default_rules
 except ImportError:
     get_default_rules = None
 try:
-    from info_category_io import (
-        safe_write_info_category_xlsx,
-        load_info_category,
-        create_empty_info_category,
+    from category_table_io import (
+        load_category_table,
         normalize_category_df,
         normalize_주식회사_for_match,
-        INFO_CATEGORY_COLUMNS,
+        CATEGORY_TABLE_COLUMNS,
     )
 except ImportError:
-    def safe_write_info_category_xlsx(path, df, engine='openpyxl'):
-        df.to_excel(path, index=False, engine=engine)
-    def load_info_category(path, default_empty=True):
+    import json as _json
+    def load_category_table(path, default_empty=True):
+        path = str(path).replace('.xlsx', '.json') if path else None
         if not path or not os.path.exists(path): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
-        return pd.read_excel(path, engine='openpyxl')
-    def create_empty_info_category(path):
-        pd.DataFrame(columns=['분류', '키워드', '카테고리']).to_excel(path, index=False, engine='openpyxl')
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            return pd.DataFrame(data) if data else (pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None)
+        except Exception:
+            return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
     def normalize_category_df(df):
         if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
         df = df.fillna(''); df = df.drop(columns=['구분'], errors='ignore')
@@ -73,18 +74,14 @@ except ImportError:
         val = re.sub(r'[\s/]*㈜[\s/]*', '(주)', val)
         val = re.sub(r'(\(주\)[\s/]*)+', '(주)', val)
         return val
-    INFO_CATEGORY_COLUMNS = ['분류', '키워드', '카테고리']
+    CATEGORY_TABLE_COLUMNS = ['분류', '키워드', '카테고리']
 
 OUTPUT_FILE = "cash_after.xlsx"
 
 
 def ensure_all_cash_files():
-    """info_category(금융정보) 파일이 없으면 빈 파일 생성. cash_after는 bank/card 병합(merge_bank_card)으로만 생성."""
-    if not (INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE)):
-        try:
-            create_empty_info_category(INFO_CATEGORY_FILE)
-        except Exception as e:
-            print(f"오류: info_category(금융정보) 생성 실패 - {e}")
+    """금융정보에서는 category_table.json을 생성하지 않음. cash_after는 bank/card 병합(merge_bank_card)으로만 생성."""
+    pass
 
 
 # =========================================================
@@ -157,38 +154,6 @@ def safe_write_excel(df, filepath, max_retries=3):
         except Exception as e:
             raise e
     return False
-
-# =========================================================
-# 2. 카테고리 테이블 생성 함수
-# =========================================================
-
-def create_category_table(df):
-    """DataFrame을 기반으로 info_category.xlsx(금융정보 구분) 생성. category_create.md 파싱 또는 기본값 사용."""
-    fn = get_default_rules if get_default_rules else (lambda d: __import__('info_category_defaults').get_default_rules(d))
-    unique_category_data = fn('cash')
-    category_df = pd.DataFrame(unique_category_data)
-    category_df = category_df.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
-
-    try:
-        if len(category_df) == 0:
-            category_df = pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
-        out = category_df[INFO_CATEGORY_COLUMNS].copy()
-        if INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE):
-            full = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
-            if full is not None and not full.empty:
-                full = normalize_category_df(full)
-                if not full.empty:
-                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
-        safe_write_info_category_xlsx(INFO_CATEGORY_FILE, out)
-        if INFO_CATEGORY_FILE and not os.path.exists(INFO_CATEGORY_FILE):
-            raise FileNotFoundError(f"오류: 파일 생성 후에도 {INFO_CATEGORY_FILE} 파일이 존재하지 않습니다.")
-    except PermissionError as e:
-        print(f"오류: 파일 쓰기 권한이 없습니다 - {INFO_CATEGORY_FILE}")
-        raise
-    except Exception as e:
-        print(f"오류: info_category 생성 실패 - {e}")
-        raise
-    return category_df
 
 # =========================================================
 # 4. 분류 함수들
@@ -433,12 +398,12 @@ def classify_etc(row_idx, df, category_tables):
 # =========================================================
 
 def load_category_table():
-    """info_category.xlsx 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용)"""
-    if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
-        return None
-    category_df = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
+    """category_table.json 로드 및 category_tables 구성 (구분 없음). 금융정보에서는 파일 없으면 빈 dict 반환."""
+    if not CATEGORY_TABLE_FILE or not os.path.exists(CATEGORY_TABLE_FILE):
+        return {}
+    category_df = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
     if category_df is None or category_df.empty:
-        return None
+        return {}
     category_df = normalize_category_df(category_df)
     category_tables = {}
     분류_컬럼명 = '분류' if '분류' in category_df.columns else '차수'
@@ -460,7 +425,7 @@ def load_category_table():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """입력 파일 → cash_after 생성. info_category의 전처리/후처리·기타거래 적용 (거래방법/거래지점 미사용). 금융정보는 보통 cash_after를 bank/card 병합으로만 생성."""
+    """입력 파일 → cash_after 생성. category_table의 전처리/후처리·기타거래 적용 (거래방법/거래지점 미사용). 금융정보는 보통 cash_after를 bank/card 병합으로만 생성."""
     if input_file is None:
         input_file = os.path.join(_SCRIPT_DIR, "cash_before.xlsx")
     if output_file is None:
@@ -471,20 +436,8 @@ def classify_and_save(input_file=None, output_file=None):
         print(f"오류: {input_file} 읽기 실패 - {e}")
         return False
 
-    if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
-        try:
-            if not df.empty:
-                create_category_table(df)
-            else:
-                create_empty_info_category(INFO_CATEGORY_FILE)
-        except Exception as e:
-            print(f"오류: info_category(금융정보) 생성 실패 - {e}")
-            return False
-
+    # 금융정보에서는 category_table.json을 생성하지 않음. 없으면 빈 규칙으로 진행.
     category_tables = load_category_table()
-    if category_tables is None:
-        print(f"오류: {INFO_CATEGORY_FILE} 로드 실패")
-        return False
 
     df["before_text"] = df.apply(create_before_text, axis=1)
 

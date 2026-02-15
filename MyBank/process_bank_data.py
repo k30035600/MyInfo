@@ -4,7 +4,7 @@ process_bank_data.py — 은행용 코드 전용. (카드 관련 역할 없음)
 
 [역할]
 - 은행 파일 통합: .source 폴더의 은행 엑셀을 모아 bank_before.xlsx 생성
-- 카테고리: MyInfo/info_category.xlsx(은행거래 구분) 사용
+- 카테고리: MyInfo/.source/category_table.json(은행거래 구분) 사용
 - 분류·저장: bank_before → bank_after.xlsx (전처리/후처리·계정과목 적용)
 
 .source는 .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)
@@ -34,37 +34,48 @@ if sys.platform == 'win32':
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
-INFO_CATEGORY_FILE = os.path.join(_PROJECT_ROOT, 'info_category.xlsx') if _PROJECT_ROOT else None
-# info_category.xlsx 손상 방지: 원자적 쓰기(임시파일+replace)+락
+CATEGORY_TABLE_FILE = os.path.join(_PROJECT_ROOT, '.source', 'category_table.json') if _PROJECT_ROOT else None
+# category_table.json 원자적 쓰기(임시파일+replace)+락
 if _PROJECT_ROOT and _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 try:
-    from info_category_defaults import get_default_rules
+    from category_table_defaults import get_default_rules
 except ImportError:
     get_default_rules = None
 try:
-    from info_category_io import (
-        safe_write_info_category_xlsx,
-        load_info_category,
-        create_empty_info_category,
+    from category_table_io import (
+        safe_write_category_table,
+        load_category_table,
+        create_empty_category_table,
         normalize_category_df,
         normalize_주식회사_for_match,
-        INFO_CATEGORY_COLUMNS,
+        CATEGORY_TABLE_COLUMNS,
     )
 except ImportError:
-    def safe_write_info_category_xlsx(path, df, engine='openpyxl'):
-        df.to_excel(path, index=False, engine=engine)
-    def load_info_category(path, default_empty=True):
+    import json as _json
+    def safe_write_category_table(path, df):
+        path = path.replace('.xlsx', '.json') if path else path
+        if not path: return
+        rec = df[['분류', '키워드', '카테고리']].copy().fillna('').to_dict('records')
+        with open(path, 'w', encoding='utf-8') as f:
+            _json.dump(rec, f, ensure_ascii=False, indent=2)
+    def load_category_table(path, default_empty=True):
+        path = path.replace('.xlsx', '.json') if path else path
         if not path or not os.path.exists(path): return pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None
-        return pd.read_excel(path, engine='openpyxl')
-    def create_empty_info_category(path):
-        pd.DataFrame(columns=['분류', '키워드', '카테고리']).to_excel(path, index=False, engine='openpyxl')
+        with open(path, 'r', encoding='utf-8') as f:
+            data = _json.load(f)
+        return pd.DataFrame(data) if data else (pd.DataFrame(columns=['분류', '키워드', '카테고리']) if default_empty else None)
+    def create_empty_category_table(path):
+        path = path.replace('.xlsx', '.json') if path else path
+        if path:
+            with open(path, 'w', encoding='utf-8') as f:
+                _json.dump([], f, ensure_ascii=False)
     def normalize_category_df(df):
         if df is None or df.empty: return pd.DataFrame(columns=['분류', '키워드', '카테고리'])
         df = df.fillna(''); df = df.drop(columns=['구분'], errors='ignore')
         for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
         return df[['분류', '키워드', '카테고리']].copy()
-    INFO_CATEGORY_COLUMNS = ['분류', '키워드', '카테고리']
+    CATEGORY_TABLE_COLUMNS = ['분류', '키워드', '카테고리']
     def normalize_주식회사_for_match(text):
         if text is None or (isinstance(text, str) and not str(text).strip()):
             return '' if text is None else str(text).strip()
@@ -113,43 +124,43 @@ def _bank_before_is_empty():
 
 
 def ensure_all_bank_files():
-    """bank_before, info_category, bank_after 파일이 없으면 생성. 있으면 그대로 사용. before/after는 MyBank 폴더."""
+    """bank_before, category_table, bank_after 파일이 없으면 생성. 있으면 그대로 사용. before/after는 MyBank 폴더."""
     # 1. bank_before.xlsx: 없거나 비어 있으면 .source/Bank 통합 실행
     empty = _bank_before_is_empty()
     if empty:
         integrate_bank_transactions()
         return
 
-    # 2. info_category.xlsx: 없으면 생성, 손상 시 백업 후 재생성, 있으면 마이그레이션(거래방법/거래지점 행 제거)
-    if not INFO_CATEGORY_FILE:
+    # 2. category_table.json: 없으면 생성, 손상 시 백업 후 재생성, 있으면 마이그레이션(거래방법/거래지점 행 제거)
+    if not CATEGORY_TABLE_FILE:
         pass
-    elif not os.path.exists(INFO_CATEGORY_FILE):
+    elif not os.path.exists(CATEGORY_TABLE_FILE):
         try:
             df = _safe_read_excel(INPUT_FILE, default_empty=True)
             if df is not None and not df.empty:
                 create_category_table(df)
             else:
-                create_empty_info_category(INFO_CATEGORY_FILE)
+                create_empty_category_table(CATEGORY_TABLE_FILE)
         except Exception as e:
-            print(f"오류: info_category 생성 실패 - {e}")
+            print(f"오류: category_table 생성 실패 - {e}")
     else:
         # 파일 존재: 읽기 시도 후 손상이면 백업하고 기본 파일 재생성
-        full = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
-        if (full is None or full.empty) and os.path.getsize(INFO_CATEGORY_FILE) > 0:
+        full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
+        if (full is None or full.empty) and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
             try:
                 import shutil
-                backup_path = INFO_CATEGORY_FILE + '.bak'
-                shutil.move(INFO_CATEGORY_FILE, backup_path)
+                backup_path = CATEGORY_TABLE_FILE + '.bak'
+                shutil.move(CATEGORY_TABLE_FILE, backup_path)
                 df = _safe_read_excel(INPUT_FILE, default_empty=True)
                 create_category_table(df if df is not None and not df.empty else pd.DataFrame())
             except Exception as e:
-                print(f"오류: info_category 손상 복구 실패 - {e}", flush=True)
+                print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
         elif full is not None and not full.empty:
             try:
-                migrate_bank_category_file(INFO_CATEGORY_FILE)
+                migrate_bank_category_file(CATEGORY_TABLE_FILE)
             except Exception as e:
                 if not _is_bad_zip_error(e):
-                    print(f"오류: info_category 마이그레이션 실패 - {e}")
+                    print(f"오류: category_table 마이그레이션 실패 - {e}")
 
     # 3. bank_after.xlsx: 없으면 생성 (카테고리 분류). 테이블/프린트 출력 시에는 호출하지 않음.
     if not os.path.exists(OUTPUT_FILE):
@@ -160,41 +171,41 @@ def ensure_all_bank_files():
 
 
 def ensure_bank_before_and_category():
-    """bank_before, info_category만 생성·갱신. bank_after는 생성하지 않음. 테이블/프린트 출력 시 사용."""
+    """bank_before, category_table만 생성·갱신. bank_after는 생성하지 않음. 테이블/프린트 출력 시 사용."""
     # 1. bank_before.xlsx
     empty = _bank_before_is_empty()
     if empty:
         integrate_bank_transactions()
         return
-    # 2. info_category.xlsx
-    if not INFO_CATEGORY_FILE:
+    # 2. category_table.json
+    if not CATEGORY_TABLE_FILE:
         pass
-    elif not os.path.exists(INFO_CATEGORY_FILE):
+    elif not os.path.exists(CATEGORY_TABLE_FILE):
         try:
             df = _safe_read_excel(INPUT_FILE, default_empty=True)
             if df is not None and not df.empty:
                 create_category_table(df)
             else:
-                create_empty_info_category(INFO_CATEGORY_FILE)
+                create_empty_category_table(CATEGORY_TABLE_FILE)
         except Exception as e:
-            print(f"오류: info_category 생성 실패 - {e}")
+            print(f"오류: category_table 생성 실패 - {e}")
     else:
-        full = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
-        if (full is None or full.empty) and os.path.getsize(INFO_CATEGORY_FILE) > 0:
+        full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
+        if (full is None or full.empty) and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
             try:
                 import shutil
-                backup_path = INFO_CATEGORY_FILE + '.bak'
-                shutil.move(INFO_CATEGORY_FILE, backup_path)
+                backup_path = CATEGORY_TABLE_FILE + '.bak'
+                shutil.move(CATEGORY_TABLE_FILE, backup_path)
                 df = _safe_read_excel(INPUT_FILE, default_empty=True)
                 create_category_table(df if df is not None and not df.empty else pd.DataFrame())
             except Exception as e:
-                print(f"오류: info_category 손상 복구 실패 - {e}", flush=True)
+                print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
         elif full is not None and not full.empty:
             try:
-                migrate_bank_category_file(INFO_CATEGORY_FILE)
+                migrate_bank_category_file(CATEGORY_TABLE_FILE)
             except Exception as e:
                 if not _is_bad_zip_error(e):
-                    print(f"오류: info_category 마이그레이션 실패 - {e}")
+                    print(f"오류: category_table 마이그레이션 실패 - {e}")
     # bank_after.xlsx는 생성하지 않음 (생성은 /api/generate-category에서만)
 
 
@@ -671,7 +682,7 @@ def integrate_bank_transactions(output_file=None):
     # 파일 저장 (bank_before에는 키워드/카테고리 분류 없음; after 생성 시에만 참여)
     combined_df.to_excel(output_file, index=False, engine='openpyxl')
 
-    # bank_after.xlsx 생성 시 info_category 사용·키워드/카테고리 분류 적용
+    # bank_after.xlsx 생성 시 category_table 사용·키워드/카테고리 분류 적용
     try:
         classify_and_save(input_file=output_file, output_file=OUTPUT_FILE)
     except Exception as e:
@@ -681,17 +692,17 @@ def integrate_bank_transactions(output_file=None):
 
 
 # =========================================================
-# 3. 카테고리 테이블 생성 (info_category.xlsx 단일 테이블, 구분 없음)
+# 3. 카테고리 테이블 생성 (category_table.json 단일 테이블, 구분 없음)
 # 전처리, 후처리, 계정과목만 사용 (거래방법/거래지점 미사용)
-# category_create.md 파싱 또는 info_category_defaults 코드 기본값 사용
+# category_create.md 파싱 또는 category_table_defaults 코드 기본값 사용
 # =========================================================
 
 
 def create_category_table(df):
-    """bank_before 데이터를 기반으로 info_category.xlsx 생성(구분 없음). 전처리·후처리·계정과목만 사용."""
+    """bank_before 데이터를 기반으로 category_table.json 생성(구분 없음). 전처리·후처리·계정과목만 사용."""
     load_rules = get_default_rules
     if load_rules is None:
-        from info_category_defaults import get_default_rules as load_rules
+        from category_table_defaults import get_default_rules as load_rules
     unique_category_data = load_rules('bank')
 
     # DataFrame 생성 (get_default_rules에서 이미 중복 제거됨)
@@ -700,33 +711,33 @@ def create_category_table(df):
 
     try:
         if len(category_df) == 0:
-            category_df = pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
-        out = category_df[INFO_CATEGORY_COLUMNS].copy()
-        if os.path.exists(INFO_CATEGORY_FILE):
-            full = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
+            category_df = pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS)
+        out = category_df[CATEGORY_TABLE_COLUMNS].copy()
+        if os.path.exists(CATEGORY_TABLE_FILE):
+            full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
             if full is not None and not full.empty:
                 full = normalize_category_df(full)
                 if not full.empty:
-                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
-        safe_write_info_category_xlsx(INFO_CATEGORY_FILE, out)
-        if not os.path.exists(INFO_CATEGORY_FILE):
-            raise FileNotFoundError(f"오류: 파일 생성 후에도 {INFO_CATEGORY_FILE} 파일이 존재하지 않습니다.")
+                    out = pd.concat([full, out], ignore_index=True).drop_duplicates(subset=CATEGORY_TABLE_COLUMNS, keep='first')
+        safe_write_category_table(CATEGORY_TABLE_FILE, out)
+        if not os.path.exists(CATEGORY_TABLE_FILE):
+            raise FileNotFoundError(f"오류: 파일 생성 후에도 {CATEGORY_TABLE_FILE} 파일이 존재하지 않습니다.")
     except PermissionError as e:
-        print(f"오류: 파일 쓰기 권한이 없습니다 - {INFO_CATEGORY_FILE}")
+        print(f"오류: 파일 쓰기 권한이 없습니다 - {CATEGORY_TABLE_FILE}")
         raise
     except Exception as e:
-        print(f"오류: info_category 생성 실패 - {e}")
+        print(f"오류: category_table 생성 실패 - {e}")
         raise
 
     return category_df
 
 
 def migrate_bank_category_file(category_filepath=None):
-    """info_category에서 거래방법/거래지점 행 제거, 계정과목 보강 후 저장 (구분 없음)."""
-    path = str(Path(category_filepath).resolve()) if category_filepath else (INFO_CATEGORY_FILE or '')
+    """category_table.json에서 거래방법/거래지점 행 제거, 계정과목 보강 후 저장 (구분 없음)."""
+    path = str(Path(category_filepath).resolve()) if category_filepath else (CATEGORY_TABLE_FILE or '')
     if not path or not os.path.exists(path):
         return
-    full_df = load_info_category(path, default_empty=True)
+    full_df = load_category_table(path, default_empty=True)
     if full_df is None or full_df.empty:
         return
     category_df = normalize_category_df(full_df)
@@ -738,15 +749,15 @@ def migrate_bank_category_file(category_filepath=None):
     계정과목_mask = (migrated_df['분류'].astype(str).str.strip() == '계정과목')
     if not 계정과목_mask.any() or 계정과목_mask.sum() < 10:
         account_rows = pd.DataFrame(_DEFAULT_BANK_ACCOUNT_RULES)
-        existing_account = migrated_df[계정과목_mask] if 계정과목_mask.any() else pd.DataFrame(columns=INFO_CATEGORY_COLUMNS)
+        existing_account = migrated_df[계정과목_mask] if 계정과목_mask.any() else pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS)
         other_rows = migrated_df[~계정과목_mask]
-        combined = pd.concat([existing_account, account_rows], ignore_index=True).drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
+        combined = pd.concat([existing_account, account_rows], ignore_index=True).drop_duplicates(subset=CATEGORY_TABLE_COLUMNS, keep='first')
         migrated_df = pd.concat([other_rows, combined], ignore_index=True)
-    migrated_df = migrated_df.drop_duplicates(subset=INFO_CATEGORY_COLUMNS, keep='first')
+    migrated_df = migrated_df.drop_duplicates(subset=CATEGORY_TABLE_COLUMNS, keep='first')
     try:
-        safe_write_info_category_xlsx(path, migrated_df)
+        safe_write_category_table(path, migrated_df)
     except Exception as e:
-        print(f"오류: info_category 마이그레이션 저장 실패 - {e}")
+        print(f"오류: category_table 마이그레이션 저장 실패 - {e}")
         raise
 
 
@@ -915,7 +926,7 @@ def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
 
 
 def apply_후처리_bank(df, category_tables):
-    """은행거래 후처리: info_category 후처리 규칙으로 적요/내용/송금메모 컬럼의 키워드 → 카테고리 치환."""
+    """은행거래 후처리: category_table 후처리 규칙으로 적요/내용/송금메모 컬럼의 키워드 → 카테고리 치환."""
     if df is None or df.empty or "후처리" not in category_tables:
         return df
     category_table = category_tables["후처리"]
@@ -976,11 +987,11 @@ def compute_기타거래(row):
 # 5. 메인 처리 함수
 # =========================================================
 
-def load_category_table():
-    """info_category.xlsx 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용)."""
-    if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
+def get_category_tables():
+    """category_table.json 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용)."""
+    if not CATEGORY_TABLE_FILE or not os.path.exists(CATEGORY_TABLE_FILE):
         return None
-    category_df = load_info_category(INFO_CATEGORY_FILE, default_empty=True)
+    category_df = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
     if category_df is None or category_df.empty:
         return None
     category_df = category_df.fillna('')
@@ -1008,7 +1019,7 @@ def load_category_table():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """bank_before → bank_after 생성. info_category(은행거래)의 전처리/후처리·계정과목을 반드시 적용."""
+    """bank_before → bank_after 생성. category_table(은행거래)의 전처리/후처리·계정과목을 반드시 적용."""
     global LAST_CLASSIFY_ERROR
     LAST_CLASSIFY_ERROR = None
     if input_file is None:
@@ -1060,31 +1071,31 @@ def classify_and_save(input_file=None, output_file=None):
     if '구분' in df.columns and '취소' not in df.columns:
         df = df.rename(columns={'구분': '취소'})
 
-    if not INFO_CATEGORY_FILE or not os.path.exists(INFO_CATEGORY_FILE):
+    if not CATEGORY_TABLE_FILE or not os.path.exists(CATEGORY_TABLE_FILE):
         try:
             if not df.empty:
                 create_category_table(df)
             else:
-                create_empty_info_category(INFO_CATEGORY_FILE)
+                create_empty_category_table(CATEGORY_TABLE_FILE)
         except Exception as e:
-            LAST_CLASSIFY_ERROR = f"info_category 생성 실패: {e}"
+            LAST_CLASSIFY_ERROR = f"category_table 생성 실패: {e}"
             print(f"오류: {LAST_CLASSIFY_ERROR}")
             return False
 
-    category_tables = load_category_table()
+    category_tables = get_category_tables()
     if category_tables is None:
         # 손상된 xlsx(File is not a zip file) 등: 한 번만 백업 후 재생성 시도
-        if INFO_CATEGORY_FILE and os.path.exists(INFO_CATEGORY_FILE) and os.path.getsize(INFO_CATEGORY_FILE) > 0:
+        if CATEGORY_TABLE_FILE and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
             try:
                 import shutil
-                backup_path = INFO_CATEGORY_FILE + '.bak'
-                shutil.move(INFO_CATEGORY_FILE, backup_path)
+                backup_path = CATEGORY_TABLE_FILE + '.bak'
+                shutil.move(CATEGORY_TABLE_FILE, backup_path)
                 create_category_table(df if not df.empty else pd.DataFrame())
-                category_tables = load_category_table()
+                category_tables = get_category_tables()
             except Exception as e:
-                print(f"오류: info_category 손상 복구 실패 - {e}", flush=True)
+                print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
         if category_tables is None:
-            LAST_CLASSIFY_ERROR = f"{INFO_CATEGORY_FILE} 로드 실패(파일 없음 또는 비어 있음)"
+            LAST_CLASSIFY_ERROR = f"{CATEGORY_TABLE_FILE} 로드 실패(파일 없음 또는 비어 있음)"
             print(f"오류: {LAST_CLASSIFY_ERROR}")
             return False
 
@@ -1111,7 +1122,7 @@ def classify_and_save(input_file=None, output_file=None):
         import traceback
         traceback.print_exc()
         return False
-    # 후처리: info_category 후처리 규칙으로 적요/내용/송금메모 치환 (키워드 → 카테고리)
+    # 후처리: category_table 후처리 규칙으로 적요/내용/송금메모 치환 (키워드 → 카테고리)
     try:
         df = apply_후처리_bank(df, category_tables)
     except Exception as e:
@@ -1133,7 +1144,7 @@ def classify_and_save(input_file=None, output_file=None):
     if '계정과목' in category_tables:
         if '카테고리' not in df.columns:
             df['카테고리'] = ''
-        df['카테고리'] = ''  # 기존 값 무시, info_category 계정과목만으로 재분류
+        df['카테고리'] = ''  # 기존 값 무시, category_table 계정과목만으로 재분류
         try:
             df = apply_category_from_bank(df, category_tables['계정과목'])
         except Exception as e:

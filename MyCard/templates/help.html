@@ -152,7 +152,7 @@ python app.py</div>
             <ul>
                 <li><strong>MyInfo/.source/Card</strong>: 각 카드사에서 내려받은 거래 내역 원본(.xls, .xlsx)을 넣는 폴더입니다. 파일명에 <strong>국민카드</strong>, <strong>신한카드</strong>, <strong>현대카드</strong>, <strong>하나카드</strong>가 포함되어야 인식합니다.</li>
                 <li><strong>card_before.xlsx</strong>: 전처리 결과가 MyInfo/.source에 저장됩니다. .source/Card 파일들을 통합·표준화한 결과입니다. 컬럼: 카드사, 카드번호, 이용일, 이용시간(승인시간), 입금액, 출금액, 취소, 가맹점명, 사업자번호, 구분</li>
-                <li><strong>info_category.xlsx</strong>: 카테고리 분류 규칙(분류, 키워드, 카테고리)이 저장되는 파일입니다. 계정과목·업종분류로 가맹점명 기반 자동 분류를 지원합니다.</li>
+                <li><strong>category_table.json</strong>: 카테고리 분류 규칙(분류, 키워드, 카테고리)이 저장되는 파일입니다. 계정과목 등으로 가맹점명 기반 자동 분류를 지원합니다.</li>
                 <li><strong>card_after.xlsx</strong>: 카테고리를 적용한 최종 거래 데이터입니다. 기본분석은 이 파일을 사용합니다.</li>
             </ul>
         </div>
@@ -179,7 +179,7 @@ python app.py</div>
                 </div>
                 <div class="feature-card">
                     <h4>🏷️ 카테고리</h4>
-                    <p>분류(계정과목, 업종분류)와 키워드 기반 자동 분류를 지원합니다. 가맹점명에 키워드가 포함되면 해당 카테고리가 부여됩니다. info_category.xlsx를 수정한 뒤 "카테고리 적용"으로 card_after.xlsx를 갱신합니다.</p>
+                    <p>분류(계정과목 등)와 키워드 기반 자동 분류를 지원합니다. 가맹점명에 키워드가 포함되면 해당 카테고리가 부여됩니다. category_table.json를 수정한 뒤 "카테고리 적용"으로 card_after.xlsx를 갱신합니다.</p>
                 </div>
                 <div class="feature-card">
                     <h4>📈 기본분석</h4>
@@ -190,12 +190,11 @@ python app.py</div>
 
         <div class="help-section">
             <h2>카테고리 체계</h2>
-            <p>신용카드 카테고리는 <strong>계정과목</strong>과 <strong>업종분류</strong>로 구성됩니다.</p>
+            <p>신용카드 카테고리는 <strong>계정과목</strong> 등으로 구성됩니다.</p>
             <ul>
                 <li><strong>계정과목</strong>: 지출 항목별 분류(외식, 의료비, 교통비, 주거비 등). 가맹점명에 키워드가 포함되면 해당 카테고리가 적용됩니다. 여러 키워드는 <code>/</code>로 OR 조건 지정(예: 파리바게뜨/베이커리).</li>
-                <li><strong>업종분류</strong>: 사업자번호·업종코드 기반 분류. 귀금속, 복권 등 업종별 분류에 사용됩니다.</li>
             </ul>
-            <p>"카테고리 생성"은 card_before 기준으로 기본 규칙을 자동 생성하고, "카테고리 적용"은 그 규칙으로 card_after를 만듭니다. 규칙은 info_category.xlsx에서 수동 수정 가능합니다.</p>
+            <p>"카테고리 생성"은 card_before 기준으로 기본 규칙을 자동 생성하고, "카테고리 적용"은 그 규칙으로 card_after를 만듭니다. 규칙은 category_table.json에서 수동 수정 가능합니다.</p>
         </div>
 
         <div class="help-section">
@@ -204,7 +203,7 @@ python app.py</div>
             <h3>신용카드 전처리 (/card/)</h3>
             <ul>
                 <li>MyInfo/.source/Card에 국민/신한/현대/하나 카드사 거래 내역 .xls 또는 .xlsx를 넣습니다.</li>
-                <li>전처리 페이지에서 <strong>"전처리 실행"</strong> 버튼을 클릭합니다. 서버가 .source/Card를 읽어 통합하고, MyInfo/.source에 card_before.xlsx·card_after.xlsx를 생성·갱신합니다. 카테고리 규칙은 MyInfo/info_category.xlsx(신용카드 구분)를 사용합니다.</li>
+                <li>전처리 페이지에서 <strong>"전처리 실행"</strong> 버튼을 클릭합니다. 서버가 .source/Card를 읽어 통합하고, MyInfo/.source에 card_before.xlsx·card_after.xlsx를 생성·갱신합니다. 카테고리 규칙은 MyInfo/category_table.json(신용카드 구분)를 사용합니다.</li>
                 <li>전처리 전/후 데이터를 테이블로 비교할 수 있습니다. <strong>카드사</strong>, <strong>년·월</strong> 등 필터로 범위를 줄여 확인하세요.</li>
                 <li>데이터가 없으면 "MyInfo/.source/Card에 .xls/.xlsx가 있는지", "파일명에 카드사명이 포함되는지"를 확인합니다.</li>
             </ul>
@@ -212,7 +211,7 @@ python app.py</div>
             <h3>신용카드 카테고리 (/card/category)</h3>
             <ul>
                 <li><strong>카테고리 테이블</strong>: 분류, 키워드, 카테고리 컬럼으로 구성됩니다. 행 추가·삭제·수정으로 규칙을 관리합니다.</li>
-                <li><strong>"카테고리 생성"</strong>: card_before.xlsx를 기준으로 계정과목·업종분류 규칙을 자동 생성합니다. 기존 info_category.xlsx의 신용카드 섹션이 있으면 갱신되므로, 필요 시 백업 후 실행하세요.</li>
+                <li><strong>"카테고리 생성"</strong>: card_before.xlsx를 기준으로 계정과목 등 규칙을 자동 생성합니다. 기존 category_table.json의 신용카드 섹션이 있으면 갱신되므로, 필요 시 백업 후 실행하세요.</li>
                 <li><strong>"카테고리 적용"</strong>: 현재 카테고리 테이블 규칙을 card_before에 적용해 card_after.xlsx를 생성·갱신합니다. 적용 후 "카테고리 적용후" 섹션에서 데이터 미리보기로 결과를 확인할 수 있습니다.</li>
                 <li><strong>카드사 필터·📄 출력</strong>: 페이지 헤더의 "카드사" 드롭다운으로 특정 카드사만 보거나, "📄 출력" 버튼으로 현재 화면을 인쇄·PDF 저장할 수 있습니다.</li>
                 <li>카테고리별 통계, 월별 추이, 카테고리 그래프 등도 이 페이지에서 확인할 수 있습니다.</li>
@@ -241,7 +240,7 @@ python app.py</div>
 
             <h3>카테고리·card_after가 생성/적용되지 않음</h3>
             <ul>
-                <li><strong>info_category.xlsx</strong>가 MyInfo(프로젝트 루트)에 있는지 확인하세요. 없으면 카테고리 페이지에서 "카테고리 생성"을 먼저 실행합니다.</li>
+                <li><strong>category_table.json</strong>가 MyInfo(프로젝트 루트)에 있는지 확인하세요. 없으면 카테고리 페이지에서 "카테고리 생성"을 먼저 실행합니다.</li>
                 <li>"카테고리 적용" 전에 카테고리 테이블에 필요한 규칙(분류, 키워드, 카테고리)이 들어 있는지 확인하세요.</li>
                 <li><strong>card_after.xlsx</strong>를 Excel 등에서 열어둔 상태면 쓰기 오류가 날 수 있습니다. 파일을 닫은 뒤 다시 "카테고리 적용"을 실행하세요.</li>
             </ul>

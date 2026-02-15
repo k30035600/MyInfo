@@ -1516,8 +1516,7 @@
                     <div class="box-header">
                         <div class="box-header-row">
                             <div class="box-header-left">
-                                <div class="box-title">전처리전</div>
-                                <span id="left-workspace-path" class="header-workspace-folder path-filename-text" style="margin-left: 8px;">{{ workspace_path or '' }}</span>
+                                <div class="box-title">은행거래 전처리전</div>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1545,8 +1544,7 @@
                     <div class="box-header">
                         <div class="box-header-row">
                             <div class="box-header-left">
-                                <div class="box-title">전처리후</div>
-                                <span id="right-work-file" class="header-work-file path-filename-text" style="margin-left: 8px;">bank_before.xlsx</span>
+                                <div class="box-title">은행거래 전처리후</div>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1600,7 +1598,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 테이블</h2>
-                        <div class="path-filename-text" style="margin-left: 10px;"><span>info_category.xlsx</span></div>
+                        <div class="path-filename-text" style="margin-left: 10px;"><span>category_table</span></div>
                     </div>
                     <button id="export-bank_category-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
                 </div>
@@ -1623,7 +1621,6 @@
                                     <option value="후처리">후처리</option>
                                     <option value="심야구분">심야구분</option>
                                     <option value="계정과목">계정과목</option>
-                                    <option value="업종분류">업종분류</option>
                                     <option value="신용카드">신용카드</option>
                                     <option value="가상자산">가상자산</option>
                                     <option value="증권투자">증권투자</option>
@@ -1648,7 +1645,6 @@
                                     <option value="계정과목">계정과목</option>
                                     <option value="전처리">전처리</option>
                                     <option value="후처리">후처리</option>
-                                    <option value="업종분류">업종분류</option>
                                     <option value="신용카드">신용카드</option>
                                     <option value="가상자산">가상자산</option>
                                     <option value="증권투자">증권투자</option>
@@ -1676,8 +1672,7 @@
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 조회</h2>
-                            <div class="path-filename-text" style="margin-left: 10px;"><span>bank_after.xlsx</span></div>
+                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래(카테고리) 조회</h2>
                         </div>
                         <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()">
                             bank_after.xlsx 생성
@@ -1690,7 +1685,7 @@
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column;">
-                    <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 그래프</h2>
+                    <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래(카테고리) 그래프</h2>
                     <div class="chart-container" style="height: 250px; max-height: 250px;">
                         <canvas id="category-combined-chart"></canvas>
                     </div>
@@ -1822,7 +1817,7 @@
             return str;
         }
         
-        // 심야구분: info_category.xlsx 분류=심야구분 키워드(시작/종료) 기반 시간 포함 여부
+        // 심야구분: category_table.json 분류=심야구분 키워드(시작/종료) 기반 시간 포함 여부
         let _simyaRangesCache = [];
         function timeToSeconds(s) {
             if (!s || s === null || s === undefined) return null;
@@ -3016,7 +3011,7 @@
                         updatedBtn.style.background = '#FF9800';
                         updatedBtn.addEventListener('click', generateCategoryTable);
                     }
-                    const fileErr = (data.error || 'info_category.xlsx 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fileErr = (data.error || 'category_table.json 파일이 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-definition-table-body').innerHTML = 
                         `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">${fileErr}</td></tr>`;
                     allCategoryTableData = [];
@@ -3048,7 +3043,7 @@
                 
                 if (!data.data || data.data.length === 0) {
                     document.getElementById('category-definition-table-body').innerHTML = 
-                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666; white-space: normal;">카테고리 데이터가 없습니다.</td></tr>';
                     allCategoryTableData = [];
                     return;
                 }
@@ -3076,7 +3071,7 @@
             }
         }
         
-        // info_category.xlsx 파일 생성 함수
+        // category_table.json 파일 생성 함수
         async function generateCategoryTable() {
             const btn = document.getElementById('export-bank_category-btn');
             const originalText = btn ? btn.textContent : '생성';
@@ -3095,17 +3090,17 @@
                     }
                 });
                 const text = await response.text();
-                let result = { success: false, error: 'info_category.xlsx 파일 생성 실패' };
+                let result = { success: false, error: 'category_table.json 파일 생성 실패' };
                 try {
                     result = text ? JSON.parse(text) : result;
                 } catch (_) {
                     result.error = response.statusText || text || result.error;
                 }
                 if (result.success) {
-                    alert(`info_category.xlsx 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
+                    alert(`category_table.json 파일 생성 완료!\n${result.message || '파일이 생성되었습니다.'}\n\n카테고리 테이블을 새로고침합니다.`);
                     await loadCategoryDefinitionTable();
                 } else {
-                    alert(`오류: ${(result.error || 'info_category.xlsx 파일 생성 실패').replace(/\n/g, '\n')}`);
+                    alert(`오류: ${(result.error || 'category_table.json 파일 생성 실패').replace(/\n/g, '\n')}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = originalText;
@@ -3114,7 +3109,7 @@
                 }
             } catch (error) {
                 console.error('Error generating category table:', error);
-                alert('info_category.xlsx 파일 생성 중 오류가 발생했습니다. (네트워크 또는 서버 확인)');
+                alert('category_table.json 파일 생성 중 오류가 발생했습니다. (네트워크 또는 서버 확인)');
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = originalText;
@@ -3200,7 +3195,7 @@
             
             if (filteredData.length === 0) {
                 document.getElementById('category-definition-table-body').innerHTML = 
-                    '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                    '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666; white-space: normal;">카테고리 데이터가 없습니다.</td></tr>';
                 updateDropdownOptions();
                 return;
             }
@@ -3250,11 +3245,11 @@
         }
 
         // 분류 입력 검증 (전처리/후처리/계정과목/업종분류/가상자산/증권투자/해외송금만)
-        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '업종분류', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
         function validateChasuInput(input) {
             const value = (input.value || '').toString().trim();
             if (value && !VALID_CHASU_VALUES.includes(value)) {
-                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
                 if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
@@ -3386,7 +3381,7 @@
             }
             
             if (!VALID_CHASU_VALUES.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 계정과목, 업종분류, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
