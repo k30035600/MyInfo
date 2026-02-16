@@ -1789,6 +1789,32 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         // 카테고리 적용 테이블 데이터 저장
         let categoryAppliedDataOriginal = [];
         
+        // 카테고리 적용후 테이블 한 행 HTML (백그라운드 추가 로드용)
+        function buildCategoryAppliedRowCashCategory(row, availableColumns, columnAlign, rowIndex) {
+            const isEvenRow = rowIndex % 2 === 1;
+            const columnBgColors = {};
+            availableColumns.forEach(c => { columnBgColors[c] = 'rgba(33, 150, 243, 0.08)'; });
+            let html = '<tr data-i="' + rowIndex + '" class="category-applied-row" style="cursor: pointer;">';
+            availableColumns.forEach(col => {
+                let value = row[col];
+                let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
+                if (col === '거래일') displayValue = displayValue ? formatDate(displayValue) : '';
+                else if (col === '거래시간') displayValue = displayValue ? formatTime(displayValue) : '';
+                else if (col === '입금액' || col === '출금액') displayValue = displayValue ? formatNumber(parseFloat(displayValue) || 0) : '';
+                const align = columnAlign[col] || 'left';
+                const cellBgColor = isEvenRow ? (columnBgColors[col] || '') : '';
+                let cellStyle = ' style="white-space: nowrap; text-align: ' + align + '; padding: 4px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                if (col === '입금액') {
+                    cellStyle = ' style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (col === '출금액') {
+                    cellStyle = ' style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #FF0000; font-size: 11px;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                }
+                html += '<td' + cellStyle + '>' + displayValue + '</td>';
+            });
+            html += '</tr>';
+            return html;
+        }
+        // 카테고리 적용후: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시)
         // 카테고리 적용 테이블 로드
         async function loadCategoryAppliedTable() {
             const btn = document.getElementById('generate-category-btn');
@@ -1820,7 +1846,9 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     clearSafety();
                     categoryAppliedDataOriginal = data.data;
                     syncCategoryBankFilterFromData(data.data);
-                    renderCategoryAppliedTable(data.data);
+                    const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
+                    const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
+                    renderCategoryAppliedTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     loadMonthlyTrend();
                 } else {
                     // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
@@ -1867,13 +1895,15 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         }
         
         // 카테고리 적용 테이블 렌더링 (지정된 컬럼만 표시)
-        function renderCategoryAppliedTable(data) {
+        function renderCategoryAppliedTable(data, options) {
             const contentDiv = document.getElementById('category-applied-content');
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
+            const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
             // 금융정보 전처리 페이지 카테고리조회와 동일 컬럼·너비 준용
             const columns = [
@@ -2009,12 +2039,17 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             });
             
             // 합계 행 추가
-            let totalDeposit = 0;
-            let totalWithdraw = 0;
-            data.forEach(row => {
-                totalDeposit += parseFloat(row['입금액']) || 0;
-                totalWithdraw += parseFloat(row['출금액']) || 0;
-            });
+            let totalDeposit = fullTotalDeposit != null ? fullTotalDeposit : 0;
+            let totalWithdraw = fullTotalWithdraw != null ? fullTotalWithdraw : 0;
+            if (fullTotalDeposit == null && fullTotalWithdraw == null) {
+                data.forEach(row => {
+                    totalDeposit += parseFloat(row['입금액']) || 0;
+                    totalWithdraw += parseFloat(row['출금액']) || 0;
+                });
+            }
+            
+            const columnAlign = {};
+            columns.forEach((c, i) => { columnAlign[c] = QUERY_ALIGN[i]; });
             
             html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
             availableColumns.forEach(col => {
@@ -2041,6 +2076,12 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             
             html += '</tbody></table>';
             contentDiv.innerHTML = html;
+            
+            const tableEl = document.getElementById('category-applied-table');
+            if (tableEl) {
+                tableEl.dataset.columns = JSON.stringify(availableColumns);
+                tableEl.dataset.columnAlign = JSON.stringify(columnAlign);
+            }
             
             // 필터 이벤트 리스너 추가
             availableColumns.forEach(col => {
@@ -2354,7 +2395,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             printWindow.document.close();
         }
         
-        // cash_after.xlsx 생성 기능 삭제됨 (다시 생성하지 않음)
+        // cash_after 파일 생성 기능 삭제됨 (다시 생성하지 않음)
         
         // 월별 추이 차트 변수
         let categoryMonthlyTrendChart = null;

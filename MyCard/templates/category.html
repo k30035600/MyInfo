@@ -1819,7 +1819,38 @@
         // 카테고리 적용 테이블 데이터 저장
         let categoryAppliedDataOriginal = [];
         
-        // 카테고리 적용 테이블 로드 (card_after.xlsx 파일 읽어서 출력)
+        // 카테고리 적용후 테이블 한 행 HTML (백그라운드 추가 로드용)
+        function buildCategoryAppliedRowCardCategory(row, availableColumns, rowIndex) {
+            const columnBgColors = { '카드사': 'rgba(33, 150, 243, 0.1)', '카드번호': 'rgba(33, 150, 243, 0.1)', '이용일': 'rgba(33, 150, 243, 0.1)', '이용시간': 'rgba(33, 150, 243, 0.1)', '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)', '취소': 'rgba(33, 150, 243, 0.1)', '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)', '구분': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)' };
+            const 이용금액 = parseFloat(String(row['이용금액'] || '').replace(/,/g, ''));
+            const 카테고리 = String(row['카테고리'] || '').trim();
+            const rowBlue = (!isNaN(이용금액) && 이용금액 < 0) || (카테고리 === '현금처리');
+            const rowStyle = rowBlue ? ' style="cursor: pointer; color: #0000FF;"' : ' style="cursor: pointer;"';
+            const isEvenRow = rowIndex % 2 === 1;
+            let html = '<tr data-row-index="' + rowIndex + '" class="category-applied-row"' + rowStyle + '>';
+            availableColumns.forEach(col => {
+                let value = row[col];
+                let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
+                if (col === '이용일') displayValue = displayValue ? formatDateYyMmDd(displayValue) : '';
+                else if (col === '이용시간') displayValue = formatTime(displayValue);
+                else if (col === '취소') { const s = String(value != null ? value : '').trim(); displayValue = (s === '0' || s === '0.0' || s === 'nan') ? '' : s; }
+                else if (col === '입금액' || col === '출금액') displayValue = displayValue ? formatNumber(parseFloat(displayValue) || 0) : '';
+                else if (col === '구분' && (displayValue === '' || String(value || '').trim() === '일시불')) displayValue = '';
+                const cellBgColor = isEvenRow ? (columnBgColors[col] || '') : '';
+                let cellStyle = ' style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                if (col === '입금액' || col === '출금액') {
+                    cellStyle = ' style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: ' + (col === '입금액' ? '#0000FF' : '#FF0000') + '; font-size: 11px;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (['구분','카드사','카드번호','이용일','이용시간','사업자번호','취소'].indexOf(col) >= 0) {
+                    cellStyle = ' style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (col === '키워드' || col === '카테고리') {
+                    cellStyle = ' style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                }
+                html += '<td' + cellStyle + '>' + displayValue + '</td>';
+            });
+            html += '</tr>';
+            return html;
+        }
+        // 카테고리 적용 테이블 로드 (card_after 파일 읽어서 출력)
         async function loadCategoryAppliedTable() {
             try {
                 const response = await fetch(`${API_BASE}/api/category-applied-data`);
@@ -1840,12 +1871,13 @@
                 
                 if (data.data && data.data.length > 0) {
                     categoryAppliedDataOriginal = data.data;
-                    renderCategoryAppliedTable(data.data);
-                    // 그래프 업데이트는 테이블 렌더링 후 자동으로 updateChartFromTable 호출됨
+                    const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
+                    const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
+                    renderCategoryAppliedTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     loadMonthlyTrend();
                 } else {
                     const noFileMsg = !fileExists
-                        ? 'card_after.xlsx가 없습니다.'
+                        ? 'card_after가 없습니다.'
                         : '데이터 로딩 중...';
                     document.getElementById('category-applied-content').innerHTML =
                         '<div class="loading" style="padding: 20px; text-align: center; color: #666;">' + noFileMsg + '</div>';
@@ -1970,7 +2002,7 @@
                 const isLastPage = (p === totalPages - 1);
                 const tbodyContent = pageRows + (isLastPage ? sumRow : '');
                 const pageHeader = '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건 &nbsp; &nbsp; ' + (p + 1) + ' / ' + totalPages + ' 페이지</div>';
-                pagesHtml += '<div class="print-page"><h2>신용카드 카테고리 적용후 (card_after.xlsx)</h2>' + pageHeader +
+                pagesHtml += '<div class="print-page"><h2>신용카드 카테고리 적용후 (card_after)</h2>' + pageHeader +
                     '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tbodyContent + '</tbody></table></div>';
             }
             const printWindow = window.open('', '_blank');
@@ -1995,15 +2027,17 @@
         }
         
         // 카테고리 적용 테이블 렌더링 (지정된 컬럼만 표시)
-        function renderCategoryAppliedTable(data) {
+        function renderCategoryAppliedTable(data, options) {
             const contentDiv = document.getElementById('category-applied-content');
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
+            const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
-            // card_after.xlsx 컬럼 순서 (카드 전용만 사용, 가맹점명 뒤 은행용 구분 등 제외)
+            // card_after 컬럼 순서 (카드 전용만 사용, 가맹점명 뒤 은행용 구분 등 제외)
             const columns = [
                 '카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '구분', '키워드', '카테고리', '가맹점명'
             ];
@@ -2186,12 +2220,14 @@
             });
             
             // 합계 행 추가
-            let totalDeposit = 0;
-            let totalWithdraw = 0;
-            data.forEach(row => {
-                totalDeposit += parseFloat(row['입금액']) || 0;
-                totalWithdraw += parseFloat(row['출금액']) || 0;
-            });
+            let totalDeposit = fullTotalDeposit != null ? fullTotalDeposit : 0;
+            let totalWithdraw = fullTotalWithdraw != null ? fullTotalWithdraw : 0;
+            if (fullTotalDeposit == null && fullTotalWithdraw == null) {
+                data.forEach(row => {
+                    totalDeposit += parseFloat(row['입금액']) || 0;
+                    totalWithdraw += parseFloat(row['출금액']) || 0;
+                });
+            }
             
             html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
             availableColumns.forEach((col, colIdx) => {
@@ -2218,6 +2254,9 @@
             
             html += '</tbody></table>';
             contentDiv.innerHTML = html;
+            
+            const tableEl = document.getElementById('category-applied-table');
+            if (tableEl) tableEl.dataset.columns = JSON.stringify(availableColumns);
             
             // 필터 이벤트 리스너 추가
             availableColumns.forEach(col => {
@@ -2403,7 +2442,7 @@
             loadMonthlyTrend();
         }
         
-        // bank_after.xlsx 파일 생성 함수
+        // bank_after 파일 생성 함수
         async function generateCategoryFile() {
             const btn = document.getElementById('generate-category-btn');
             const originalText = btn.textContent;

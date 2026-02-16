@@ -1167,12 +1167,40 @@
         // 카테고리 적용후 원본 데이터 저장 (전처리 페이지에서 이동)
         let categoryAppliedDataOriginalForIndex = [];
         
+        // 카테고리 적용후 테이블 한 행 HTML (백그라운드 추가 로드용)
+        function buildCategoryAppliedRowBankCategory(row, availableColumns, rowIndex) {
+            const isEvenRow = rowIndex % 2 === 1;
+            const columnBgColors = { '거래일': 'rgba(33, 150, 243, 0.1)', '거래시간': 'rgba(33, 150, 243, 0.1)', '은행명': 'rgba(33, 150, 243, 0.1)', '계좌번호': 'rgba(33, 150, 243, 0.1)', '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)', '잔액': 'rgba(33, 150, 243, 0.1)', '취소': 'rgba(33, 150, 243, 0.1)', '적요': 'rgba(33, 150, 243, 0.1)', '내용': 'rgba(33, 150, 243, 0.1)', '거래점': 'rgba(33, 150, 243, 0.1)', '송금메모': 'rgba(33, 150, 243, 0.1)', '입출금': 'rgba(255, 152, 0, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)' };
+            let html = '<tr data-i="' + rowIndex + '">';
+            availableColumns.forEach(col => {
+                let value = row[col];
+                let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
+                if (col === '거래일') displayValue = displayValue ? formatDate(displayValue, true) : '';
+                else if (col === '거래시간') displayValue = formatTime(displayValue);
+                else if (col === '입금액' || col === '출금액' || col === '잔액') displayValue = displayValue ? formatNumber(parseFloat(displayValue) || 0) : '';
+                let cellBgColor = isEvenRow ? (columnBgColors[col] || '') : '';
+                let cellStyle = ' style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                if (col === '입금액' || col === '출금액' || col === '잔액') {
+                    cellStyle = ' style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: ' + (col === '입금액' ? '#0000FF' : col === '출금액' ? '#FF0000' : '#000000') + '; font-size: 11px;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (['거래일','거래시간','은행명','취소'].indexOf(col) >= 0) {
+                    cellStyle = ' style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (col === '입출금') {
+                    cellStyle = ' style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (['키워드','카테고리','기타거래'].indexOf(col) >= 0) {
+                    cellStyle = ' style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd; font-size: 1.0em; font-weight: bold;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                }
+                html += '<td' + cellStyle + '>' + displayValue + '</td>';
+            });
+            html += '</tr>';
+            return html;
+        }
+        // 카테고리 적용후: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시)
         // 카테고리 적용후 데이터 로드 (전처리 페이지에서 이동)
         async function loadCategoryAppliedDataForIndex() {
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
-            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...<br><small>데이터가 많으면 첫 로딩에 30초~1분 걸릴 수 있습니다.</small></div>';
             
             try {
                 const response = await fetch(`${API_BASE}/api/category-applied-data`);
@@ -1183,12 +1211,18 @@
                     _simyaRangesCache = simyaJson.ranges || [];
                 } catch (e) { _simyaRangesCache = []; }
                 
+                if (data.error) {
+                    contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">' + (data.error.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')) + '</div>';
+                    return;
+                }
                 if (data.data && data.data.length > 0) {
                     categoryAppliedDataOriginalForIndex = data.data;
-                    renderCategoryAppliedTableForIndex(data.data);
+                    const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
+                    const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
+                    renderCategoryAppliedTableForIndex(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     loadMonthlyTrend();
                 } else {
-                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+                    contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다. 은행 전처리 후 카테고리 생성을 실행하면 여기에 표시됩니다.</div>';
                 }
             } catch (error) {
                 console.error('Error loading category applied data:', error);
@@ -1197,7 +1231,7 @@
         }
         
         // 카테고리 적용후 테이블 렌더링 (전처리 페이지에서 이동)
-        function renderCategoryAppliedTableForIndex(data) {
+        function renderCategoryAppliedTableForIndex(data, options) {
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
@@ -1205,6 +1239,8 @@
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
+            const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
             // 컬럼 순서: bank_after와 카테고리조회 동일 (카테고리조회에 잔액·구분·거래유형 추가)
             const columns = [
@@ -1222,10 +1258,8 @@
                 });
             }
             
-            // 존재하는 컬럼만 사용
-            const availableColumns = columns.filter(col => 
-                data[0] && data[0].hasOwnProperty(col)
-            );
+            // 키워드/카테고리/기타거래 항상 표시 (데이터에 없으면 빈칸)
+            const availableColumns = columns;
             
             // 필터용 고유값 추출
             const uniqueValues = {};
@@ -1367,12 +1401,14 @@
             });
             
             // 합계 행
-            let totalDeposit = 0;
-            let totalWithdraw = 0;
-            data.forEach(row => {
-                totalDeposit += parseFloat(row['입금액']) || 0;
-                totalWithdraw += parseFloat(row['출금액']) || 0;
-            });
+            let totalDeposit = fullTotalDeposit != null ? fullTotalDeposit : 0;
+            let totalWithdraw = fullTotalWithdraw != null ? fullTotalWithdraw : 0;
+            if (fullTotalDeposit == null && fullTotalWithdraw == null) {
+                data.forEach(row => {
+                    totalDeposit += parseFloat(row['입금액']) || 0;
+                    totalWithdraw += parseFloat(row['출금액']) || 0;
+                });
+            }
             
             html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f5f5f5; font-weight: bold; border-top: 2px solid #ddd;">';
             availableColumns.forEach(col => {
@@ -1396,6 +1432,9 @@
             
             html += '</tbody></table>';
             contentDiv.innerHTML = html;
+            
+            const tableEl = document.getElementById('category-applied-table-index');
+            if (tableEl) tableEl.dataset.columns = JSON.stringify(availableColumns);
             
             // 필터 이벤트 리스너 추가
             availableColumns.forEach(col => {
@@ -1888,7 +1927,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             printWindow.document.close();
         }
         
-        // bank_after.xlsx 파일 생성 함수
+        // bank_after 파일 생성 함수
         async function generateCategoryFile() {
             const btn = document.getElementById('generate-category-btn');
             const originalText = btn.textContent;

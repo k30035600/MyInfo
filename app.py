@@ -274,13 +274,13 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
             subapp_module.CATEGORY_TABLE_PATH = CATEGORY_TABLE_PATH
         if subapp_path == 'MyBank':
             import os as _os
-            subapp_module.BANK_BEFORE_PATH = _os.path.join(subapp_dir, 'bank_before.xlsx')
-            subapp_module.BANK_AFTER_PATH = _os.path.join(subapp_dir, 'bank_after.xlsx')
+            subapp_module.BANK_BEFORE_PATH = _os.path.join(subapp_dir, 'bank_before.json')
+            subapp_module.BANK_AFTER_PATH = _os.path.join(subapp_dir, 'bank_after.json')
         if subapp_path == 'MyCard':
             from pathlib import Path
             mycard_path = Path(subapp_dir)
             if hasattr(subapp_module, 'CARD_AFTER_PATH'):
-                subapp_module.CARD_AFTER_PATH = mycard_path / 'card_after.xlsx'
+                subapp_module.CARD_AFTER_PATH = str(mycard_path / 'card_after.json')
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         subapp = subapp_module.app

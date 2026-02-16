@@ -253,6 +253,13 @@
             padding-top: 0px;
             min-height: 0;
         }
+        /* 전처리 영역: 테이블 전체 JSON 한 번에 렌더, 스크롤은 .box-content에서 (max-height 75vh) */
+        .wrapper-box-content .box {
+            max-height: 75vh;
+        }
+        .wrapper-box-content .box-content {
+            max-height: 75vh;
+        }
 
         .box-header {
             padding: 10px 10px; /* 위 패딩 10, 아래 패딩 10 */
@@ -566,6 +573,19 @@
             font-size: 12px;
         }
 
+        .btn-reintegrate {
+            padding: 6px 12px;
+            background-color: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .btn-reintegrate:hover { background-color: #F57C00; }
+        .btn-reintegrate:disabled { opacity: 0.6; cursor: not-allowed; }
+
         .box-title {
             font-weight: 700;
             font-size: 20px;
@@ -577,13 +597,14 @@
 
         .box-content {
             flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
+            overflow-y: auto !important;
+            overflow-x: auto;
             padding: 6px;  /* 위 6px, 아래 6px, 좌우 6px */
             min-height: 0;
             position: relative;
             z-index: 1;   /* 박스 헤더보다 아래 레이어로 두어 테이블 행이 헤더 뒤에 비치지 않게 */
         }
+        /* 전처리 테이블: 전체 JSON 한 번에 받아 테이블 렌더, 스크롤은 .box-content (max-height 75vh, overflow-y auto) */
         
         .box-content::-webkit-scrollbar {
             width: 10px;
@@ -857,64 +878,32 @@
             box-sizing: border-box;
         }
         
-        /* 전처리전 테이블: 거래일0.7 거래시간0.6 은행명0.6 계좌번호1.2 입금액1 출금액1 취소0.4 적요1.2 내용1.2 송금메모1 거래점0.6 (총 9.5) */
+        /* 전처리전 테이블: 컬럼 12개, 너비 1:1 (각 8.33%) */
         #source-data-table th:nth-child(1),
-        #source-data-table td:nth-child(1) {
-            width: 7.37% !important; /* 0.7/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(1),
         #source-data-table th:nth-child(2),
         #source-data-table td:nth-child(2),
         #source-data-table th:nth-child(3),
-        #source-data-table td:nth-child(3) {
-            width: 6.32% !important; /* 0.6/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(3),
         #source-data-table th:nth-child(4),
-        #source-data-table td:nth-child(4) {
-            width: 12.63% !important; /* 1.2/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(4),
         #source-data-table th:nth-child(5),
         #source-data-table td:nth-child(5),
         #source-data-table th:nth-child(6),
-        #source-data-table td:nth-child(6) {
-            width: 10.53% !important; /* 1.0/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(6),
         #source-data-table th:nth-child(7),
-        #source-data-table td:nth-child(7) {
-            width: 4.21% !important; /* 0.4/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(7),
         #source-data-table th:nth-child(8),
         #source-data-table td:nth-child(8),
         #source-data-table th:nth-child(9),
-        #source-data-table td:nth-child(9) {
-            width: 12.63% !important; /* 1.2/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(9),
         #source-data-table th:nth-child(10),
-        #source-data-table td:nth-child(10) {
-            width: 6.32% !important; /* 0.6/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(10),
         #source-data-table th:nth-child(11),
-        #source-data-table td:nth-child(11) {
-            width: 10.53% !important; /* 1/9.5 */
-            min-width: 0 !important;
-            max-width: none !important;
-        }
+        #source-data-table td:nth-child(11),
         #source-data-table th:nth-child(12),
         #source-data-table td:nth-child(12) {
-            width: 5.05% !important; /* 매칭 등 12번째 */
+            width: 8.33% !important;
             min-width: 0 !important;
             max-width: none !important;
         }
@@ -1497,7 +1486,8 @@
                 <h1>은행거래 전처리</h1>
                 <div style="font-size: 14px; opacity: 0.5;">MyBank</div>
             </div>
-            <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center;">
+                <button type="button" id="btn-regenerate-prepost" class="btn-reintegrate" title="bank_before·bank_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 재생성">전처리/후처리 재생성</button>
             </div>
         </div>
         <!-- 은행거래 통합정보 네비게이터 -->
@@ -1581,7 +1571,7 @@
             </div>
         </div>
         
-        <!-- 박스 컨텐츠 영역 -->
+        <!-- 박스 컨텐츠 영역: 스크롤 컨테이너 = .box-content (max-height 75vh). 전체 JSON → 테이블 한 번에 렌더, 우측 스크롤로 조회 -->
         <div class="wrapper-box-content">
             <div class="box-content left-box-content" id="left-content">
                 <div class="loading">데이터 로딩 중...</div>
@@ -1593,6 +1583,11 @@
     
     <!-- 카테고리 테이블, 카테고리 조회, 카테고리 그래프 (단일 컨테이너) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin-bottom: 8px; font-size: 13px;">
+            <span id="category-query-count">총 0건</span>
+            <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
+            <span><span class="label">출금:</span> <span id="category-query-withdraw" style="color: #FF0000;">0</span>원<span id="category-query-withdraw-count"></span></span>
+        </div>
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
             <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
@@ -1670,13 +1665,8 @@
             </div>
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래(카테고리) 조회</h2>
-                        </div>
-                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()">
-                            bank_after.xlsx 생성
-                        </button>
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 5px;">
+                        <h2 style="margin: 0; padding-bottom: 3px;">은행거래(카테고리) 조회</h2>
                     </div>
                     <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -1756,6 +1746,35 @@
                 updateFilterBackground(this);
                 loadRightData();
                 if (typeof loadCategoryQueryTable === 'function') loadCategoryQueryTable();
+            });
+        }
+
+        // 전처리/후처리 재생성: before/after 삭제 후 source→전처리→before→카테고리분류→후처리→after
+        const btnRegeneratePrepost = document.getElementById('btn-regenerate-prepost');
+        if (btnRegeneratePrepost) {
+            btnRegeneratePrepost.addEventListener('click', async function() {
+                if (!confirm('bank_before·bank_after를 삭제한 뒤 source부터 전처리·카테고리분류·후처리까지 다시 수행합니다. 계속할까요?')) return;
+                const contentDiv = document.getElementById('right-content');
+                const origText = btnRegeneratePrepost.textContent;
+                btnRegeneratePrepost.disabled = true;
+                btnRegeneratePrepost.textContent = '재생성 중...';
+                if (contentDiv) contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center;">전처리/후처리 재생성 중...</div>';
+                try {
+                    const res = await fetch(`${API_BASE}/api/regenerate-prepost`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                    const data = await res.json().catch(() => ({}));
+                    if (data.ok) {
+                        await loadRightData();
+                        if (typeof loadCategoryQueryTable === 'function') loadCategoryQueryTable();
+                    } else {
+                        alert('재생성 실패: ' + (data.error || res.statusText));
+                        if (contentDiv) contentDiv.innerHTML = '<div style="padding: 20px; color: #F44336;">' + (data.error || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</div>';
+                    }
+                } catch (e) {
+                    alert('재생성 요청 오류: ' + (e && e.message ? e.message : e));
+                    if (contentDiv) contentDiv.innerHTML = '<div style="padding: 20px; color: #F44336;">요청 오류</div>';
+                }
+                btnRegeneratePrepost.disabled = false;
+                btnRegeneratePrepost.textContent = origText;
             });
         }
 
@@ -2360,7 +2379,38 @@
             }
         }
 
-        // 우측 데이터 로드 (전처리후)
+        // 전처리후 테이블 한 행 HTML 생성 (은행)
+        function buildProcessedDataRowBank(row, columns) {
+            const exclude_cols = ['잔액', '입출금', '거래유형', '키워드', '카테고리', '기타거래'];
+            let r = { ...row };
+            if (r.hasOwnProperty('메모')) delete r['메모'];
+            if (!r.hasOwnProperty('입출금')) r['입출금'] = '';
+            if (r.hasOwnProperty('적요') && r['적요'] != null) r['적요'] = String(r['적요']).replace(/-/g, ' ');
+            if (r.hasOwnProperty('취소') && r['취소'] != null && String(r['취소']).trim().includes('취소된 거래')) r['취소'] = '취소';
+            let html = '<tr>';
+            columns.forEach(col => {
+                if (exclude_cols.includes(col)) return;
+                let value = r[col];
+                let displayValue = '';
+                if (value !== null && value !== undefined && value !== '') {
+                    if (col === '거래일') displayValue = formatDate(value);
+                    else if (col === '거래시간') displayValue = formatTime(value);
+                    else if (col === '입금액' || col === '출금액') displayValue = formatAmount(value);
+                    else displayValue = value;
+                }
+                let cellStyle = '';
+                if (col === '입금액') cellStyle = ' style="color: #0000FF; white-space: nowrap; text-align: right !important;"';
+                else if (col === '출금액') cellStyle = ' style="color: #FF0000; white-space: nowrap; text-align: right !important;"';
+                else if (col === '거래일' || col === '거래시간' || col === '은행명') cellStyle = ' style="white-space: nowrap; text-align: center !important;"';
+                else if (col === '계좌번호') cellStyle = ' style="white-space: nowrap; text-align: left !important;"';
+                else cellStyle = ' style="white-space: nowrap; text-align: left !important;"';
+                html += `<td${cellStyle}>${displayValue}</td>`;
+            });
+            html += '</tr>';
+            return html;
+        }
+
+        // 우측 데이터 로드 (전처리후): 전체 JSON 한 번에 받아 테이블 렌더, 스크롤은 .box-content CSS
         async function loadRightData() {
             const contentDiv = document.getElementById('right-content');
             if (!contentDiv) return;
@@ -2400,7 +2450,7 @@
                 if (data.error) {
                     console.error('데이터 로딩 오류 (전처리후):', data.error);
                     const errorMsg = (data.error || '').replace(/\n/g, '<br>');
-                    if (contentDiv) contentDiv.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">데이터 로딩 오류:<br>${errorMsg || '서버에서 오류 메시지를 반환했습니다.'}<br><small>자세한 내용은 F12 콘솔을 확인하세요.</small><br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
+                    if (contentDiv) contentDiv.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">${errorMsg || '서버 오류'}<br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
                     const retryBtn = document.getElementById('right-data-retry-btn');
                     if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                     return;
@@ -2506,46 +2556,14 @@
                     }
                 }
 
-                // 집계 계산: 모든 레코드 누적
-                let totalCount = 0; // 모든 레코드 수
-                let depositCount = 0; // 입금액 > 0인 레코드 수
-                let withdrawCount = 0; // 출금액 > 0인 레코드 수
-                let totalDeposit = 0; // 입금액 합계
-                let totalWithdraw = 0; // 출금액 합계
+                // 집계: API가 전체 필터된 데이터 기준으로 반환 (total, deposit_amount, withdraw_amount, deposit_count, withdraw_count)
+                const totalCount = (data.total != null ? data.total : (data.data ? data.data.length : 0));
+                const totalDeposit = (data.deposit_amount != null ? data.deposit_amount : 0);
+                const totalWithdraw = (data.withdraw_amount != null ? data.withdraw_amount : 0);
+                const depositCount = (data.deposit_count != null ? data.deposit_count : 0);
+                const withdrawCount = (data.withdraw_count != null ? data.withdraw_count : 0);
                 
-                if (data.data && data.data.length > 0) {
-                    data.data.forEach(row => {
-                        totalCount++; // 전체 레코드 수
-                        
-                        // 입금액 집계 (값이 있으면 모두 누적)
-                        if (row.hasOwnProperty('입금액')) {
-                            if (row['입금액'] !== null && row['입금액'] !== undefined && row['입금액'] !== '') {
-                                const depositAmt = parseFloat(row['입금액']);
-                                if (!isNaN(depositAmt)) {
-                                    totalDeposit += depositAmt;
-                                    if (depositAmt > 0) {
-                                        depositCount++; // 입금액 > 0인 경우만 카운트
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // 출금액 집계 (값이 있으면 모두 누적)
-                        if (row.hasOwnProperty('출금액')) {
-                            if (row['출금액'] !== null && row['출금액'] !== undefined && row['출금액'] !== '') {
-                                const withdrawAmt = parseFloat(row['출금액']);
-                                if (!isNaN(withdrawAmt)) {
-                                    totalWithdraw += withdrawAmt;
-                                    if (withdrawAmt > 0) {
-                                        withdrawCount++; // 출금액 > 0인 경우만 카운트
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-                
-                // 전처리후: 총 ?건 = 전체 거래 건수, 입금 ?원 (N건), 출금 ?원 (M건)
+                // 전처리후: 총 ?건, 입금 ?원 (N건), 출금 ?원 (M건) — 전체 자료 기준
                 safeSetTextContent(document.getElementById('right-count'), '총 ' + formatNumber(totalCount) + '건');
                 safeSetTextContent(document.getElementById('right-deposit'), formatNumber(totalDeposit));
                 safeSetTextContent(document.getElementById('right-withdraw'), formatNumber(totalWithdraw));
@@ -2601,6 +2619,12 @@
                     });
                     html += '</tr></thead><tbody id="processed-data-tbody">';
                     
+                    let sumDeposit = 0, sumWithdraw = 0;
+                    data.data.forEach(r => {
+                        sumDeposit += (Number(r['입금액']) || 0);
+                        sumWithdraw += (Number(r['출금액']) || 0);
+                    });
+
                     data.data.forEach(row => {
                         html += '<tr>';
                         columns.forEach(col => {
@@ -2644,13 +2668,12 @@
                         html += '</tr>';
                     });
                     
-                    // 합계 행 추가 (잔액/입출금 컬럼은 삭제됨)
                     html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f0f0f0; font-weight: bold;">';
                     columns.forEach(col => {
                         if (col === '입금액') {
-                            html += `<td style="text-align: right; color: #0000FF;" data-sum-col="입금액">${formatAmount(totalDeposit)}</td>`;
+                            html += `<td style="text-align: right; color: #0000FF;" data-sum-col="입금액">${formatAmount(sumDeposit)}</td>`;
                         } else if (col === '출금액') {
-                            html += `<td style="text-align: right; color: #FF0000;" data-sum-col="출금액">${formatAmount(totalWithdraw)}</td>`;
+                            html += `<td style="text-align: right; color: #FF0000;" data-sum-col="출금액">${formatAmount(sumWithdraw)}</td>`;
                         } else if (col === '거래일') {
                             html += `<td style="text-align: center;" data-sum-col="거래일">합계</td>`;
                         } else {
@@ -2665,11 +2688,15 @@
                     // 데이터가 없는 경우 - error 메시지가 있으면 표시, 없으면 기본 메시지
                     if (data.error) {
                         const errorMsg = (data.error || '').replace(/\n/g, '<br>');
-                        if (contentDiv) contentDiv.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">데이터 로딩 오류:<br>${errorMsg || '서버 오류'}<br><small>자세한 내용은 F12 콘솔을 확인하세요.</small><br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
+                        if (contentDiv) contentDiv.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">${errorMsg || '서버 오류'}<br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
                         const retryBtn = document.getElementById('right-data-retry-btn');
                         if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                     } else {
                         let msg = '데이터가 없습니다.';
+                        if (data.integrate_reason) {
+                            const reason = String(data.integrate_reason).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                            msg += `<br><small style="color:#c62828;">이유: ${reason}</small>`;
+                        }
                         if (bankFilter || yearMonthFilter || accountFilter) {
                             const parts = [];
                             if (bankFilter) parts.push(`은행(${bankFilter})`);
@@ -2698,7 +2725,7 @@
                 const msg = (error && error.message) ? String(error.message).replace(/\n/g, '<br>') : '알 수 없음';
                 const el = document.getElementById('right-content');
                 if (el) {
-                    el.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">데이터 로딩 오류:<br>${msg || '알 수 없음'}<br><small>자세한 내용은 F12 콘솔을 확인하세요.</small><br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
+                    el.innerHTML = `<div class="loading" style="color: red; white-space: pre-line;">${msg || '알 수 없음'}<br><button type="button" id="right-data-retry-btn" style="margin-top:8px;padding:6px 12px;cursor:pointer;">다시 시도</button></div>`;
                     const retryBtn = document.getElementById('right-data-retry-btn');
                     if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                 }
@@ -2940,7 +2967,7 @@
             loadSourceFiles();
             loadLeftData();
             loadRightData();
-            
+
             // ESC, F1~F12: 입력/수정/삭제 모드 취소 → 출력 모드로 전환
             document.addEventListener('keydown', (e) => {
                 const currentAction = document.getElementById('new-category-chasu')?.value;
@@ -3510,6 +3537,37 @@
             printWindow.document.close();
         }
         
+        // 카테고리 조회 테이블 한 행 HTML (은행, 백그라운드 추가 로드용)
+        function buildCategoryQueryRowBank(row, availableColumns, rowIndex) {
+            const isEvenRow = rowIndex % 2 === 1;
+            const columnBgColors = {
+                '거래일': 'rgba(33, 150, 243, 0.1)', '거래시간': 'rgba(33, 150, 243, 0.1)',
+                '은행명': 'rgba(33, 150, 243, 0.1)', '계좌번호': 'rgba(33, 150, 243, 0.1)',
+                '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)', '취소': 'rgba(33, 150, 243, 0.1)',
+                '적요': 'rgba(33, 150, 243, 0.1)', '내용': 'rgba(33, 150, 243, 0.1)', '거래점': 'rgba(33, 150, 243, 0.1)',
+                '송금메모': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)', '기타거래': 'rgba(255, 152, 0, 0.1)', '입출금': 'rgba(255, 152, 0, 0.1)'
+            };
+            let html = '<tr data-i="' + rowIndex + '" class="category-query-row" style="cursor: pointer;">';
+            availableColumns.forEach(col => {
+                let value = row[col];
+                let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
+                if (col === '거래일') displayValue = displayValue ? formatDate(displayValue) : '';
+                else if (col === '거래시간') displayValue = displayValue ? formatTime(displayValue) : '';
+                else if (col === '입금액' || col === '출금액') displayValue = displayValue ? formatNumber(parseFloat(displayValue) || 0) : '';
+                let cellBgColor = isEvenRow ? (columnBgColors[col] || '') : '';
+                let cellStyle = ' style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                if (col === '입금액' || col === '출금액') {
+                    cellStyle = ' style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: ' + (col === '입금액' ? '#0000FF' : '#FF0000') + '; font-size: 11px;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (['취소','입출금','은행명','거래일','거래시간'].indexOf(col) >= 0) {
+                    cellStyle = ' style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                } else if (col === '계좌번호') {
+                    cellStyle = ' style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;' + (cellBgColor ? ' background-color: ' + cellBgColor + ';' : '') + '"';
+                }
+                html += '<td' + cellStyle + '>' + displayValue + '</td>';
+            });
+            html += '</tr>';
+            return html;
+        }
         // 카테고리 조회 테이블 로드 (전처리후 은행/계좌에 따라 필터링, 드롭다운 모두 전체이면 전처리후와 연동)
         async function loadCategoryQueryTable() {
             const btn = document.getElementById('generate-category-btn');
@@ -3556,6 +3614,18 @@
                 
                 const fileExists = data.file_exists === true;
                 
+                // 카테고리 적용후 요약: 총 N건, 입금 X원 (N건), 출금 Y원 (M건)
+                const total = data.total != null ? data.total : (data.data ? data.data.length : 0);
+                const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
+                const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
+                const depositCount = data.deposit_count != null ? data.deposit_count : 0;
+                const withdrawCount = data.withdraw_count != null ? data.withdraw_count : 0;
+                safeSetTextContent(document.getElementById('category-query-count'), '총 ' + formatNumber(total) + '건');
+                safeSetTextContent(document.getElementById('category-query-deposit'), formatNumber(depositAmount));
+                safeSetTextContent(document.getElementById('category-query-deposit-count'), depositCount > 0 ? ' (' + formatNumber(depositCount) + '건)' : '');
+                safeSetTextContent(document.getElementById('category-query-withdraw'), formatNumber(withdrawAmount));
+                safeSetTextContent(document.getElementById('category-query-withdraw-count'), withdrawCount > 0 ? ' (' + formatNumber(withdrawCount) + '건)' : '');
+                
                 if (data.data && data.data.length > 0) {
                     categoryQueryDataOriginal = data.data;
                     try {
@@ -3565,14 +3635,14 @@
                     } catch (e) {
                         _simyaRangesCache = [];
                     }
-                    renderCategoryQueryTable(data.data);
+                    renderCategoryQueryTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     updateCategoryChartFromQuery();
                 } else {
                     contentEl.innerHTML = 
                         '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
                 }
                 
-                // bank_after.xlsx 생성 버튼은 항상 활성화
+                // bank_after 파일 생성 버튼은 항상 활성화
                 if (btn) {
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
@@ -3593,13 +3663,15 @@
         }
         
         // 카테고리 조회 테이블 렌더링
-        function renderCategoryQueryTable(data) {
+        function renderCategoryQueryTable(data, options) {
             const contentDiv = document.getElementById('category-query-content');
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
+            const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
             // 카테고리 조회 (거래유형 제외)
             const columns = [
@@ -3615,9 +3687,8 @@
                 });
             }
             
-            const availableColumns = columns.filter(col => 
-                data[0] && data[0].hasOwnProperty(col)
-            );
+            // 키워드/카테고리/기타거래 항상 표시 (데이터에 없으면 빈칸)
+            const availableColumns = columns;
             
             // 카테고리 적용후/조회 컬럼 너비 (비율, totalRatio로 100% 분배)
             const columnWidths = {
@@ -3768,12 +3839,15 @@
                 html += '</tr>';
             });
             
-            let totalDeposit = 0;
-            let totalWithdraw = 0;
-            data.forEach(row => {
-                totalDeposit += parseFloat(row['입금액']) || 0;
-                totalWithdraw += parseFloat(row['출금액']) || 0;
-            });
+            // 옵션으로 전달된 전체 합계 사용 (API deposit_amount / withdraw_amount)
+            let totalDeposit = fullTotalDeposit != null ? fullTotalDeposit : 0;
+            let totalWithdraw = fullTotalWithdraw != null ? fullTotalWithdraw : 0;
+            if (fullTotalDeposit == null && fullTotalWithdraw == null) {
+                data.forEach(row => {
+                    totalDeposit += parseFloat(row['입금액']) || 0;
+                    totalWithdraw += parseFloat(row['출금액']) || 0;
+                });
+            }
             
             html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
             availableColumns.forEach(col => {
@@ -3797,6 +3871,9 @@
             
             html += '</tbody></table>';
             contentDiv.innerHTML = html;
+            
+            const tableEl = document.getElementById('category-query-table');
+            if (tableEl) tableEl.dataset.columns = JSON.stringify(availableColumns);
             
             availableColumns.forEach(col => {
                 const filterSelect = document.getElementById(`filter-category-query-${col}`);
@@ -4192,15 +4269,14 @@
             });
         }
         
-        // bank_after.xlsx 파일 생성 함수
+        // bank_after 파일 생성 함수 (버튼 제거됨, API 호출만 필요 시 사용)
         async function generateCategoryFile() {
             const btn = document.getElementById('generate-category-btn');
-            const originalText = btn.textContent;
-            
-            btn.disabled = true;
-            btn.textContent = '생성 중...';
-            btn.style.backgroundColor = '#ccc';
-            
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '생성 중...';
+                btn.style.backgroundColor = '#ccc';
+            }
             try {
                 const ctrl = new AbortController();
                 const timeoutId = setTimeout(() => ctrl.abort(), 60000);
@@ -4219,23 +4295,27 @@
                 }
                 if (result.success) {
                     alert(`카테고리 파일 생성 완료!\n${result.message}\n\n카테고리 조회 데이터를 새로고침합니다.`);
-                    btn.textContent = originalText;
+                    if (btn) btn.textContent = btn.textContent || '';
                     await loadCategoryQueryTable();
                 } else {
                     alert(`오류: ${(result.error || '카테고리 파일 생성 실패').replace(/\n/g, ' ')}`);
-                    btn.disabled = false;
-                    btn.textContent = originalText;
-                    btn.style.backgroundColor = '#2196F3';
-                    btn.style.cursor = 'pointer';
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = btn.textContent || '';
+                        btn.style.backgroundColor = '#2196F3';
+                        btn.style.cursor = 'pointer';
+                    }
                 }
             } catch (error) {
                 console.error('Error generating category file:', error);
                 const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '네트워크/서버 확인';
                 alert('카테고리 파일 생성 중 오류: ' + msg);
-                btn.disabled = false;
-                btn.textContent = originalText;
-                btn.style.backgroundColor = '#2196F3';
-                btn.style.cursor = 'pointer';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = btn.textContent || '';
+                    btn.style.backgroundColor = '#2196F3';
+                    btn.style.cursor = 'pointer';
+                }
             }
         }
         

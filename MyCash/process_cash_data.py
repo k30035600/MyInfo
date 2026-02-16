@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-process_cash_data.py — 금융정보(MyCash) 전용. (카드 관련 역할 없음)
+process_cash_data.py — 금융정보(MyCash) 전용. 전처리·계정과목분류·후처리 없음.
 
-[역할]
-- 카테고리: MyInfo/.source/category_table.json(금융정보 구분) 사용
+[금융정보 흐름]
 - cash_after.xlsx는 bank_after + card_after 병합으로만 생성(cash_app.merge_bank_card_to_cash_after).
+- MyCash에는 전처리/계정과목분류/후처리 단계가 없음. 병합 시 이미 은행·신용카드에서 적용된
+  키워드·카테고리를 그대로 사용하고, 업종분류(linkage_table)·위험도만 추가 적용.
+- classify_and_save()는 cash_before 단일 파일용 예외 경로이며, 전처리/후처리는 미적용.
 """
 import pandas as pd
 import os
@@ -73,7 +75,7 @@ except ImportError:
     load_category_table_io = load_category_table
     CATEGORY_TABLE_COLUMNS = ['분류', '키워드', '카테고리']
 
-OUTPUT_FILE = "cash_after.xlsx"
+OUTPUT_FILE = "cash_after.json"
 
 
 def ensure_all_cash_files():
@@ -491,7 +493,15 @@ def classify_and_save(input_file=None, output_file=None):
             result_df[col] = result_df[col].apply(normalize_spaces)
 
     try:
-        success = safe_write_excel(result_df, output_file)
+        if str(output_file).endswith('.json'):
+            try:
+                from data_json_io import safe_write_data_json
+                safe_write_data_json(output_file, result_df)
+                success = True
+            except ImportError:
+                success = safe_write_excel(result_df, output_file)
+        else:
+            success = safe_write_excel(result_df, output_file)
         if not success:
             print(f"오류: 파일 저장 실패 - {output_file}")
             return False

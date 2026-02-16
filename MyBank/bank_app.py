@@ -30,6 +30,13 @@ app.config['JSON_AS_ASCII'] = False
 # 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+try:
+    from data_json_io import safe_read_data_json, safe_write_data_json
+except ImportError:
+    safe_read_data_json = None
+    safe_write_data_json = None
 # category: MyInfo/.source/category_table.json 하나만 사용 (category_table_io로 읽기/쓰기)
 CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 try:
@@ -44,10 +51,10 @@ except ImportError:
         get_category_table as _io_get_category_table,
         apply_category_action,
     )
-# 원본 은행 파일: .source/Bank. before/after: MyBank 폴더
+# 원본 은행 파일: .source/Bank. before/after: MyBank 폴더 JSON (절대경로로 통일해 Errno 2 방지)
 SOURCE_BANK_DIR = os.path.join(PROJECT_ROOT, '.source', 'Bank')
-BANK_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'bank_before.xlsx')
-BANK_AFTER_PATH = os.path.join(SCRIPT_DIR, 'bank_after.xlsx')
+BANK_BEFORE_PATH = str(Path(SCRIPT_DIR).resolve() / 'bank_before.json')
+BANK_AFTER_PATH = str(Path(SCRIPT_DIR).resolve() / 'bank_after.json')
 
 # 전처리후 은행 필터: 드롭다운 값 → 실제 데이터에 있을 수 있는 은행명 별칭
 # 적용 위치: get_processed_data()에서 load_processed_file()(bank_before.xlsx)로 읽은 DataFrame의 '은행명' 컬럼
@@ -73,33 +80,28 @@ def _is_bad_zip_error(e):
     )
 
 
-def _backup_bad_xlsx(path, recreate_empty=None):
-    """손상된 xlsx를 .xlsx.bak으로 백업 후 삭제. recreate_empty가 (columns리스트)이면 빈 xlsx 재생성."""
+def _remove_bad_data_file(path, recreate_empty=None):
+    """손상된 데이터 파일 삭제. .bak 생성하지 않음. recreate_empty가 (columns리스트)이면 빈 JSON 재생성."""
     p = Path(path)
     if p.exists() and p.stat().st_size > 0:
-        bak = p.with_suffix(p.suffix + '.bak')
         try:
-            shutil.copy2(str(p), str(bak))
-        except Exception:
-            pass  # 손상된 파일은 복사 실패 가능, 삭제만 시도
-        try:
-            if p.exists():
-                p.unlink()
+            p.unlink()
         except FileNotFoundError:
-            pass  # 이미 삭제됨 (다른 요청 등)
+            pass
         except OSError as ex:
             winerr = getattr(ex, 'winerror', None)
             errno_val = getattr(ex, 'errno', None)
-            if winerr == 32 or errno_val == 13:  # 파일 사용 중 / EACCES
-                print(f"안내: {p.name}이(가) 다른 프로그램(Excel 등)에서 열려 있어 삭제할 수 없습니다. 파일을 닫은 뒤 다시 시도하세요.", flush=True)
-            elif winerr != 2 and errno_val != 2:  # 파일 없음이면 무시
-                print(f"백업/삭제 실패 {p}: {ex}", flush=True)
+            if winerr == 32 or errno_val == 13:
+                print(f"안내: {p.name}이(가) 다른 프로그램에서 열려 있어 삭제할 수 없습니다. 파일을 닫은 뒤 다시 시도하세요.", flush=True)
+            elif winerr != 2 and errno_val != 2:
+                print(f"삭제 실패 {p}: {ex}", flush=True)
     if recreate_empty is not None:
         try:
+            from data_json_io import safe_write_data_json
             empty = pd.DataFrame(columns=recreate_empty)
-            empty.to_excel(str(p), index=False, engine='openpyxl')
+            safe_write_data_json(p, empty)
         except Exception as ex:
-            print(f"빈 xlsx 재생성 실패 {p}: {ex}", flush=True)
+            print(f"빈 데이터 파일 재생성 실패 {p}: {ex}", flush=True)
 
 
 def _is_file_in_use_error(e):
@@ -131,10 +133,10 @@ def safe_read_excel(path, default_empty=True):
             return pd.DataFrame() if default_empty else None
         err_msg = str(e).lower()
         if _is_bad_zip_error(e):
-            _backup_bad_xlsx(path)
+            _remove_bad_data_file(path)
             return pd.DataFrame() if default_empty else None
         if 'zip' in err_msg or 'not a zip' in err_msg or 'decompress' in err_msg or 'invalid block' in err_msg:
-            _backup_bad_xlsx(path)
+            _remove_bad_data_file(path)
             return pd.DataFrame() if default_empty else None
         raise
 
@@ -206,28 +208,68 @@ def load_source_files():
     
     return files
 
+# bank_before 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+_processed_file_cache = None
+_processed_file_cache_mtime = None
+
 def load_processed_file():
-    """전처리된 파일 로드 (MyBank/bank_before.xlsx). 손상된 xlsx는 백업 후 빈 DataFrame 반환."""
+    """전처리된 파일 로드 (MyBank/bank_before.json). 손상 시 빈 DataFrame 반환. 대용량 시 캐시 사용."""
+    global _processed_file_cache, _processed_file_cache_mtime
     try:
         path = Path(BANK_BEFORE_PATH)
-        df = safe_read_excel(path, default_empty=True)
+        if not path.exists():
+            _processed_file_cache = None
+            _processed_file_cache_mtime = None
+            return pd.DataFrame()
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = None
+        if _processed_file_cache is not None and mtime is not None and _processed_file_cache_mtime == mtime:
+            return _processed_file_cache.copy()
+        if safe_read_data_json:
+            df = safe_read_data_json(BANK_BEFORE_PATH, default_empty=True)
+        else:
+            df = safe_read_excel(path, default_empty=True)
+        if df is not None and not df.empty:
+            _processed_file_cache = df
+            _processed_file_cache_mtime = mtime
+            return df.copy()
         return df if df is not None else pd.DataFrame()
     except Exception as e:
-        print(f"오류: bank_before.xlsx 파일 로드 실패 - {e}", flush=True)
+        print(f"오류: bank_before.json 파일 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
+# bank_after 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+_category_file_cache = None
+_category_file_cache_mtime = None
+
 def load_category_file():
-    """카테고리 적용 파일 로드 (MyBank/bank_after.xlsx). 손상된 xlsx는 백업 후 빈 DataFrame 반환."""
+    """카테고리 적용 파일 로드 (MyBank/bank_after.json). 손상 시 빈 DataFrame 반환. 대용량 시 캐시 사용."""
+    global _category_file_cache, _category_file_cache_mtime
     try:
         category_file = Path(BANK_AFTER_PATH)
-        if category_file.exists():
+        if not category_file.exists():
+            _category_file_cache = None
+            _category_file_cache_mtime = None
+            return load_processed_file() if load_processed_file() is not None else pd.DataFrame()
+        try:
+            mtime = category_file.stat().st_mtime
+        except OSError:
+            mtime = None
+        if _category_file_cache is not None and mtime is not None and _category_file_cache_mtime == mtime:
+            return _category_file_cache.copy()
+        if safe_read_data_json:
+            df = safe_read_data_json(BANK_AFTER_PATH, default_empty=True)
+        else:
             df = safe_read_excel(category_file, default_empty=True)
-            if df is not None and not df.empty:
-                # 컬럼명 정규화: BOM/공백 제거 (첫 컬럼 '기타거래' 등이 다르게 읽히는 것 방지)
-                df.columns = [str(c).strip().lstrip('\ufeff') for c in df.columns]
-                if '구분' in df.columns and '취소' not in df.columns:
-                    df = df.rename(columns={'구분': '취소'})
-                return df
+        if df is not None and not df.empty:
+            df.columns = [str(c).strip().lstrip('\ufeff') for c in df.columns]
+            if '구분' in df.columns and '취소' not in df.columns:
+                df = df.rename(columns={'구분': '취소'})
+            _category_file_cache = df
+            _category_file_cache_mtime = mtime
+            return df.copy()
         df = load_processed_file()
         if df is not None and not df.empty and '구분' in df.columns and '취소' not in df.columns:
             df = df.rename(columns={'구분': '취소'})
@@ -278,14 +320,41 @@ def get_source_files():
             'files': []
         }), 500
 
-@app.route('/api/processed-data')
+def _create_empty_bank_before(path):
+    """bank_before가 없을 때 빈 표준 컬럼 JSON 생성. 데이터 로딩 오류(Errno 2) 방지."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cols = ['거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
+            '취소', '적요', '내용', '송금메모', '거래점']
+    empty = pd.DataFrame(columns=cols)
+    if safe_write_data_json:
+        safe_write_data_json(str(path), empty)
+    else:
+        empty.to_excel(str(path), index=False, engine='openpyxl')
+
+
+def _remove_bank_before_after_and_bak():
+    """통합·전처리 다시 실행 전에 bank_before/bank_after 데이터 파일 삭제. 캐시 무효화."""
+    global _processed_file_cache, _processed_file_cache_mtime, _category_file_cache, _category_file_cache_mtime
+    _processed_file_cache = None
+    _processed_file_cache_mtime = None
+    _category_file_cache = None
+    _category_file_cache_mtime = None
+    for path_str in (BANK_BEFORE_PATH, BANK_AFTER_PATH):
+        p = Path(path_str)
+        try:
+            if p.exists():
+                p.unlink()
+        except OSError:
+            pass
+
+
+@app.route('/api/reintegrate', methods=['POST'])
 @ensure_working_directory
-def get_processed_data():
-    """전처리된 데이터 반환 (필터링 지원). bank_before/category_table만 준비, 카테고리 분류( bank_after 생성)는 하지 않음."""
+def reintegrate_bank():
+    """bank_before를 .source/Bank 기준으로 다시 통합·전처리하여 덮어쓴다. before/after 삭제 후 통합·전처리만 수행(bank_after 미생성)."""
     try:
-        output_path = Path(BANK_BEFORE_PATH)
-        bank_before_existed = output_path.exists()  # 요청 시작 시 존재 여부 (이번 요청에서 생성됐으면 에러 문구 구분)
-        # bank_before, category_table만 준비 (bank_after 생성/카테고리분류는 하지 않음)
+        _remove_bank_before_after_and_bak()
         _path_added = False
         try:
             _dir_str = str(SCRIPT_DIR)
@@ -293,22 +362,81 @@ def get_processed_data():
                 sys.path.insert(0, _dir_str)
                 _path_added = True
             import process_bank_data as _pbd
-            _pbd.ensure_bank_before_and_category()
+            _pbd.integrate_bank_transactions(output_file=str(Path(BANK_BEFORE_PATH)))
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
+        finally:
+            if _path_added and str(SCRIPT_DIR) in sys.path:
+                sys.path.remove(str(SCRIPT_DIR))
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/regenerate-prepost', methods=['POST'])
+@ensure_working_directory
+def regenerate_prepost():
+    """bank_before·bank_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 전체 재생성."""
+    try:
+        _remove_bank_before_after_and_bak()
+        _path_added = False
+        try:
+            _dir_str = str(SCRIPT_DIR)
+            if _dir_str not in sys.path:
+                sys.path.insert(0, _dir_str)
+                _path_added = True
+            import process_bank_data as _pbd
+            _pbd.integrate_bank_transactions(output_file=str(Path(BANK_BEFORE_PATH)))
+            if not Path(BANK_BEFORE_PATH).exists() or Path(BANK_BEFORE_PATH).stat().st_size == 0:
+                return jsonify({'ok': False, 'error': 'bank_before 생성 후에도 없거나 비어 있습니다. .source/Bank 원본을 확인하세요.'}), 500
+            if not _pbd.classify_and_save():
+                err = getattr(_pbd, 'LAST_CLASSIFY_ERROR', None) or '카테고리 분류·후처리 실패'
+                return jsonify({'ok': False, 'error': str(err)}), 500
+            return jsonify({'ok': True})
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
+        finally:
+            if _path_added and str(SCRIPT_DIR) in sys.path:
+                sys.path.remove(str(SCRIPT_DIR))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/processed-data')
+@ensure_working_directory
+def get_processed_data():
+    """전처리된 데이터 반환 (필터링 지원). 전체 JSON 반환, 클라이언트에서 테이블 렌더."""
+    try:
+        output_path = Path(BANK_BEFORE_PATH).resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        bank_before_existed = output_path.exists()  # 요청 시작 시 존재 여부 (이번 요청에서 생성됐으면 에러 문구 구분)
+        # bank_before, category_table만 준비 (bank_after 생성/카테고리분류는 하지 않음). 경로를 명시해 동일 경로에 생성 보장.
+        _path_added = False
+        try:
+            _dir_str = str(SCRIPT_DIR)
+            if _dir_str not in sys.path:
+                sys.path.insert(0, _dir_str)
+                _path_added = True
+            import process_bank_data as _pbd
+            _pbd.ensure_bank_before_and_category(bank_before_path=str(output_path))
         except Exception as e:
             error_msg = str(e)
-            hint = []
-            if 'bank_after' in error_msg or 'PermissionError' in error_msg or '사용 중' in error_msg:
-                hint.append('bank_after.xlsx를 열어둔 프로그램(Excel 등)을 닫아주세요.')
-            if 'xlrd' in error_msg or 'No module' in error_msg:
-                hint.append('.xls 파일 읽기에는 xlrd 패키지가 필요합니다: pip install xlrd')
-            extra = '\n' + '\n'.join(hint) if hint else ''
-            return jsonify({
-                'error': f'파일 생성 실패: {error_msg}{extra}',
-                'count': 0,
-                'deposit_amount': 0,
-                'withdraw_amount': 0,
-                'data': []
-            }), 500
+            if 'No such file' in error_msg and 'bank_before' in error_msg:
+                _create_empty_bank_before(output_path)
+            else:
+                hint = []
+                if 'bank_after' in error_msg or 'PermissionError' in error_msg or '사용 중' in error_msg:
+                    hint.append('bank_after.xlsx를 열어둔 프로그램(Excel 등)을 닫아주세요.')
+                if 'xlrd' in error_msg or 'No module' in error_msg:
+                    hint.append('.xls 파일 읽기에는 xlrd 패키지가 필요합니다: pip install xlrd')
+                extra = '\n' + '\n'.join(hint) if hint else ''
+                return jsonify({
+                    'error': f'파일 생성 실패: {error_msg}{extra}',
+                    'count': 0,
+                    'deposit_amount': 0,
+                    'withdraw_amount': 0,
+                    'data': []
+                }), 500
         finally:
             if _path_added and str(SCRIPT_DIR) in sys.path:
                 sys.path.remove(str(SCRIPT_DIR))
@@ -319,18 +447,9 @@ def get_processed_data():
             except Exception:
                 pass
         if not output_path.exists():
-            return jsonify({
-                'error': 'bank_before.xlsx 생성 실패. .source/Bank 폴더와 process_bank_data.py를 확인하세요.',
-                'detail': f'기대 경로: {output_path}\n원본 폴더: {SOURCE_BANK_DIR}',
-                'count': 0,
-                'deposit_amount': 0,
-                'withdraw_amount': 0,
-                'data': []
-            }), 500
+            _create_empty_bank_before(output_path)
 
-        # bank_after.xlsx 존재하면 사용만. 생성/카테고리 분류는 /api/generate-category(생성 필터)에서만 수행.
-
-        # 전처리후 테이블에 카테고리 컬럼 표시: bank_after 있으면 사용, 없으면 bank_before
+        # 전처리후: bank_after 있으면 사용. 없으면 before 기준으로 계정과목분류·후처리 후 after 생성해 사용.
         category_file_exists = Path(BANK_AFTER_PATH).exists()
         if category_file_exists:
             try:
@@ -340,39 +459,54 @@ def get_processed_data():
         else:
             df = load_processed_file()
 
+        # after가 없고 before 데이터가 있으면 → 계정과목분류·후처리 실행해 after 생성 후 재로드
+        if not category_file_exists and not df.empty:
+            _path_added_2 = False
+            try:
+                if str(SCRIPT_DIR) not in sys.path:
+                    sys.path.insert(0, str(SCRIPT_DIR))
+                    _path_added_2 = True
+                import process_bank_data as _pbd
+                if _pbd.classify_and_save():
+                    category_file_exists = True
+                    try:
+                        df = load_category_file()
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"after 자동 생성 실패: {e}", flush=True)
+            finally:
+                if _path_added_2 and str(SCRIPT_DIR) in sys.path:
+                    sys.path.remove(str(SCRIPT_DIR))
+
         if df.empty:
-            source_dir = Path(SOURCE_BANK_DIR)
-            source_files = []
-            if source_dir.exists():
-                source_files = list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx'))
-            error_msg = '전처리된 데이터가 없습니다.'
-            # 요청 시작 시 파일이 이미 있었는데 읽은 데이터가 비어있는 경우에만 "존재하지만 비어있습니다" 표시
-            if bank_before_existed and output_path.exists() and output_path.stat().st_size > 0:
-                error_msg += '\nbank_before.xlsx는 존재하지만 읽은 데이터가 비어있습니다.'
-                error_msg += '\n파일이 Excel 등에서 열려 있으면 닫고, 내용·시트 구조를 확인해주세요.'
-            elif not source_dir.exists():
-                error_msg += '\n.source/Bank 폴더가 존재하지 않습니다.'
-            elif len(source_files) == 0:
-                error_msg += '\n.source/Bank 폴더에 .xls, .xlsx 파일이 없습니다.'
-            else:
-                error_msg += f'\n.source/Bank 폴더에 {len(source_files)}개의 .xls, .xlsx 파일이 있지만 데이터를 추출할 수 없었습니다.'
-                error_msg += '\n파일 형식이나 내용을 확인해주세요.'
-                try:
-                    import process_bank_data as _pbd_err
-                    if getattr(_pbd_err, 'LAST_INTEGRATE_ERROR', None):
-                        error_msg += '\n\n[원인] ' + _pbd_err.LAST_INTEGRATE_ERROR
-                except Exception:
-                    pass
+            # 데이터 없음 시 추출 실패 이유(LAST_INTEGRATE_ERROR)를 함께 반환해 화면에 표시
+            integrate_reason = None
+            try:
+                import process_bank_data as _pbd_reason
+                integrate_reason = getattr(_pbd_reason, 'LAST_INTEGRATE_ERROR', None) or None
+                if integrate_reason and not isinstance(integrate_reason, str):
+                    integrate_reason = None
+            except Exception:
+                pass
             response = jsonify({
-                'error': error_msg,
+                'total': 0,
                 'count': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
+                'deposit_count': 0,
+                'withdraw_count': 0,
                 'data': [],
-                'file_exists': category_file_exists
+                'file_exists': category_file_exists,
+                'integrate_reason': (integrate_reason.strip() if integrate_reason else None)
             })
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
+
+        # 카테고리 조회 테이블용: 키워드·카테고리·기타거래 없으면 빈 컬럼 추가 (bank_before fallback 또는 구버전 bank_after 시)
+        for col in ['키워드', '카테고리', '기타거래']:
+            if col not in df.columns:
+                df[col] = ''
 
         # 필터 파라미터
         bank_filter = (request.args.get('bank') or '').strip()
@@ -392,23 +526,31 @@ def get_processed_data():
         if account_filter and '계좌번호' in df.columns:
             df = df[df['계좌번호'].fillna('').astype(str).str.strip() == account_filter]
         
-        # 집계 계산
+        # 집계 계산 (전체 필터된 데이터 기준)
         count = len(df)
         deposit_amount = df['입금액'].sum() if not df.empty else 0
         withdraw_amount = df['출금액'].sum() if not df.empty else 0
-        
+        deposit_count = int((pd.to_numeric(df['입금액'], errors='coerce').fillna(0) > 0).sum()) if not df.empty and '입금액' in df.columns else 0
+        withdraw_count = int((pd.to_numeric(df['출금액'], errors='coerce').fillna(0) > 0).sum()) if not df.empty and '출금액' in df.columns else 0
+
         # NaN 값을 None으로 변환
         df = df.where(pd.notna(df), None)
-        
+
+        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더, 스크롤은 CSS)
+        total = len(df)
         data = df.to_dict('records')
         data = _json_safe(data)
-        response = jsonify({
-            'count': count,
+        resp_payload = {
+            'total': total,
+            'count': len(data),
             'deposit_amount': int(deposit_amount),
             'withdraw_amount': int(withdraw_amount),
+            'deposit_count': deposit_count,
+            'withdraw_count': withdraw_count,
             'data': data,
             'file_exists': category_file_exists
-        })
+        }
+        response = jsonify(resp_payload)
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response
     except Exception as e:
@@ -416,9 +558,12 @@ def get_processed_data():
         category_file_exists = Path(BANK_AFTER_PATH).exists()
         return jsonify({
             'error': str(e),
+            'total': 0,
             'count': 0,
             'deposit_amount': 0,
             'withdraw_amount': 0,
+            'deposit_count': 0,
+            'withdraw_count': 0,
             'data': [],
             'file_exists': category_file_exists
         }), 500
@@ -467,7 +612,7 @@ def get_simya_ranges():
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (필터링 지원). bank_before/category_table만 준비, bank_after는 생성하지 않음."""
+    """카테고리 적용된 데이터 반환 (필터링 지원). 전체 JSON 반환."""
     try:
         # bank_before, category_table만 준비 (테이블/출력 시 카테고리 분류 미수행)
         _path_added = False
@@ -497,10 +642,13 @@ def get_category_applied_data():
         if df.empty:
             response = jsonify({
                 'count': 0,
+                'total': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
+                'deposit_count': 0,
+                'withdraw_count': 0,
                 'data': [],
-                'file_exists': category_file_exists  # 파일 존재 여부 추가
+                'file_exists': category_file_exists
             })
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
@@ -535,14 +683,21 @@ def get_category_applied_data():
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns and not df.empty:
             print(f"Warning: Missing columns in data: {missing_columns}")
-            # 누락된 컬럼 추가 (기본값 0)
             for col in missing_columns:
                 df[col] = 0
-        
-        # 집계 계산
+        # 카테고리 적용후 테이블용: 키워드·카테고리·기타거래 없으면 빈 컬럼 추가 (bank_before fallback 또는 구버전 bank_after 시)
+        for col in ['키워드', '카테고리', '기타거래']:
+            if col not in df.columns:
+                df[col] = ''
+
+        # 집계 계산 (필터 적용 후 전체 기준)
         count = len(df)
         deposit_amount = df['입금액'].sum() if not df.empty and '입금액' in df.columns else 0
         withdraw_amount = df['출금액'].sum() if not df.empty and '출금액' in df.columns else 0
+        dep_series = pd.to_numeric(df['입금액'], errors='coerce').fillna(0) if not df.empty and '입금액' in df.columns else pd.Series(dtype=float)
+        wit_series = pd.to_numeric(df['출금액'], errors='coerce').fillna(0) if not df.empty and '출금액' in df.columns else pd.Series(dtype=float)
+        deposit_count = int((dep_series > 0).sum())
+        withdraw_count = int((wit_series > 0).sum())
         
         df = df.where(pd.notna(df), None)
         # 카테고리 적용후 테이블: 거래일 → 거래시간 → 계좌번호 순 정렬
@@ -555,12 +710,17 @@ def get_category_applied_data():
             sort_cols.append('계좌번호')
         if sort_cols:
             df = df.sort_values(by=sort_cols, ascending=True, na_position='last').reset_index(drop=True)
+        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
+        total = len(df)
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
-            'count': count,
+            'total': total,
+            'count': len(data),
             'deposit_amount': int(deposit_amount),
             'withdraw_amount': int(withdraw_amount),
+            'deposit_count': deposit_count,
+            'withdraw_count': withdraw_count,
             'data': data,
             'file_exists': category_file_exists
         })
@@ -701,7 +861,6 @@ def get_category_table():
             if str(path).endswith('.json'):
                 try:
                     if path.exists() and path.stat().st_size > 0:
-                        shutil.copy2(str(path), str(path) + '.bak')
                         path.unlink()
                     from category_table_io import create_empty_category_table
                     create_empty_category_table(str(path))
@@ -718,7 +877,6 @@ def get_category_table():
         if file_existed and (df is None or df.empty) and path.exists() and path.stat().st_size > 0:
             if str(path).endswith('.json'):
                 try:
-                    shutil.copy2(str(path), str(path) + '.bak')
                     path.unlink()
                     from category_table_io import create_empty_category_table
                     create_empty_category_table(str(path))
@@ -755,7 +913,6 @@ def get_category_table():
         if str(path).endswith('.json'):
             try:
                 if path.exists() and path.stat().st_size > 0:
-                    shutil.copy2(str(path), str(path) + '.bak')
                     path.unlink()
                 from category_table_io import create_empty_category_table
                 create_empty_category_table(str(path))
@@ -1739,14 +1896,6 @@ def generate_category():
                 _path_added = True
             import process_bank_data as _pbd
             _pbd.ensure_bank_before_and_category()  # bank_before, category_table 준비 (생성 시에만 카테고리 분류)
-            # 이미 bank_after.xlsx가 있으면 .bak으로 복사 후 새로 생성
-            output_path = Path(BANK_AFTER_PATH)
-            if output_path.exists() and output_path.stat().st_size > 0:
-                try:
-                    bak_path = output_path.with_suffix(output_path.suffix + '.bak')
-                    shutil.copy2(str(output_path), str(bak_path))
-                except Exception:
-                    pass
             success = _pbd.classify_and_save()
             if not success:
                 detail = getattr(_pbd, 'LAST_CLASSIFY_ERROR', None)
@@ -1765,10 +1914,10 @@ def generate_category():
                 err_msg += '\n[원인] ' + detail
             return _json_500({'success': False, 'error': err_msg})
         
-        # bank_after.xlsx 파일 확인 (MyBank 아래)
+        # bank_after 파일 확인 (MyBank 아래)
         output_path = Path(BANK_AFTER_PATH)
         if output_path.exists():
-            df = safe_read_excel(output_path, default_empty=True)
+            df = safe_read_data_json(output_path, default_empty=True) if safe_read_data_json else safe_read_excel(output_path, default_empty=True)
             count = len(df) if df is not None else 0
             resp = jsonify({
                 'success': True,
@@ -1779,7 +1928,7 @@ def generate_category():
             return resp
         return _json_500({
             'success': False,
-            'error': f'bank_after.xlsx 파일이 생성되지 않았습니다. 경로: {output_path}'
+            'error': f'bank_after 파일이 생성되지 않았습니다. 경로: {output_path}'
         })
     except FileNotFoundError as e:
         return _json_500({'success': False, 'error': f'파일을 찾을 수 없습니다: {str(e)}'})
@@ -1798,4 +1947,5 @@ def help():
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
-    app.run(debug=True, port=5001, host='127.0.0.1')
+    # use_reloader=False: 프로젝트 루트에서 실행 시 리로더가 잘못된 경로로 재실행되어 실패하는 것 방지
+    app.run(debug=True, port=5001, host='127.0.0.1', use_reloader=False)

@@ -32,14 +32,19 @@ PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
 CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 # 금융정보 업종분류: MyInfo/.source/linkage_table.json만 사용 (xlsx 없으면 xlsx에서 json 생성)
 LINKAGE_TABLE_JSON = str(Path(PROJECT_ROOT) / '.source' / 'linkage_table.json')
-# 원본 업로드용: .source/Cash. after: MyCash 폴더 (cash_before 미사용)
+# 원본 업로드용: .source/Cash. after: MyCash 폴더 JSON (cash_before 미사용)
 SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
-CASH_AFTER_PATH = os.path.join(SCRIPT_DIR, 'cash_after.xlsx')
+CASH_AFTER_PATH = os.path.join(SCRIPT_DIR, 'cash_after.json')
 # 금융정보(MyCash): card·cash 테이블 연동만 하지 않음. 은행/카드 데이터 불러와 병합(cash_after 생성)은 진행.
 MYCASH_ONLY_NO_BANK_CARD_LINK = False
 # 금융정보 전처리전/전처리후: 은행거래·신용카드 after 파일 (MYCASH_ONLY_NO_BANK_CARD_LINK 시 미사용)
-BANK_AFTER_PATH = Path(PROJECT_ROOT) / 'MyBank' / 'bank_after.xlsx'
-CARD_AFTER_PATH = Path(PROJECT_ROOT) / 'MyCard' / 'card_after.xlsx'
+BANK_AFTER_PATH = Path(PROJECT_ROOT) / 'MyBank' / 'bank_after.json'
+CARD_AFTER_PATH = Path(PROJECT_ROOT) / 'MyCard' / 'card_after.json'
+try:
+    from data_json_io import safe_read_data_json, safe_write_data_json
+except ImportError:
+    safe_read_data_json = None
+    safe_write_data_json = None
 
 # 전처리전(은행거래) 출력 컬럼 · 계좌번호 1.0, 기타거래 2.0 (index.html LEFT_WIDTHS) — bank_after의 기타거래 출력
 BANK_AFTER_DISPLAY_COLUMNS = ['은행명', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '카테고리']
@@ -144,32 +149,62 @@ def load_processed_file():
     """금융정보는 cash_after만 사용. cash_before 미사용으로 항상 빈 DataFrame 반환."""
     return pd.DataFrame()
 
+# cash_after 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+_cash_after_cache = None
+_cash_after_cache_mtime = None
+
 def load_category_file():
-    """카테고리 적용 파일 로드 (MyCash/cash_after.xlsx). cash_after는 금융사 컬럼이면 은행명으로 복사해 API 호환."""
+    """카테고리 적용 파일 로드 (MyCash/cash_after.json). 대용량 시 캐시 사용."""
+    global _cash_after_cache, _cash_after_cache_mtime
     try:
         category_file = Path(CASH_AFTER_PATH)
-        if category_file.exists():
-            try:
+        if not category_file.exists():
+            _cash_after_cache = None
+            _cash_after_cache_mtime = None
+            return pd.DataFrame()
+        try:
+            mtime = category_file.stat().st_mtime
+        except OSError:
+            mtime = None
+        if _cash_after_cache is not None and mtime is not None and _cash_after_cache_mtime == mtime:
+            df = _cash_after_cache.copy()
+            if not df.empty and '은행명' not in df.columns and '금융사' in df.columns:
+                df['은행명'] = df['금융사'].fillna('').astype(str).str.strip()
+            return df
+        try:
+            if safe_read_data_json and CASH_AFTER_PATH.endswith('.json'):
+                df = safe_read_data_json(CASH_AFTER_PATH, default_empty=True)
+            else:
                 df = pd.read_excel(str(category_file), engine='openpyxl')
-                if not df.empty and '은행명' not in df.columns and '금융사' in df.columns:
+            if df is None:
+                df = pd.DataFrame()
+            if not df.empty:
+                if '은행명' not in df.columns and '금융사' in df.columns:
                     df = df.copy()
                     df['은행명'] = df['금융사'].fillna('').astype(str).str.strip()
-                return df
-            except Exception as e:
-                print(f"Error reading {category_file}: {str(e)}")
-                return pd.DataFrame()
-        return pd.DataFrame()
+                _cash_after_cache = df
+                _cash_after_cache_mtime = mtime
+                return df.copy()
+            return df
+        except Exception as e:
+            print(f"Error reading {category_file}: {str(e)}")
+            return pd.DataFrame()
     except Exception as e:
         print(f"Error in load_category_file: {str(e)}")
         return pd.DataFrame()
 
 def load_bank_after_file():
-    """전처리전(은행거래)용: MyBank/bank_after.xlsx 로드. 출력용 컬럼만 정규화하여 반환."""
+    """전처리전(은행거래)용: MyBank/bank_after 로드. 출력용 컬럼만 정규화하여 반환."""
     try:
         path = BANK_AFTER_PATH
         if not path.exists():
             return pd.DataFrame()
-        df = pd.read_excel(str(path), engine='openpyxl')
+        if safe_read_data_json and str(path).endswith('.json'):
+            df = safe_read_data_json(str(path), default_empty=True)
+        else:
+            df = pd.read_excel(str(path), engine='openpyxl')
+        if df is None:
+            df = pd.DataFrame()
         if df.empty:
             return df
         # 구분 → 취소. 출력은 기타거래 컬럼(bank_after 기타거래)
@@ -189,16 +224,21 @@ def load_bank_after_file():
                 df[c] = '' if c != '입금액' and c != '출금액' else 0
         return df[BANK_AFTER_DISPLAY_COLUMNS].copy()
     except Exception as e:
-        print(f"오류: bank_after.xlsx 로드 실패 - {e}", flush=True)
+        print(f"오류: bank_after 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
 def load_card_after_file():
-    """전처리후(신용카드)용: MyCard/card_after.xlsx 로드. 출력용 컬럼만 정규화하여 반환."""
+    """전처리후(신용카드)용: MyCard/card_after 로드. 출력용 컬럼만 정규화하여 반환."""
     try:
         path = CARD_AFTER_PATH
         if not path.exists():
             return pd.DataFrame()
-        df = pd.read_excel(str(path), engine='openpyxl')
+        if safe_read_data_json and str(path).endswith('.json'):
+            df = safe_read_data_json(str(path), default_empty=True)
+        else:
+            df = pd.read_excel(str(path), engine='openpyxl')
+        if df is None:
+            df = pd.DataFrame()
         if df.empty:
             return df
         # 출력은 가맹점명(card_after 가맹점명). 가맹점명 없으면 빈 컬럼 추가
@@ -209,7 +249,7 @@ def load_card_after_file():
                 df[c] = '' if c not in ('입금액', '출금액') else 0
         return df[CARD_AFTER_DISPLAY_COLUMNS].copy()
     except Exception as e:
-        print(f"오류: card_after.xlsx 로드 실패 - {e}", flush=True)
+        print(f"오류: card_after 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
 def _safe_keyword(val):
@@ -394,11 +434,16 @@ def _apply_risk_category_by_keywords(df):
 
 
 def _load_bank_after_for_merge():
-    """cash_after 병합용: MyBank/bank_after.xlsx 전체 컬럼 로드. 키워드 컬럼이 반드시 있도록 보장하고 NaN은 ''로 채움."""
+    """cash_after 병합용: MyBank/bank_after 전체 컬럼 로드. 키워드 컬럼이 반드시 있도록 보장하고 NaN은 ''로 채움."""
     try:
         if not BANK_AFTER_PATH.exists():
             return pd.DataFrame()
-        df = pd.read_excel(str(BANK_AFTER_PATH), engine='openpyxl')
+        if safe_read_data_json and str(BANK_AFTER_PATH).endswith('.json'):
+            df = safe_read_data_json(str(BANK_AFTER_PATH), default_empty=True)
+        else:
+            df = pd.read_excel(str(BANK_AFTER_PATH), engine='openpyxl')
+        if df is None:
+            df = pd.DataFrame()
         if df.empty:
             return df
         if '구분' in df.columns and '취소' not in df.columns:
@@ -415,26 +460,24 @@ def _load_bank_after_for_merge():
         df['키워드'] = df['키워드'].fillna('').astype(str).str.strip()
         return df
     except Exception as e:
-        print(f"오류: bank_after.xlsx 병합용 로드 실패 - {e}", flush=True)
+        print(f"오류: bank_after 병합용 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
 def merge_bank_card_to_cash_after():
-    """bank_after.xlsx + card_after.xlsx를 병합하여 cash_after.xlsx 생성.
-    은행거래/신용카드의 키워드·카테고리를 그대로 저장(키워드는 _load_bank_after_for_merge로 풀 컬럼 로드). 성공 시 True.
-    기존 cash_after.xlsx가 있으면 백업(cash_after_backup_YYYYMMDD_HHMMSS.xlsx) 후 재생성."""
+    """bank_after + card_after를 병합하여 cash_after.json 생성.
+    금융정보(MyCash)에는 전처리·계정과목분류·후처리 없음. 은행/카드 after의 키워드·카테고리를 그대로 사용하고,
+    업종분류(linkage_table)·위험도만 추가 적용. .bak 생성하지 않음. 성공 시 True."""
     try:
-        category_file = Path(CASH_AFTER_PATH)
-        if category_file.exists() and category_file.stat().st_size > 0:
-            backup_dir = category_file.parent
-            backup_name = f"cash_after_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-            backup_path = backup_dir / backup_name
-            shutil.copy2(str(category_file), str(backup_path))
-            print(f"기존 cash_after.xlsx 백업: {backup_path}", flush=True)
         df_bank = _load_bank_after_for_merge()
         df_card_raw = pd.DataFrame()
         if CARD_AFTER_PATH.exists():
             try:
-                df_card_raw = pd.read_excel(str(CARD_AFTER_PATH), engine='openpyxl')
+                if safe_read_data_json and str(CARD_AFTER_PATH).endswith('.json'):
+                    df_card_raw = safe_read_data_json(str(CARD_AFTER_PATH), default_empty=True)
+                else:
+                    df_card_raw = pd.read_excel(str(CARD_AFTER_PATH), engine='openpyxl')
+                if df_card_raw is None:
+                    df_card_raw = pd.DataFrame()
                 df_card_raw.columns = df_card_raw.columns.astype(str).str.strip()
                 # cash_after 기타거래 = card_after의 가맹점명(가맹점). 키워드 컬럼은 별도 유지.
                 if '기타거래' not in df_card_raw.columns and '가맹점명' in df_card_raw.columns:
@@ -456,15 +499,18 @@ def merge_bank_card_to_cash_after():
             except Exception:
                 pass
         if df_bank.empty and df_card_raw.empty:
-            return (False, 'bank_after.xlsx와 card_after.xlsx가 모두 없거나 비어 있어 병합할 수 없습니다. 은행·신용카드 전처리에서 각각 생성 후 시도하세요.')
+            return (False, 'bank_after와 card_after가 모두 없거나 비어 있어 병합할 수 없습니다. 은행·신용카드 전처리에서 각각 생성 후 시도하세요.')
         df = _dataframe_to_cash_after_creation(df_bank, df_card_raw if not df_card_raw.empty else None)
         if df.empty:
             return (False, '병합 결과 데이터가 비어 있습니다.')
         _apply_업종분류_from_linkage(df)
-        df.to_excel(str(CASH_AFTER_PATH), index=False, engine='openpyxl')
+        if safe_write_data_json and CASH_AFTER_PATH.endswith('.json'):
+            safe_write_data_json(CASH_AFTER_PATH, df)
+        else:
+            df.to_excel(str(CASH_AFTER_PATH), index=False, engine='openpyxl')
         return (True, None)
     except Exception as e:
-        print(f"오류: cash_after.xlsx 병합 생성 실패 - {e}", flush=True)
+        print(f"오류: cash_after 병합 생성 실패 - {e}", flush=True)
         traceback.print_exc()
         return (False, str(e))
 
@@ -715,10 +761,13 @@ def get_category_applied_data():
         withdraw_amount = df['출금액'].sum() if not df.empty and '출금액' in df.columns else 0
         
         df = df.where(pd.notna(df), None)
+        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
+        total = len(df)
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
-            'count': count,
+            'total': total,
+            'count': len(data),
             'deposit_amount': int(deposit_amount),
             'withdraw_amount': int(withdraw_amount),
             'data': data,
@@ -1682,15 +1731,8 @@ def get_date_range():
 @app.route('/api/generate-category', methods=['POST'])
 @ensure_working_directory
 def generate_category():
-    """cash_after.xlsx 생성: 은행(bank_after) + 신용카드(card_after) 병합."""
+    """cash_after 생성: 은행(bank_after) + 신용카드(card_after) 병합. .bak 생성하지 않음."""
     try:
-        output_path = Path(CASH_AFTER_PATH)
-        if output_path.exists() and output_path.stat().st_size > 0:
-            try:
-                bak_path = output_path.with_suffix(output_path.suffix + '.bak')
-                shutil.copy2(str(output_path), str(bak_path))
-            except Exception:
-                pass
         ok, err_msg = merge_bank_card_to_cash_after()
         if not ok:
             return jsonify({
@@ -1700,7 +1742,10 @@ def generate_category():
         output_path = Path(CASH_AFTER_PATH)
         if output_path.exists():
             try:
-                df = pd.read_excel(str(output_path), engine='openpyxl')
+                if safe_read_data_json and CASH_AFTER_PATH.endswith('.json'):
+                    df = safe_read_data_json(CASH_AFTER_PATH, default_empty=True)
+                else:
+                    df = pd.read_excel(str(output_path), engine='openpyxl')
                 return jsonify({
                     'success': True,
                     'message': f'카테고리 생성 완료: {len(df)}건',
@@ -1709,11 +1754,11 @@ def generate_category():
             except Exception as e:
                 return jsonify({
                     'success': False,
-                    'error': f'cash_after.xlsx 파일을 읽을 수 없습니다: {str(e)}'
+                    'error': f'cash_after 파일을 읽을 수 없습니다: {str(e)}'
                 }), 500
         return jsonify({
             'success': False,
-            'error': f'cash_after.xlsx 파일이 생성되지 않았습니다. 경로: {output_path}'
+            'error': f'cash_after 파일이 생성되지 않았습니다. 경로: {output_path}'
         }), 500
     except Exception as e:
         traceback.print_exc()

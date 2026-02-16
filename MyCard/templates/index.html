@@ -228,6 +228,12 @@
             padding-top: 0px;
             min-height: 0;
         }
+        .wrapper-box-content .box {
+            max-height: 75vh;
+        }
+        .wrapper-box-content .box-content {
+            max-height: 75vh;
+        }
 
         .box-header {
             padding: 10px 10px; /* 위 패딩 10, 아래 패딩 10 */
@@ -563,6 +569,19 @@
             font-size: 12px;
         }
 
+        .btn-reintegrate {
+            padding: 6px 12px;
+            background-color: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .btn-reintegrate:hover { background-color: #F57C00; }
+        .btn-reintegrate:disabled { opacity: 0.6; cursor: not-allowed; }
+
         .box-title {
             font-weight: 700;
             font-size: 20px;
@@ -579,6 +598,7 @@
             padding: 6px 6px 20px 6px;
             min-height: 0;
         }
+        /* 전처리 테이블: JSON→table을 .box-content에 직접, max-height 75vh로 우측 스크롤 끝까지 조회 */
         
         .box-content::-webkit-scrollbar {
             width: 10px;
@@ -1410,9 +1430,15 @@
 </head>
 <body>
     <div class="header">
-        <div>
-            <div class="path-filename-text" style="font-size: 12px; opacity: 0.7; margin-bottom: 2px;">{{ folder_name or 'MyCard' }}</div>
-            <h1>신용카드 전처리</h1>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
+            <div>
+                <div class="path-filename-text" style="font-size: 12px; opacity: 0.7; margin-bottom: 2px;">{{ folder_name or 'MyCard' }}</div>
+                <h1>신용카드 전처리</h1>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button type="button" id="btn-reintegrate" class="btn-reintegrate" title="before/after 파일을 재 생성합니다">통합·전처리 다시 실행</button>
+                <button type="button" id="btn-regenerate-before-after" class="btn-reintegrate" title="card_before·card_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 재생성">전처리/후처리 재생성</button>
+            </div>
         </div>
         <!-- 신용카드 통합정보 네비게이터 -->
         <nav class="main-nav">
@@ -1507,6 +1533,11 @@
     
     <!-- 카테고리 테이블, 카테고리 조회, 카테고리 그래프 (단일 컨테이너) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin-bottom: 8px; font-size: 13px;">
+            <span id="category-query-count">총 0건</span>
+            <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
+            <span><span class="label">출금:</span> <span id="category-query-withdraw" style="color: #FF0000;">0</span>원<span id="category-query-withdraw-count"></span></span>
+        </div>
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
             <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
@@ -1584,12 +1615,10 @@
             </div>
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <h2 style="margin: 0;">신용카드(카테고리) 조회</h2>
-                        </div>
-                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()">
-                            card_after.xlsx 생성
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <h2 style="margin: 0;">신용카드(카테고리) 조회</h2>
+                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()" title="after 파일을 재 생성합니다">
+                            전처리후 다시 실행
                         </button>
                     </div>
                     <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
@@ -1936,7 +1965,38 @@
             }
         }
 
-        // 우측 데이터 로드 (전처리후)
+        // 전처리후 테이블 한 행 HTML 생성 (카드)
+        function buildProcessedDataRowCard(row, columns) {
+            let html = '';
+            const 입금액 = parseFloat(String(row['입금액'] || '0').replace(/,/g, ''));
+            const rowBlue = (columns.includes('입금액') && !isNaN(입금액) && 입금액 > 0);
+            html += rowBlue ? '<tr style="color: #0000FF;">' : '<tr>';
+            columns.forEach(col => {
+                let value = row[col];
+                let displayValue = '';
+                if (value !== null && value !== undefined && value !== '') {
+                    if (col === '이용일' || col === '거래일') displayValue = formatDate(value);
+                    else if (col === '거래시간' || col === '이용시간') displayValue = formatTime(value);
+                    else if (col === '취소') {
+                        const s = String(value).trim();
+                        displayValue = (s === '0' || s === '0.0') ? '' : s;
+                    } else if (col === '입금액' || col === '출금액' || col === '잔액') {
+                        const numVal = parseFloat(value) || 0;
+                        displayValue = (col === '입금액' && numVal > 0) ? '-' + formatAmount(numVal) : formatAmount(value);
+                    } else if (col === '사업자번호') displayValue = formatBusinessNumber(value);
+                    else if (col === '구분') displayValue = String(value);
+                    else displayValue = value;
+                }
+                let align = 'left';
+                if (['카드사','이용일','이용시간','구분','사업자번호','취소'].includes(col)) align = 'center';
+                else if (col === '입금액' || col === '출금액') align = 'right';
+                html += `<td style="white-space: nowrap; text-align: ${align} !important;">${displayValue}</td>`;
+            });
+            html += '</tr>';
+            return html;
+        }
+
+        // 우측 데이터 로드 (전처리후): 전체 JSON 한 번에 받아 테이블 렌더, 스크롤은 .box-content CSS
         async function loadRightData() {
             const contentDiv = document.getElementById('right-content');
             if (!contentDiv) return;
@@ -2110,6 +2170,13 @@
                         if (!columns.includes(col)) columns.push(col);
                     });
                     
+                    // 첫 30건 합계로 누적 합계 초기화 (매 30건마다 갱신, 맨 마지막 행에 표시)
+                    let sumDeposit = 0, sumWithdraw = 0;
+                    data.data.forEach(r => {
+                        sumDeposit += (parseFloat(String(r['입금액'] || '0').replace(/,/g, '')) || 0);
+                        sumWithdraw += (parseFloat(String(r['출금액'] || '0').replace(/,/g, '')) || 0);
+                    });
+                    
                     let html = `<table id="processed-data-table"><thead><tr>`;
                     columns.forEach(col => { html += `<th>${col}</th>`; });
                     html += '</tr></thead><tbody id="processed-data-tbody">';
@@ -2150,15 +2217,15 @@
                         html += '</tr>';
                     });
                     
-                    // 합계 행: 첫 컬럼 "합계", 입금액/출금액 컬럼에 합계
+                    // 합계 행: 맨 마지막 한 행, 누적 합계
                     html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f0f0f0; font-weight: bold;">';
                     columns.forEach(col => {
                         if (col === '카드사' || col === '거래일') {
                             html += `<td style="text-align: left;" data-sum-col="${col}">합계</td>`;
                         } else if (col === '입금액') {
-                            html += `<td style="text-align: right; color: #0000FF;" data-sum-col="입금액">${totalDeposit > 0 ? '-' + formatAmount(totalDeposit) : formatAmount(totalDeposit)}</td>`;
+                            html += `<td style="text-align: right; color: #0000FF;" data-sum-col="입금액">${sumDeposit > 0 ? '-' + formatAmount(sumDeposit) : formatAmount(sumDeposit)}</td>`;
                         } else if (col === '출금액') {
-                            html += `<td style="text-align: right; color: #FF0000;" data-sum-col="출금액">${formatAmount(totalWithdraw)}</td>`;
+                            html += `<td style="text-align: right; color: #FF0000;" data-sum-col="출금액">${formatAmount(sumWithdraw)}</td>`;
                         } else {
                             html += `<td data-sum-col="${col}"></td>`;
                         }
@@ -2391,6 +2458,60 @@
             loadSourceFiles();
             loadLeftData();
             loadRightData();
+
+            const btnReintegrate = document.getElementById('btn-reintegrate');
+            if (btnReintegrate) {
+                btnReintegrate.addEventListener('click', async function() {
+                    if (this.disabled) return;
+                    this.disabled = true;
+                    const origText = this.textContent;
+                    this.textContent = '실행 중...';
+                    try {
+                        const res = await fetchWithTimeout(`${API_BASE}/api/reintegrate`, { method: 'POST' });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || !data.ok) {
+                            const msg = (data.error || `서버 오류 ${res.status}`).replace(/\n/g, ' ');
+                            alert('통합·전처리 다시 실행 실패: ' + msg);
+                            return;
+                        }
+                        await loadLeftData();
+                        await loadRightData();
+                        if (typeof loadCategoryQueryTable === 'function') await loadCategoryQueryTable();
+                    } catch (e) {
+                        alert('통합·전처리 다시 실행 중 오류: ' + (e && e.message ? e.message : '네트워크 확인'));
+                    } finally {
+                        this.disabled = false;
+                        this.textContent = origText;
+                    }
+                });
+            }
+
+            const btnRegenerateBeforeAfter = document.getElementById('btn-regenerate-before-after');
+            if (btnRegenerateBeforeAfter) {
+                btnRegenerateBeforeAfter.addEventListener('click', async function() {
+                    if (this.disabled) return;
+                    this.disabled = true;
+                    const origText = this.textContent;
+                    this.textContent = '재생성 중...';
+                    try {
+                        const res = await fetchWithTimeout(`${API_BASE}/api/regenerate-before-after`, { method: 'POST' });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || !data.ok) {
+                            const msg = (data.error || `서버 오류 ${res.status}`).replace(/\n/g, ' ');
+                            alert('전처리/후처리 재생성 실패: ' + msg);
+                            return;
+                        }
+                        await loadRightData();
+                        if (typeof loadCategoryQueryTable === 'function') await loadCategoryQueryTable();
+                        if (data.message) alert(data.message);
+                    } catch (e) {
+                        alert('전처리/후처리 재생성 중 오류: ' + (e && e.message ? e.message : '네트워크 확인'));
+                    } finally {
+                        this.disabled = false;
+                        this.textContent = origText;
+                    }
+                });
+            }
             
             // 카테고리 테이블 먼저 로드 후 카테고리 조회 로드
             (async () => {
@@ -2984,6 +3105,45 @@
             categoryQueryContent.addEventListener('scroll', categoryQueryContent._scrollSyncHandler);
         }
         
+        // 카테고리 조회 테이블 한 행 HTML (백그라운드 추가 로드용, availableColumns와 동일 포맷)
+        function buildCategoryQueryRowCard(row, availableColumns, rowIndex) {
+            const 입금액Val = parseFloat(String(row['입금액'] || '0').replace(/,/g, ''));
+            const 카테고리 = String(row['카테고리'] || '').trim();
+            const rowBlue = (availableColumns.includes('입금액') && !isNaN(입금액Val) && 입금액Val > 0) || (카테고리 === '현금처리');
+            const rowStyle = rowBlue ? ' style="cursor: pointer; color: #0000FF;"' : ' style="cursor: pointer;"';
+            const isEvenRow = rowIndex % 2 === 1;
+            const columnBgColors = {
+                '입금액': 'rgba(33, 150, 243, 0.1)', '출금액': 'rgba(33, 150, 243, 0.1)',
+                '카드사': 'rgba(33, 150, 243, 0.1)', '카드번호': 'rgba(33, 150, 243, 0.1)',
+                '이용일': 'rgba(33, 150, 243, 0.1)', '이용시간': 'rgba(33, 150, 243, 0.1)',
+                '취소': 'rgba(33, 150, 243, 0.1)', '가맹점명': 'rgba(33, 150, 243, 0.1)', '사업자번호': 'rgba(33, 150, 243, 0.1)',
+                '구분': 'rgba(33, 150, 243, 0.1)', '키워드': 'rgba(255, 152, 0, 0.1)', '카테고리': 'rgba(255, 152, 0, 0.1)'
+            };
+            let html = `<tr class="category-query-row"${rowStyle}>`;
+            availableColumns.forEach(col => {
+                let value = row[col];
+                let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
+                if (col === '이용일' || col === '거래일') displayValue = displayValue ? formatDateYyyyMmDd(displayValue) : '';
+                else if (col === '이용시간' || col === '거래시간') displayValue = formatTime(displayValue);
+                else if (col === '취소') {
+                    const s = String(value ?? '').trim();
+                    displayValue = (s === '0' || s === '0.0' || s === 'nan') ? '' : s;
+                } else if (col === '입금액' || col === '출금액') {
+                    if (displayValue) { const n = parseFloat(String(displayValue).replace(/,/g, '')) || 0; displayValue = formatNumber(n); }
+                } else if (col === '구분' && (displayValue === '' || String(displayValue).trim() === '일시불')) displayValue = '';
+                let cellBgColor = isEvenRow ? (columnBgColors[col] || '') : '';
+                let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
+                if (col === '입금액' || col === '출금액') {
+                    const amtColor = (col === '입금액' && !rowBlue) ? '#0000FF' : (col === '출금액' && !rowBlue) ? '#FF0000' : '';
+                    cellStyle = ` style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd;${amtColor ? ` color: ${amtColor};` : ''} font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
+                } else if (['구분','은행명','거래일','거래시간','카드사','카드번호','이용일','이용시간','사업자번호','취소'].indexOf(col) >= 0) {
+                    cellStyle = ` style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
+                }
+                html += `<td${cellStyle}>${displayValue}</td>`;
+            });
+            html += '</tr>';
+            return html;
+        }
         // 카테고리 조회 테이블 로드 (전처리후 카드사/카드번호/년월과 동일 조건으로 요청 → 드롭다운 전체이면 전처리후와 연동)
         async function loadCategoryQueryTable() {
             const btn = document.getElementById('generate-category-btn');
@@ -3030,9 +3190,21 @@
                 
                 const fileExists = data.file_exists === true;
                 
+                // 카테고리 적용후 요약: 총 N건, 입금 X원 (N건), 출금 Y원 (M건)
+                const total = data.total != null ? data.total : (data.data ? data.data.length : 0);
+                const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
+                const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
+                const depositCount = data.deposit_count != null ? data.deposit_count : 0;
+                const withdrawCount = data.withdraw_count != null ? data.withdraw_count : 0;
+                safeSetTextContent(document.getElementById('category-query-count'), '총 ' + formatNumber(total) + '건');
+                safeSetTextContent(document.getElementById('category-query-deposit'), formatNumber(depositAmount));
+                safeSetTextContent(document.getElementById('category-query-deposit-count'), depositCount > 0 ? ' (' + formatNumber(depositCount) + '건)' : '');
+                safeSetTextContent(document.getElementById('category-query-withdraw'), formatNumber(withdrawAmount));
+                safeSetTextContent(document.getElementById('category-query-withdraw-count'), withdrawCount > 0 ? ' (' + formatNumber(withdrawCount) + '건)' : '');
+                
                 if (data.data && data.data.length > 0) {
                     categoryQueryDataOriginal = data.data;
-                    renderCategoryQueryTable(data.data);
+                    renderCategoryQueryTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     updateCategoryChartFromQuery();
                 } else {
                     if (!fileExists) {
@@ -3050,7 +3222,7 @@
                                 return;
                             }
                             const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
-                            contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다. card_after.xlsx 생성 버튼을 클릭하여 생성하세요.') + '</div>';
+                            contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다. 전처리후 다시 실행 버튼을 클릭하여 생성하세요.') + '</div>';
                         } catch (createErr) {
                             console.error('card_after 자동 생성 실패:', createErr);
                             const msg = (createErr && createErr.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
@@ -3066,7 +3238,7 @@
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
                     btn.style.cursor = 'pointer';
-                    btn.title = fileExists ? 'card_after.xlsx를 다시 생성합니다. (덮어쓰기)' : 'card_after.xlsx 생성';
+                    btn.title = 'after 파일을 재 생성합니다';
                 }
             } catch (error) {
                 console.error('Error loading category query data:', error);
@@ -3078,19 +3250,21 @@
                     btn.disabled = false;
                     btn.style.backgroundColor = '#2196F3';
                     btn.style.cursor = 'pointer';
-                    btn.title = 'card_after.xlsx 생성 (오류 시에도 클릭 가능)';
+                    btn.title = 'after 파일을 재 생성합니다';
                 }
             }
         }
         
         // 카테고리 조회 테이블 렌더링 (card_after: 카드 컬럼 1:1 너비, 은행 데이터: 기존 비율)
-        function renderCategoryQueryTable(data) {
+        function renderCategoryQueryTable(data, options) {
             const contentDiv = document.getElementById('category-query-content');
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
+            const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
             const cardColumns = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '사업자번호', '구분', '키워드', '카테고리', '가맹점명'];
             const bankColumns = [
@@ -3312,12 +3486,14 @@
                 html += '</tr>';
             });
             
-            let totalDeposit = 0;
-            let totalWithdraw = 0;
-            data.forEach(row => {
-                totalDeposit += parseFloat(getCell(row, '입금액')) || 0;
-                totalWithdraw += parseFloat(getCell(row, '출금액')) || 0;
-            });
+            let totalDeposit = fullTotalDeposit != null ? fullTotalDeposit : 0;
+            let totalWithdraw = fullTotalWithdraw != null ? fullTotalWithdraw : 0;
+            if (fullTotalDeposit == null && fullTotalWithdraw == null) {
+                data.forEach(row => {
+                    totalDeposit += parseFloat(getCell(row, '입금액')) || 0;
+                    totalWithdraw += parseFloat(getCell(row, '출금액')) || 0;
+                });
+            }
             
             html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
             availableColumns.forEach(col => {
@@ -3724,7 +3900,7 @@
             });
         }
         
-        // card_after.xlsx 파일 생성 함수 (card_category 적용)
+        // card_after 파일 생성 함수 (card_category 적용)
         async function generateCategoryFile() {
             const btn = document.getElementById('generate-category-btn');
             const originalText = btn.textContent;

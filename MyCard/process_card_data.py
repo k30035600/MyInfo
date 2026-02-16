@@ -1,25 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-process_card_data.py — 카드 전용. (은행 관련 역할 없음)
+process_card_data.py — 카드 전용. source → 전처리 → before / before → 계정과목 → 후처리 → after.
 
-[역할]
-- 카드 엑셀 원본을 표준 형식 DataFrame으로 읽기
-  → 카드 Source → card_before.xlsx 만들 때 사용
-- 카드 파일 통합: .source 폴더의 카드 엑셀을 모아 card_before.xlsx 생성
-- 신용카드 Source → card_before: .source 폴더 엑셀 읽기
-  → 행의 컬럼이 모두 공백이면 skip
-  → HEADER_TO_STANDARD에 해당하는 행은 헤더 행으로 간주, 해당 행에서 인덱스 취득 후 다음 헤더 행이 나올 때까지 그 인덱스로 card_before 컬럼에 매핑
-  → 카드사는 파일명에서 취득, 구분(할부) 0은 공백 처리. 과세유형 '폐업'이면 구분에 '폐업' 저장
-  → 카테고리는 category_table.json(신용카드 구분) 키워드로 분류
+[전체 흐름]
+  [before 생성] integrate_card_excel():
+    (1) source: .source/Card 엑셀 읽기·통합
+    (2) 전처리: category_table '전처리' 규칙으로 가맹점명·카드사 치환
+    (3) before: 전처리만 반영하여 card_before.xlsx 저장 (후처리·계정과목 미적용)
 
-[기능]
-- integrate_card_excel(): Source 루트 *.xls/*.xlsx만 모아 card_before.xlsx 생성
-- create_category_table: category_table.json(신용카드 구분) 생성·갱신
+  [after 생성] card_app._create_card_after():  (전처리후 다시 실행 시 호출)
+    (4) before 파일 읽기
+    (5) 계정과목 분류: category_table '계정과목' 규칙으로 키워드·카테고리 채움 (apply_category_from_merchant)
+    (6) 후처리: category_table '후처리' 규칙으로 가맹점명·카드사 치환
+    (7) after: card_after 저장
 
 [카테고리 테이블 분류 구분]
-- 은행거래(bank_category): 분류 = 전처리, 후처리, 거래방법, 거래지점
-- 신용카드(category_table 구분): 분류 = 계정과목 등 (업종분류는 카테고리테이블 미사용)
-
+- 전처리/후처리: 가맹점명·카드사 등 텍스트 치환
+- 계정과목: 가맹점명 기반 키워드 매칭으로 카테고리 부여
 .source는 .xls, .xlsx만 취급.
 """
 import numpy as np
@@ -49,7 +46,7 @@ PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
 SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
 SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
 
-CARD_BEFORE_FILE = "card_before.xlsx"
+CARD_BEFORE_FILE = "card_before.json"
 # card_before.xlsx 컬럼 (추출 시 이용금액 사용 → 저장 전 입금액/출금액/취소로 변환)
 _EXTRACT_COLUMNS = [
     '카드사', '카드번호', '이용일', '이용시간', '이용금액', '가맹점명', '사업자번호', '구분', '취소여부'
@@ -749,10 +746,17 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
     if not skip_write:
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            if combined_df.empty:
-                combined_df.to_excel(output_path, index=False, engine='openpyxl')
+            if str(output_path).endswith('.json'):
+                try:
+                    from data_json_io import safe_write_data_json
+                    safe_write_data_json(str(output_path), combined_df)
+                except ImportError:
+                    safe_write_excel(combined_df, str(output_path))
             else:
-                safe_write_excel(combined_df, str(output_path))
+                if combined_df.empty:
+                    combined_df.to_excel(output_path, index=False, engine='openpyxl')
+                else:
+                    safe_write_excel(combined_df, str(output_path))
         except Exception as e:
             print(f"오류: {output_path} 저장 실패 - {e}")
     return combined_df

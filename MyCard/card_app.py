@@ -42,10 +42,15 @@ except ImportError:
         get_category_table as _io_get_category_table,
         apply_category_action,
     )
-# 원본 카드 파일: .source/Card. before/after: MyCard 폴더
+# 원본 카드 파일: .source/Card. before/after: MyCard 폴더 JSON
 SOURCE_CARD_DIR = os.path.join(PROJECT_ROOT, '.source', 'Card')
-CARD_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'card_before.xlsx')
-CARD_AFTER_PATH = os.path.join(SCRIPT_DIR, 'card_after.xlsx')
+CARD_BEFORE_PATH = os.path.join(SCRIPT_DIR, 'card_before.json')
+CARD_AFTER_PATH = os.path.join(SCRIPT_DIR, 'card_after.json')
+try:
+    from data_json_io import safe_read_data_json, safe_write_data_json
+except ImportError:
+    safe_read_data_json = None
+    safe_write_data_json = None
 
 def _load_process_card_data_module():
     """MyCard 내 process_card_data.py를 명시적으로 로드 (같은 프로세스·같은 환경 사용)"""
@@ -101,9 +106,12 @@ def _call_integrate_card():
                 lambda v: '폐업' if v is not None and str(v).strip() == '폐업' else ''
             )
         try:
-            mod.safe_write_excel(df, str(card_before_path))
+            if safe_write_data_json and str(card_before_path).endswith('.json'):
+                safe_write_data_json(str(card_before_path), df)
+            else:
+                mod.safe_write_excel(df, str(card_before_path))
         except Exception as e:
-            print(f"card_before.xlsx 저장 실패: {e}")
+            print(f"card_before 저장 실패: {e}")
 
 def ensure_working_directory(func):
     """데코레이터: API 엔드포인트에서 작업 디렉토리를 스크립트 위치로 보장"""
@@ -230,21 +238,14 @@ def load_source_files():
     return files
 
 def load_processed_file():
-    """전처리된 카드 파일 로드 (card_after.xlsx만 사용).
-    이용금액 → 입금액/출금액 변환 적용. 구분은 폐업/공란만 유지."""
+    """전처리된 카드 파일 로드 (card_after.json). 캐시 사용, 이용금액→입금/출금 변환."""
     try:
-        if not Path(CARD_AFTER_PATH).exists():
-            return pd.DataFrame()
-        df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
+        df = _load_card_after_cached()
         if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
             _card_deposit_withdraw_from_이용금액(df)
-        if not df.empty:
-            if '할부' in df.columns and '구분' not in df.columns:
-                df = df.rename(columns={'할부': '구분'})
-            _normalize_구분_column(df)
         return df
     except Exception as e:
-        print(f"오류: card_after.xlsx 로드 실패 - {e}", flush=True)
+        print(f"오류: card_after 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
 
@@ -257,41 +258,84 @@ def _normalize_구분_column(df):
     )
 
 
+# card_before / card_after 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+_card_before_cache = None
+_card_before_cache_mtime = None
+_card_after_cache = None
+_card_after_cache_mtime = None
+
 def load_card_before_file():
-    """전처리전 카드 통합 파일 card_before.xlsx 로드 (MyCard 폴더). 기존 할부 컬럼은 구분으로 통일."""
+    """전처리전 카드 통합 파일 card_before.json 로드. 대용량 시 캐시 사용."""
+    global _card_before_cache, _card_before_cache_mtime
     try:
         path = Path(CARD_BEFORE_PATH)
         if not path.exists():
+            _card_before_cache = None
+            _card_before_cache_mtime = None
             return pd.DataFrame()
-        df = pd.read_excel(str(path), engine='openpyxl')
-        if not df.empty and '할부' in df.columns and '구분' not in df.columns:
-            df = df.rename(columns={'할부': '구분'})
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = None
+        if _card_before_cache is not None and mtime is not None and _card_before_cache_mtime == mtime:
+            return _card_before_cache.copy()
+        if safe_read_data_json and CARD_BEFORE_PATH.endswith('.json'):
+            df = safe_read_data_json(CARD_BEFORE_PATH, default_empty=True)
+        else:
+            df = pd.read_excel(str(path), engine='openpyxl')
+        if df is None:
+            df = pd.DataFrame()
         if not df.empty:
+            if '할부' in df.columns and '구분' not in df.columns:
+                df = df.rename(columns={'할부': '구분'})
             _normalize_구분_column(df)
+            _card_before_cache = df
+            _card_before_cache_mtime = mtime
+            return df.copy()
         return df
     except Exception as e:
-        print(f"오류: card_before.xlsx 파일 로드 실패 - {e}", flush=True)
+        print(f"오류: card_before 파일 로드 실패 - {e}", flush=True)
+        return pd.DataFrame()
+
+def _load_card_after_cached():
+    """card_after.json 로드 (캐시 사용). 컬럼 정규화·구분만 적용, 입금/출금 변환은 호출부에서."""
+    global _card_after_cache, _card_after_cache_mtime
+    path = Path(CARD_AFTER_PATH)
+    if not path.exists():
+        _card_after_cache = None
+        _card_after_cache_mtime = None
+        return pd.DataFrame()
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = None
+    if _card_after_cache is not None and mtime is not None and _card_after_cache_mtime == mtime:
+        return _card_after_cache.copy()
+    try:
+        if safe_read_data_json and CARD_AFTER_PATH.endswith('.json'):
+            df = safe_read_data_json(CARD_AFTER_PATH, default_empty=True)
+        else:
+            df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
+        if df is None or df.empty:
+            return pd.DataFrame()
+        df.columns = [str(c).strip() for c in df.columns]
+        if '할부' in df.columns and '구분' not in df.columns:
+            df = df.rename(columns={'할부': '구분'})
+        _normalize_구분_column(df)
+        _card_after_cache = df
+        _card_after_cache_mtime = mtime
+        return df.copy()
+    except Exception as e:
+        print(f"Error reading {CARD_AFTER_PATH}: {str(e)}")
         return pd.DataFrame()
 
 def load_category_file():
-    """카테고리 적용 파일 로드 (MyCard/card_after.xlsx).
-    카드 데이터(이용금액 있음)는 입금액/출금액 추가 (현금처리→입금)."""
+    """카테고리 적용 파일 로드 (MyCard/card_after.json). 대용량 시 캐시 사용."""
     try:
-        if Path(CARD_AFTER_PATH).exists():
-            try:
-                df = pd.read_excel(CARD_AFTER_PATH, engine='openpyxl')
-                if not df.empty:
-                    df.columns = [str(c).strip() for c in df.columns]
-                    if '할부' in df.columns and '구분' not in df.columns:
-                        df.rename(columns={'할부': '구분'}, inplace=True)
-                    _normalize_구분_column(df)
-                if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
-                    _card_deposit_withdraw_from_이용금액(df)
-                return df
-            except Exception as e:
-                print(f"Error reading {CARD_AFTER_PATH}: {str(e)}")
-                return pd.DataFrame()
-        return pd.DataFrame()
+        df = _load_card_after_cached()
+        if not df.empty and '이용금액' in df.columns and '입금액' not in df.columns:
+            _card_deposit_withdraw_from_이용금액(df)
+        return df
     except Exception as e:
         print(f"Error in load_category_file: {str(e)}")
         return pd.DataFrame()
@@ -395,6 +439,51 @@ def run_card_preprocess():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _remove_card_before_after_and_bak():
+    """통합·전처리 다시 실행 전에 card_before/card_after 데이터 파일 삭제. 캐시 무효화."""
+    global _card_before_cache, _card_before_cache_mtime, _card_after_cache, _card_after_cache_mtime
+    _card_before_cache = None
+    _card_before_cache_mtime = None
+    _card_after_cache = None
+    _card_after_cache_mtime = None
+    for path_str in (CARD_BEFORE_PATH, CARD_AFTER_PATH):
+        p = Path(path_str)
+        try:
+            if p.exists():
+                p.unlink()
+        except OSError:
+            pass
+
+
+@app.route('/api/reintegrate', methods=['POST'])
+@ensure_working_directory
+def reintegrate_card():
+    """card_before를 .source/Card 기준으로 다시 통합·전처리하여 덮어쓴다. 실행 전 before/after 삭제 후 한 번만 통합 수행."""
+    try:
+        _remove_card_before_after_and_bak()
+        _call_integrate_card()
+        return jsonify({'ok': True})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/regenerate-before-after', methods=['POST'])
+@ensure_working_directory
+def regenerate_before_after():
+    """card_before·card_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 전체 재생성."""
+    try:
+        _remove_card_before_after_and_bak()
+        _call_integrate_card()
+        success, error, count = _create_card_after()
+        if not success:
+            return jsonify({'ok': False, 'error': error or 'card_after 생성 실패', 'count': 0}), 500
+        return jsonify({'ok': True, 'message': f'전처리/후처리 재생성 완료: {count}건', 'count': count})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e), 'count': 0}), 500
+
+
 @app.route('/api/processed-data')
 @ensure_working_directory
 def get_processed_data():
@@ -495,10 +584,13 @@ def get_processed_data():
                 return '00:00:00' if not s else s
             df['이용시간'] = df['이용시간'].apply(_fill_time)
         
+        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
+        total = len(df)
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
-            'count': count,
+            'total': total,
+            'count': len(data),
             'deposit_amount': int(deposit_amount),
             'withdraw_amount': int(withdraw_amount),
             'data': data,
@@ -521,8 +613,8 @@ def get_processed_data():
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (card_after.xlsx, 필터링 지원).
-    card_after.xlsx 존재하면 사용만, 없으면 생성하지 않고 빈 데이터. 생성은 /api/generate-category(생성 필터)에서 백업 후 수행."""
+    """카테고리 적용된 데이터 반환 (card_after, 필터링 지원).
+    card_after 존재하면 사용만, 없으면 생성하지 않고 빈 데이터. 생성은 /api/generate-category(생성 필터)에서 백업 후 수행."""
     try:
         card_after_path = Path(CARD_AFTER_PATH)
         category_file_exists = card_after_path.exists() and card_after_path.stat().st_size > 0
@@ -538,10 +630,13 @@ def get_category_applied_data():
         if df.empty:
             response = jsonify({
                 'count': 0,
+                'total': 0,
                 'deposit_amount': 0,
                 'withdraw_amount': 0,
+                'deposit_count': 0,
+                'withdraw_count': 0,
                 'data': [],
-                'file_exists': category_file_exists  # 파일 존재 여부 추가
+                'file_exists': category_file_exists
             })
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
@@ -581,6 +676,10 @@ def get_category_applied_data():
                     df[c] = 0
             deposit_amount = int(df['입금액'].sum()) if not df.empty else 0
             withdraw_amount = int(df['출금액'].sum()) if not df.empty else 0
+        dep_series = pd.to_numeric(df['입금액'], errors='coerce').fillna(0) if not df.empty and '입금액' in df.columns else pd.Series(dtype=float)
+        wit_series = pd.to_numeric(df['출금액'], errors='coerce').fillna(0) if not df.empty and '출금액' in df.columns else pd.Series(dtype=float)
+        deposit_count = int((dep_series > 0).sum())
+        withdraw_count = int((wit_series > 0).sum())
         
         df = df.where(pd.notna(df), None)
         # 취소 컬럼: 0/0.0/'0'/nan은 빈 문자열, "0 취소" 등 비어있지 않으면 '취소' (테이블에 "취소"만 표시)
@@ -609,12 +708,17 @@ def get_category_applied_data():
         if sort_cols:
             # 이용일은 문자열이어도 YYYY-MM-DD/YY/MM/DD 형식이면 문자열 정렬로 순서 유지
             df = df.sort_values(by=sort_cols, ascending=True, na_position='last').reset_index(drop=True)
+        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
+        total = len(df)
         data = df.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
-            'count': count,
+            'total': total,
+            'count': len(data),
             'deposit_amount': int(deposit_amount),
             'withdraw_amount': int(withdraw_amount),
+            'deposit_count': deposit_count,
+            'withdraw_count': withdraw_count,
             'data': data,
             'file_exists': category_file_exists
         })
@@ -625,8 +729,11 @@ def get_category_applied_data():
         return jsonify({
             'error': str(e),
             'count': 0,
+            'total': 0,
             'deposit_amount': 0,
             'withdraw_amount': 0,
+            'deposit_count': 0,
+            'withdraw_count': 0,
             'data': [],
             'file_exists': Path(CARD_AFTER_PATH).exists()
         }), 500
@@ -1538,16 +1645,21 @@ def get_date_range():
 
 
 def _create_card_after():
-    """card_before → card_after.xlsx 생성. 은행거래 ensure_all_bank_files와 동일하게 전처리 화면에서 자동 생성 시 사용.
+    """card_before → card_after 생성. 은행거래 ensure_all_bank_files와 동일하게 전처리 화면에서 자동 생성 시 사용.
     Returns: (success: bool, error: Optional[str], count: int)"""
     try:
         mod = _load_process_card_data_module()
         card_before_path = Path(CARD_BEFORE_PATH)
         if not card_before_path.exists() or card_before_path.stat().st_size == 0:
-            return (False, 'card_after.xlsx를 만들 수 없습니다. card_before.xlsx가 없거나 비어 있습니다. '
+            return (False, 'card_after를 만들 수 없습니다. card_before가 없거나 비어 있습니다. '
                     'MyInfo/.source/Card에 .xls/.xlsx 파일을 넣은 뒤 전처리를 먼저 실행하세요.', 0)
 
-        df_card = pd.read_excel(card_before_path, engine='openpyxl')
+        if safe_read_data_json and str(card_before_path).endswith('.json'):
+            df_card = safe_read_data_json(str(card_before_path), default_empty=True)
+        else:
+            df_card = pd.read_excel(card_before_path, engine='openpyxl')
+        if df_card is None:
+            df_card = pd.DataFrame()
         df_card.columns = [str(c).strip() for c in df_card.columns]
         if not df_card.empty and '할부' in df_card.columns and '구분' not in df_card.columns:
             df_card = df_card.rename(columns={'할부': '구분'})
@@ -1572,10 +1684,6 @@ def _create_card_after():
             if sh_merchant.any():
                 df_card.loc[sh_merchant, '가맹점명'] = '신한카드_카드론'
 
-        # 후처리: after.xlsx 생성 전에만 수행 (전처리는 card_before 저장 시 이미 적용됨)
-        if hasattr(mod, '_apply_후처리_only_to_columns'):
-            df_card = mod._apply_후처리_only_to_columns(df_card, ['가맹점명', '카드사'])
-
         # 신한카드/하나카드 + 사업자번호 없음 → 기본값 저장
         _apply_카드사_사업자번호_기본값(df_card)
 
@@ -1596,13 +1704,18 @@ def _create_card_after():
                         df_card = mod.apply_category_from_merchant(df_card, df_cat)
             except Exception:
                 pass
+
+        # 후처리: 계정과목 분류 끝난 뒤, 저장 전에 수행 (전처리는 card_before 저장 시 이미 적용됨)
+        if hasattr(mod, '_apply_후처리_only_to_columns'):
+            df_card = mod._apply_후처리_only_to_columns(df_card, ['가맹점명', '카드사'])
+
         # 카테고리 컬럼 없으면 추가, 비어 있거나 공백이면 '미분류' (card_before에 카테고리 없을 수 있음)
         if '카테고리' not in df_card.columns:
             df_card['카테고리'] = '미분류'
         else:
             empty_cat = df_card['카테고리'].fillna('').astype(str).str.strip() == ''
             df_card.loc[empty_cat, '카테고리'] = '미분류'
-        # 카드번호 16자 이하 행 제외 후 card_after.xlsx 저장
+        # 카드번호 16자 이하 행 제외 후 card_after 저장
         if not df_card.empty and '카드번호' in df_card.columns:
             df_card = df_card[df_card['카드번호'].astype(str).str.strip().str.len() > 16]
         # 시간 제외: 이용시간(승인시간)은 유지, 그 외 '시간' 포함 컬럼 삭제
@@ -1653,15 +1766,11 @@ def _create_card_after():
         existing = [c for c in card_after_cols if c in df_card.columns]
         extra = [c for c in df_card.columns if c not in card_after_cols]
         df_card = df_card.reindex(columns=existing + extra)
-        # 이미 card_after.xlsx가 있으면 .bak으로 복사 후 새로 생성
         card_after_path = Path(CARD_AFTER_PATH)
-        if card_after_path.exists() and card_after_path.stat().st_size > 0:
-            try:
-                bak_path = card_after_path.with_suffix(card_after_path.suffix + '.bak')
-                shutil.copy2(str(card_after_path), str(bak_path))
-            except Exception:
-                pass
-        df_card.to_excel(str(CARD_AFTER_PATH), index=False, engine='openpyxl')
+        if safe_write_data_json and str(card_after_path).endswith('.json'):
+            safe_write_data_json(str(CARD_AFTER_PATH), df_card)
+        else:
+            df_card.to_excel(str(CARD_AFTER_PATH), index=False, engine='openpyxl')
 
         if not had_category_file:
             try:
@@ -1686,7 +1795,7 @@ def generate_category():
         had_category_file = Path(CATEGORY_TABLE_PATH).exists()
         return jsonify({
             'success': True,
-            'message': f'card_after.xlsx 생성 완료: {count}건' + (
+            'message': f'card_after 생성 완료: {count}건' + (
                 ' (카테고리 적용 없이 미분류로 저장 후 category_table 신용카드 섹션 생성)' if not had_category_file else ' (category_table 적용)'
             ),
             'count': count,
@@ -1695,7 +1804,7 @@ def generate_category():
         })
     if error and 'card_before' in error and '없거나 비어' in error:
         return jsonify({'success': False, 'error': error}), 400
-    return jsonify({'success': False, 'error': error or 'card_after.xlsx 생성 실패'}), 500
+    return jsonify({'success': False, 'error': error or 'card_after 생성 실패'}), 500
 
 @app.route('/help')
 def help():

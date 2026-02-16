@@ -9,7 +9,7 @@ $env:PYTHONUTF8 = "1"
 Set-Location $PSScriptRoot
 
 Write-Host "========================================"
-Write-Host "MyInfo Server"
+Write-Host "MyInfo Server  (PowerShell $($PSVersionTable.PSVersion.ToString()))"
 Write-Host "========================================"
 Write-Host "[1/2] Checking packages..."
 $ErrorActionPreference = "Continue"
