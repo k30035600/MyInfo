@@ -28,10 +28,6 @@ if sys.platform == 'win32':
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
-# =========================================================
-# 기본 설정
-# =========================================================
-
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
 # 금융정보 원본 업로드용: .source/Cash
@@ -46,7 +42,7 @@ except ImportError:
     get_default_rules = None
 try:
     from category_table_io import (
-        load_category_table,
+        load_category_table as load_category_table_io,
         normalize_category_df,
         normalize_주식회사_for_match,
         CATEGORY_TABLE_COLUMNS,
@@ -74,6 +70,7 @@ except ImportError:
         val = re.sub(r'[\s/]*㈜[\s/]*', '(주)', val)
         val = re.sub(r'(\(주\)[\s/]*)+', '(주)', val)
         return val
+    load_category_table_io = load_category_table
     CATEGORY_TABLE_COLUMNS = ['분류', '키워드', '카테고리']
 
 OUTPUT_FILE = "cash_after.xlsx"
@@ -83,10 +80,6 @@ def ensure_all_cash_files():
     """금융정보에서는 category_table.json을 생성하지 않음. cash_after는 bank/card 병합(merge_bank_card)으로만 생성."""
     pass
 
-
-# =========================================================
-# 유틸리티 함수
-# =========================================================
 
 def safe_str(value):
     """NaN 값 처리 및 안전한 문자열 변환. 전처리/후처리 매칭용으로 주식회사·㈜ → (주) 통일."""
@@ -155,10 +148,6 @@ def safe_write_excel(df, filepath, max_retries=3):
             raise e
     return False
 
-# =========================================================
-# 4. 분류 함수들
-# =========================================================
-
 def create_before_text(row):
     """before_text 생성"""
     bank_name = safe_str(row.get("은행명", ""))
@@ -195,42 +184,6 @@ def classify_1st_category(row):
     if out_amt > 0:
         return "출금"
     return "입금"
-
-def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
-    """전처리 분류 (계좌번호 등). 카테고리 키워드도 주식회사→(주) 정규화해 매칭."""
-    row = df.iloc[row_idx]
-    before_text_raw = row.get("before_text", "")
-    before_text = normalize_text(before_text_raw)
-
-    if "전처리" in category_tables:
-        category_table = category_tables["전처리"]
-        category_rows_list = list(category_table.iterrows())
-        sorted_rows = sorted(category_rows_list, key=lambda x: len(str(x[1].get("키워드", ""))), reverse=True)
-
-        for _, cat_row in sorted_rows:
-            keyword_raw = cat_row.get("키워드", "")
-            if pd.isna(keyword_raw) or not keyword_raw:
-                continue
-
-            keyword = normalize_text(keyword_raw)
-            keyword_norm = normalize_주식회사_for_match(keyword)
-
-            if keyword_norm and before_text and keyword_norm in before_text:
-                category_raw = cat_row.get("카테고리", "")
-                if pd.notna(category_raw):
-                    category_str = str(category_raw).strip()
-                    if category_str:
-                        for col in ['적요', '내용', '거래점', '송금메모']:
-                            if col in df.columns:
-                                cell_value = safe_str(df.iloc[row_idx].get(col, ""))
-                                if keyword_norm in normalize_text(cell_value):
-                                    df.at[row_idx, col] = category_str
-                                    break
-                        df.at[row_idx, "before_text"] = create_before_text_func(df.iloc[row_idx])
-                        updated_text = normalize_text(df.iloc[row_idx].get("before_text", ""))
-                        updated_text = updated_text.replace(keyword_norm, "").strip()
-                        df.at[row_idx, "before_text"] = updated_text
-                break
 
 def classify_transaction_type(row_idx, df, category_tables):
     """거래방법 분류"""
@@ -393,15 +346,11 @@ def classify_etc(row_idx, df, category_tables):
 
     return ""
 
-# =========================================================
-# 5. 메인 처리 함수
-# =========================================================
-
 def load_category_table():
-    """category_table.json 로드 및 category_tables 구성 (구분 없음). 금융정보에서는 파일 없으면 빈 dict 반환."""
+    """category_table.json 로드 및 category_tables 구성 (구분 없음). 금융정보에서는 전처리/후처리 미적용, 계정과목·기타거래용으로만 사용. 파일 없으면 빈 dict 반환."""
     if not CATEGORY_TABLE_FILE or not os.path.exists(CATEGORY_TABLE_FILE):
         return {}
-    category_df = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
+    category_df = load_category_table_io(CATEGORY_TABLE_FILE, default_empty=True)
     if category_df is None or category_df.empty:
         return {}
     category_df = normalize_category_df(category_df)
@@ -425,7 +374,7 @@ def load_category_table():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """입력 파일 → cash_after 생성. category_table의 전처리/후처리·기타거래 적용 (거래방법/거래지점 미사용). 금융정보는 보통 cash_after를 bank/card 병합으로만 생성."""
+    """입력 파일 → cash_after 생성. 금융정보에서는 전처리/후처리 없음. 계정과목·기타거래만 적용. cash_after는 보통 bank/card 병합으로만 생성."""
     if input_file is None:
         input_file = os.path.join(_SCRIPT_DIR, "cash_before.xlsx")
     if output_file is None:
@@ -436,18 +385,16 @@ def classify_and_save(input_file=None, output_file=None):
         print(f"오류: {input_file} 읽기 실패 - {e}")
         return False
 
-    # 금융정보에서는 category_table.json을 생성하지 않음. 없으면 빈 규칙으로 진행.
+    # 금융정보에서는 category_table.json을 생성하지 않음. 전처리/후처리 없이 계정과목·기타거래만 사용.
     category_tables = load_category_table()
 
     df["before_text"] = df.apply(create_before_text, axis=1)
 
-    # 전처리/후처리 매칭 전에 적요·내용·거래점·송금메모를 주식회사→(주) 등으로 정규화
     for col in ['적요', '내용', '거래점', '송금메모']:
         if col in df.columns:
             df[col] = df[col].apply(lambda v: safe_str(v))
 
     df["입출금"] = df.apply(classify_1st_category, axis=1)
-    df.index.to_series().apply(lambda idx: classify_2_chasu(idx, df, category_tables, create_before_text))
     if '계정과목' in category_tables:
         apply_category_from_bank(df, category_tables['계정과목'])
     else:
@@ -555,10 +502,6 @@ def classify_and_save(input_file=None, output_file=None):
         return False
 
     return True
-
-# =========================================================
-# 6. 메인 함수
-# =========================================================
 
 def main():
     """전체 워크플로우 실행. cash_after는 bank/card 병합으로만 생성."""

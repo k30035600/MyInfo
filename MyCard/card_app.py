@@ -1572,9 +1572,9 @@ def _create_card_after():
             if sh_merchant.any():
                 df_card.loc[sh_merchant, '가맹점명'] = '신한카드_카드론'
 
-        # 카테고리(category_table.json) 전처리/후처리 규칙 적용 (가맹점명, 카드사)
-        if hasattr(mod, '_apply_prepost_to_columns'):
-            df_card = mod._apply_prepost_to_columns(df_card, ['가맹점명', '카드사'])
+        # 후처리: after.xlsx 생성 전에만 수행 (전처리는 card_before 저장 시 이미 적용됨)
+        if hasattr(mod, '_apply_후처리_only_to_columns'):
+            df_card = mod._apply_후처리_only_to_columns(df_card, ['가맹점명', '카드사'])
 
         # 신한카드/하나카드 + 사업자번호 없음 → 기본값 저장
         _apply_카드사_사업자번호_기본값(df_card)

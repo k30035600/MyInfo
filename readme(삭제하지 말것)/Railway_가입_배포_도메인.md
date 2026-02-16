@@ -134,7 +134,7 @@ Railway에 **GitHub 저장소를 연결**해 두면, **`main` 브랜치에 푸�
 
 ### 4.3 SSL(HTTPS)
 
-- Railway는 Let’s Encrypt로 자동 HTTPS를 제공합니다.  
+- Railway는 Let's Encrypt로 자동 HTTPS를 제공합니다.  
 - 도메인 연결이 끝나면 잠시 후 https://myinfo.com, https://www.myinfo.com 으로 접속 가능합니다.
 
 ---

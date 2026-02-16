@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-category_table.json 읽기/쓰기 통합 모듈.
-
-- load_category_table: JSON 안전 읽기 (손상 시 빈 DataFrame 반환)
-- get_category_table: 로드 + 정규화 후 (df, file_existed) 반환
-- apply_category_action: add/update/delete 수행, (success, error_msg, count) 반환
-- create_empty_category_table: 빈 [분류, 키워드, 카테고리] JSON 생성·저장
-- safe_write_category_table: 원자적 JSON 쓰기 + 동시 쓰기 방지
-- normalize_category_df: 구분 제거, 컬럼 보장, fillna
-"""
+"""category_table.json 읽기/쓰기. load/get, apply_action, safe_write, normalize_category_df."""
 import json
 import os
 import re
@@ -28,7 +19,6 @@ except ImportError:
         '증권투자', '해외송금', '심야구분', '금전대부',
     )
 
-# 기본 파일명 (경로는 get_category_table_path로 .source/category_table.json)
 CATEGORY_TABLE_FILENAME = 'category_table.json'
 
 _lock = threading.Lock()
@@ -53,16 +43,11 @@ def _xlsx_path_from_json(json_path):
 
 
 def load_category_table(path, default_empty=True):
-    """
-    category_table.json 안전 읽기. path가 .xlsx로 오면 .json 경로로 변환.
-    json 없고 xlsx 있으면 xlsx 읽어서 json으로 저장 후 DataFrame 반환.
-    손상/없음 시 빈 DataFrame 또는 None 반환.
-    """
+    """JSON 안전 읽기. xlsx면 json 경로로 변환. 없/손상 시 빈 DataFrame 또는 None."""
     path = _json_path(path)
     if not path:
         return pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS) if default_empty else None
     xlsx_path = _xlsx_path_from_json(path)
-    # 1회 마이그레이션: json 없고 xlsx 있으면 xlsx → json 변환
     if not os.path.exists(path) or (os.path.exists(path) and os.path.getsize(path) == 0):
         if xlsx_path and os.path.exists(xlsx_path) and os.path.getsize(xlsx_path) > 0:
             try:
@@ -86,7 +71,6 @@ def load_category_table(path, default_empty=True):
         for c in CATEGORY_TABLE_COLUMNS:
             if c not in df.columns:
                 df[c] = ''
-        # 카테고리테이블에서는 업종분류 미사용 — 반환 전 제거
         if '분류' in df.columns and (df['분류'].astype(str).str.strip() == '업종분류').any():
             df = df[df['분류'].astype(str).str.strip() != '업종분류'].copy()
         return df
@@ -95,7 +79,7 @@ def load_category_table(path, default_empty=True):
 
 
 def create_empty_category_table(path):
-    """빈 category_table.json 생성·저장. 기존 파일이 있으면 덮어쓰지 않고 load→normalize→save."""
+    """빈 category_table.json 생성. 기존 있으면 덮어쓰지 않음."""
     path = _json_path(path)
     if not path:
         return
@@ -111,7 +95,7 @@ def create_empty_category_table(path):
 
 
 def get_category_table_path(project_root=None):
-    """MyInfo 프로젝트 루트 기준 .source/category_table.json 경로 반환."""
+    """프로젝트 루트 기준 .source/category_table.json 경로."""
     if project_root:
         return os.path.normpath(os.path.join(project_root, '.source', CATEGORY_TABLE_FILENAME))
     root = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.'))
@@ -228,6 +212,69 @@ def apply_category_action(path, action, data):
         df = df[df['분류'].astype(str).str.strip() != '업종분류'].copy()
     safe_write_category_table(path, df)
     return (True, None, len(df))
+
+
+def ensure_prepost_in_table(path):
+    """
+    category_table에 전처리/후처리 행이 하나도 없으면 기본 규칙을 앞에 보강해 저장 후 반환.
+    은행·금융정보 분류 시 전처리/후처리가 비어 있으면 적용이 되지 않으므로, 파일 복구용으로 사용.
+    Returns: 보강된 DataFrame (변경 없으면 기존 로드 결과 그대로).
+    """
+    path = _json_path(path)
+    if not path or not os.path.exists(path):
+        return load_category_table(path, default_empty=True)
+    df = load_category_table(path, default_empty=True)
+    if df is None or df.empty:
+        return df
+    df = normalize_category_df(df)
+    if '분류' not in df.columns:
+        return df
+    분류_str = df['분류'].astype(str).str.strip()
+    has_전 = (분류_str == '전처리').any()
+    has_후 = (분류_str == '후처리').any()
+    if has_전 and has_후:
+        return df
+    try:
+        from category_table_defaults import get_default_rules
+        rules = get_default_rules('bank')
+        prepost = [r for r in rules if str(r.get('분류', '')).strip() in ('전처리', '후처리')]
+    except Exception:
+        prepost = []
+    if not prepost:
+        return df
+    prepost_df = pd.DataFrame(prepost)
+    for c in CATEGORY_TABLE_COLUMNS:
+        if c not in prepost_df.columns:
+            prepost_df[c] = ''
+    prepost_df = prepost_df[CATEGORY_TABLE_COLUMNS].copy().fillna('')
+    merged = pd.concat([prepost_df, df], ignore_index=True)
+    merged = merged.drop_duplicates(subset=['분류', '키워드', '카테고리'], keep='first')
+    merged = normalize_category_df(merged)
+    safe_write_category_table(path, merged)
+    return merged
+
+
+def export_category_table_to_xlsx(path=None):
+    """
+    category_table.json 내용을 동일 경로의 category_table.xlsx로 내보냄.
+    백업·엑셀 편집용. path 생략 시 get_category_table_path() 사용.
+    Returns: (success: bool, xlsx_path: str|None, error_msg: str|None)
+    """
+    path = _json_path(path or get_category_table_path())
+    if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+        return (False, None, "category_table.json이 없거나 비어 있습니다.")
+    xlsx_path = _xlsx_path_from_json(path)
+    if not xlsx_path:
+        return (False, None, "xlsx 경로를 만들 수 없습니다.")
+    try:
+        df = load_category_table(path, default_empty=False)
+        if df is None or df.empty:
+            return (False, None, "JSON 로드 결과가 비어 있습니다.")
+        df = normalize_category_df(df)
+        df.to_excel(xlsx_path, index=False, engine='openpyxl')
+        return (True, xlsx_path, None)
+    except Exception as e:
+        return (False, xlsx_path, str(e))
 
 
 def safe_write_category_table(path, df):

@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-금융거래 통합정보(MyInfo) 통합 서버.
-
-은행거래 통합정보(MyBank), 신용카드 통합정보(MyCard), 금융정보 종합분석(MyCash) 세 서비스를
-하나의 서버에서 제공합니다. 루트 템플릿은 templates/ 폴더에서 로드합니다.
-"""
+"""MyInfo 통합 서버: MyBank·MyCard·MyCash. 루트 템플릿 templates/."""
 import os
 import sys
 import io
@@ -14,14 +9,11 @@ import subprocess
 import importlib.util
 import warnings
 
-# -----------------------------------------------------------------------------
-# 환경 설정 (Railway/Docker 등 한글 깨짐 방지)
-# -----------------------------------------------------------------------------
+# 한글/UTF-8 (Railway·로컬 공통)
 os.environ.setdefault("LANG", "en_US.UTF-8")
 os.environ.setdefault("LC_ALL", "en_US.UTF-8")
 os.environ.setdefault("PYTHONUTF8", "1")
 
-# Windows: 콘솔 한글 깨짐 방지 (코드페이지만 UTF-8로 설정, stdout 교체 시 버퍼 닫힘 주의)
 if sys.platform == "win32":
     try:
         import ctypes
@@ -33,7 +25,6 @@ if sys.platform == "win32":
 from datetime import datetime
 from flask import Flask, render_template, render_template_string, redirect, make_response
 
-# 서버 프로세스 기동 시각 (등록 시점 구분용)
 SERVER_START_TIME = None
 
 
@@ -50,9 +41,6 @@ def _get_version():
     return '26/02/05'
 
 
-# -----------------------------------------------------------------------------
-# 서브 앱 등록: (폴더명, URL prefix, 앱 파일명, 표시 이름)
-# -----------------------------------------------------------------------------
 SUBAPP_CONFIG = (
     ('MyBank', '/bank', 'bank_app.py', '은행거래 통합정보'),
     ('MyCard', '/card', 'card_app.py', '신용카드 통합정보'),
@@ -60,9 +48,6 @@ SUBAPP_CONFIG = (
 )
 
 
-# -----------------------------------------------------------------------------
-# 콘솔/로그 한글 출력 (UTF-8)
-# -----------------------------------------------------------------------------
 try:
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -73,25 +58,18 @@ try:
 except Exception:
     pass
 
-# Excel 관련 무해한 경고 억제
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT.*')
-# openpyxl: 헤더/푸터 파싱 불가 시 무시 (데이터에는 영향 없음)
 warnings.filterwarnings('ignore', message='.*Cannot parse header or footer.*')
 
 app = Flask(__name__)
 SERVER_START_TIME = datetime.now()
 
-# JSON 인코딩 설정 (한글 지원)
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
-
-# MyInfo 프로젝트 루트 및 통합 카테고리 파일 (은행/카드/금융 공통)
 _root = os.path.dirname(os.path.abspath(__file__))
 CATEGORY_TABLE_PATH = os.path.join(_root, '.source', 'category_table.json')
 os.environ['MYINFO_ROOT'] = _root
-
-# Railway 등 배포 환경: .source는 gitignore되어 없음 → 빈 폴더 생성해 오류 방지
 try:
     for _d in (os.path.join(_root, '.source'), os.path.join(_root, '.source', 'Bank'), os.path.join(_root, '.source', 'Card'), os.path.join(_root, '.source', 'Cash')):
         os.makedirs(_d, exist_ok=True)
@@ -100,8 +78,7 @@ except Exception:
 
 
 def _clear_startup_caches():
-    """서버 기동 시 캐시·임시파일 초기화. 이전 실행의 상태가 남지 않도록 한다."""
-    # 1) 로드된 모듈 내 캐시 변수 초기화 (예: MyCard process_card_data._HEADER_LIKE_STRINGS)
+    """기동 시 모듈 캐시·임시파일 초기화."""
     for _mod_name in list(sys.modules):
         try:
             _mod = sys.modules.get(_mod_name)
@@ -109,7 +86,6 @@ def _clear_startup_caches():
                 setattr(_mod, '_HEADER_LIKE_STRINGS', None)
         except Exception:
             pass
-    # 2) 이전 실행에서 남은 임시 파일 삭제 (OneDrive 대체 읽기용 myinfo_subapp_*.txt)
     try:
         _tmp_dir = tempfile.gettempdir()
         for _f in os.listdir(_tmp_dir):
@@ -120,7 +96,6 @@ def _clear_startup_caches():
                     pass
     except Exception:
         pass
-    # 3) category_table_io 원자적 쓰기 시 남은 .cat_tbl_*.json 임시 파일 삭제
     try:
         _root = os.path.dirname(os.path.abspath(__file__))
         for _d in (_root, os.path.join(_root, '.source'), os.path.join(_root, 'MyBank'), os.path.join(_root, 'MyCard'), os.path.join(_root, 'MyCash')):
@@ -136,11 +111,10 @@ def _clear_startup_caches():
 
 
 def _cleanup_and_exit():
-    """캐시·임시파일 초기화 후 프로세스 종료. 다음 서버 기동 시 처음부터 시작할 수 있게 한다."""
     try:
         _clear_startup_caches()
     except Exception as e:
-        print(f"[WARN] 종료 전 초기화 중 오류: {e}", flush=True)
+        print(f"[WARN] {e}", flush=True)
     try:
         os._exit(0)
     except Exception:
@@ -148,7 +122,7 @@ def _cleanup_and_exit():
 
 
 def _ensure_category_table_file():
-    """category_table.json이 없으면 빈 파일 생성. (category_table_io.create_empty_category_table 사용)"""
+    """category_table.json 없으면 빈 파일 생성."""
     if os.path.isfile(CATEGORY_TABLE_PATH):
         return
     try:
@@ -160,7 +134,7 @@ def _ensure_category_table_file():
 
 @app.after_request
 def _ensure_utf8_charset(response):
-    """Railway 등 Linux 호스팅에서 한글 깨짐 방지: 응답에 charset=utf-8 명시"""
+    """응답 Content-Type에 charset=utf-8 보장."""
     ct = response.content_type or ""
     if ct.startswith("text/") or ct.startswith("application/json"):
         if "charset=" not in ct:
@@ -168,10 +142,8 @@ def _ensure_utf8_charset(response):
     return response
 
 
-# 루트 템플릿: templates/index.html, templates/help.html, templates/404.html 사용 (유지보수 용이)
-
 def _patch_utf8_in_source(code):
-    """서브 앱 소스에서 UTF-8 설정 블록(win32)을 주석 처리하여 통합 서버에서 중복 실행 방지"""
+    """서브앱 소스 내 win32 UTF-8 블록 주석 처리(통합 서버에서 중복 방지)."""
     lines = code.split('\n')
     modified_lines = []
     in_utf8_block = False
@@ -180,7 +152,7 @@ def _patch_utf8_in_source(code):
         if 'if sys.platform' in line and "'win32'" in line:
             in_utf8_block = True
             indent_level = len(line) - len(line.lstrip())
-            modified_lines.append('# UTF-8 설정 코드 비활성화 (통합 서버에서 처리)')
+            modified_lines.append('# UTF-8 블록 비활성화')
             continue
         if in_utf8_block:
             current_indent = len(line) - len(line.lstrip()) if line.strip() else indent_level + 1
@@ -298,7 +270,6 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
         subapp_module.__file__ = app_file
         if hasattr(subapp_module, 'SCRIPT_DIR'):
             subapp_module.SCRIPT_DIR = subapp_dir
-        # category_table.json은 before 파일(bank/card/cash) 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
         if hasattr(subapp_module, 'CATEGORY_TABLE_PATH'):
             subapp_module.CATEGORY_TABLE_PATH = CATEGORY_TABLE_PATH
         if subapp_path == 'MyBank':
@@ -310,29 +281,17 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
             mycard_path = Path(subapp_dir)
             if hasattr(subapp_module, 'CARD_AFTER_PATH'):
                 subapp_module.CARD_AFTER_PATH = mycard_path / 'card_after.xlsx'
-            # category_table.json은 card_before 생성·읽기 후에만 생성·읽기 (여기서 생성하지 않음)
-        
-        # 서브 앱 로드 후 즉시 stdout/stderr를 sys.__stdout__/__stderr__로 복원
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
-        
-        # 서브 앱의 Flask 앱 인스턴스 가져오기
         subapp = subapp_module.app
-        
-        # 서브 앱의 모든 라우트를 메인 앱에 등록
         for rule in subapp.url_map.iter_rules():
             if rule.endpoint != 'static':
-                # 원본 뷰 함수 가져오기
                 view_func = subapp.view_functions[rule.endpoint]
-                
-                # URL prefix 추가하여 새 라우트 등록
                 new_rule = str(rule.rule)
                 if new_rule == '/':
                     new_rule = url_prefix + '/'
                 else:
                     new_rule = url_prefix + new_rule
-                
-                # 메인 앱에 라우트 등록 (strict_slashes=False: /card 와 /card/ 둘 다 허용)
                 proxy_func = create_proxy_view(view_func, subapp_dir, subapp)
                 app.add_url_rule(
                     new_rule,
@@ -347,32 +306,18 @@ def load_subapp_routes(subapp_path, url_prefix, app_filename):
         os.chdir(original_cwd)
         if subapp_dir in sys.path:
             sys.path.remove(subapp_dir)
-        # 최종적으로 stdout/stderr를 sys.__stdout__/__stderr__로 복원
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
 
 def create_proxy_view(view_func, app_dir, subapp_instance):
-    """뷰 함수를 프록시하는 래퍼 함수 생성"""
     def proxy_view(*args, **kwargs):
         original_cwd = os.getcwd()
         try:
-            # 서브 앱의 작업 폴더로 변경
-            # 금융정보 종합분석: .\MyCash
-            # 신용카드 통합정보: .\MyCard
             os.chdir(app_dir)
-            
-            # 서브 앱의 Flask 앱 컨텍스트에서 실행
-            # 이렇게 하면 서브 앱의 템플릿 폴더를 사용할 수 있음
             with subapp_instance.app_context():
-                # render_template을 서브 앱의 것으로 교체
                 import flask
-                
-                # 서브 앱의 render_template 사용
-                # 서브 앱의 템플릿 폴더를 사용하도록 설정
                 original_flask_render = flask.render_template
-                
                 def subapp_render_template(template_name_or_list, **context):
-                    """서브 앱의 템플릿 폴더를 사용하는 render_template"""
                     return subapp_instance.render_template(template_name_or_list, **context)
                 
                 # 임시로 render_template 교체

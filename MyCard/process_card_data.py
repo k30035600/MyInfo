@@ -44,10 +44,6 @@ if sys.platform == 'win32':
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
-# =========================================================
-# 기본 설정
-# =========================================================
-
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
 SOURCE_DATA_DIR = os.path.join(PROJECT_ROOT, '.source')
@@ -79,10 +75,6 @@ HEADER_TO_STANDARD = {
 과세유형_헤더키워드 = '과세유형'
 # 금액 컬럼으로 간주할 헤더 키워드 (포함 시 숫자로 변환)
 AMOUNT_COLUMN_KEYWORDS = ('금액', '입금', '출금', '잔액')
-
-# =========================================================
-# 유틸리티 함수
-# =========================================================
 
 try:
     from category_table_io import normalize_주식회사_for_match
@@ -227,10 +219,6 @@ def _normalize_구분(val):
         return '' if n == 0 else n
     return ''
 
-
-# =========================================================
-# 1. 카드 엑셀 원본 읽기 + 카드 파일 통합 → card_before.xlsx
-# =========================================================
 
 def _card_excel_files(source_dir):
     """Source 루트 폴더에서만 .xls, .xlsx 파일 목록 수집."""
@@ -597,13 +585,9 @@ def _load_prepost_rules(category_path=None):
         return [], []
 
 
-def _apply_prepost_to_columns(df, columns_to_apply):
-    """DataFrame의 지정 컬럼에 category_table 전처리·후처리 규칙 적용 (키워드 → 카테고리 치환).
-    적용 전에 해당 컬럼을 주식회사→(주) 등으로 정규화. 가맹점명 등 표시용 컬럼은 셀 전체가 키워드와 일치하면 치환하지 않음 (예: '(주)진프랜드산'이 '(주)'로 줄어드는 것 방지)."""
-    if df is None or df.empty or not columns_to_apply:
-        return df
-    전처리, 후처리 = _load_prepost_rules()
-    if not 전처리 and not 후처리:
+def _apply_rules_to_columns(df, columns_to_apply, rule_list):
+    """지정 규칙 리스트만 컬럼에 적용 (전처리 또는 후처리만). 셀 전체가 키워드와 일치하면 치환하지 않음."""
+    if df is None or df.empty or not columns_to_apply or not rule_list:
         return df
     df = df.copy()
     for col in columns_to_apply:
@@ -613,25 +597,35 @@ def _apply_prepost_to_columns(df, columns_to_apply):
     for col in columns_to_apply:
         if col not in df.columns:
             continue
-        for rule_list in (전처리, 후처리):
-            for rule in rule_list:
-                kw = rule['키워드']
-                cat = rule['카테고리']
-                if not kw:
-                    continue
-                kw_norm = normalize_주식회사_for_match(kw)
-                if not kw_norm:
-                    continue
-                # 셀 전체가 키워드와 일치하면 치환하지 않음 (가맹점명 등이 '(주)진프랜드산' → '(주)'로 줄어들지 않도록)
-                def replace_if_not_whole(cell_val):
-                    s = (cell_val or '').strip()
-                    if not s:
-                        return cell_val
-                    if normalize_주식회사_for_match(s) == kw_norm:
-                        return cell_val
-                    return s.replace(kw_norm, cat)
-                df[col] = df[col].fillna('').astype(str).apply(lambda v: replace_if_not_whole(v))
+        for rule in rule_list:
+            kw = rule['키워드']
+            cat = rule['카테고리']
+            if not kw:
+                continue
+            kw_norm = normalize_주식회사_for_match(kw)
+            if not kw_norm:
+                continue
+            def replace_if_not_whole(cell_val):
+                s = (cell_val or '').strip()
+                if not s:
+                    return cell_val
+                if normalize_주식회사_for_match(s) == kw_norm:
+                    return cell_val
+                return s.replace(kw_norm, cat)
+            df[col] = df[col].fillna('').astype(str).apply(lambda v: replace_if_not_whole(v))
     return df
+
+
+def _apply_전처리_only_to_columns(df, columns_to_apply):
+    """card_before 저장 전 전처리만 적용 (가맹점명·카드사 등)."""
+    전처리, _ = _load_prepost_rules()
+    return _apply_rules_to_columns(df, columns_to_apply, 전처리 or [])
+
+
+def _apply_후처리_only_to_columns(df, columns_to_apply):
+    """card_after 생성 전 후처리만 적용 (가맹점명·카드사 등)."""
+    _, 후처리 = _load_prepost_rules()
+    return _apply_rules_to_columns(df, columns_to_apply, 후처리 or [])
 
 
 def _postprocess_combined_df(df):
@@ -743,7 +737,11 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
                 combined_df.loc[cardron, '입금액'] = combined_df.loc[cardron, '출금액']
                 combined_df.loc[cardron, '출금액'] = 0
 
-        # card_before에는 전처리/후처리 적용하지 않음 (전처리/후처리는 card_after 생성 시에만 적용)
+        # 전처리: before.xlsx 저장 전에 수행 (가맹점명·카드사 치환)
+        try:
+            combined_df = _apply_전처리_only_to_columns(combined_df, ['가맹점명', '카드사'])
+        except Exception as e:
+            print(f"경고: 전처리 적용 중 오류(무시하고 저장) - {e}")
         # card_before.xlsx 저장 시 입금액은 절대값으로 보장
         if '입금액' in combined_df.columns:
             combined_df['입금액'] = pd.to_numeric(combined_df['입금액'], errors='coerce').fillna(0).abs()
@@ -760,11 +758,6 @@ def integrate_card_excel(output_file=None, base_dir=None, skip_write=False):
     return combined_df
 
 
-# =========================================================
-# 2. 카테고리 테이블: category_table.json(신용카드 구분) 생성·갱신
-# =========================================================
-
-# category_table(신용카드): category_create.md 파싱 또는 category_table_defaults 기본값 사용
 # 카테고리 분류: apply_category_from_merchant에서 계정과목만 사용, 키워드 길이 순, 기본값 기타거래
 
 
@@ -878,10 +871,6 @@ def apply_category_from_merchant(df, category_df):
     df = df.drop(columns=['_matched_kw_len'], errors='ignore')
     return df
 
-
-# =========================================================
-# 3. 메인 함수
-# =========================================================
 
 def main():
     """카드 전용: integrate_card_excel 실행."""

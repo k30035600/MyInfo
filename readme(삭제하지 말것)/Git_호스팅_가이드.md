@@ -119,8 +119,8 @@ git push -u origin main
 
 ## 5. 참고 문서
 
-- **Railway 상세**(가입, 배포, 커스텀 도메인): `Railway_가입_배포_도메인.md`
-- **로컬 실행**: `README.md`
+- **Railway 상세**(가입, 배포, 커스텀 도메인): [Railway_가입_배포_도메인.md](Railway_가입_배포_도메인.md)
+- **로컬 실행**: 프로젝트 루트 `README.md`
 
 ---
 

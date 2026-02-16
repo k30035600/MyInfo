@@ -1,24 +1,15 @@
 # -*- coding: utf-8 -*-
-"""
-process_bank_data.py — 은행용 코드 전용. (카드 관련 역할 없음)
-
-[역할]
-- 은행 파일 통합: .source 폴더의 은행 엑셀을 모아 bank_before.xlsx 생성
-- 카테고리: MyInfo/.source/category_table.json(은행거래 구분) 사용
-- 분류·저장: bank_before → bank_after.xlsx (전처리/후처리·계정과목 적용)
-
-.source는 .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)
-"""
+"""은행: .source/Bank 엑셀 → bank_before.xlsx, category_table.json → bank_after.xlsx. 전처리=before 저장 전, 후처리=after 생성 전."""
 import pandas as pd
 import os
 import re
+import shutil
 import sys
 import time
 import unicodedata
 import zipfile
 from pathlib import Path
 
-# Windows 한글 깨짐 방지: 콘솔 코드페이지만 UTF-8(65001) 설정 (stdout 교체 시 버퍼 닫힘 주의)
 if sys.platform == 'win32':
     try:
         import ctypes
@@ -28,14 +19,9 @@ if sys.platform == 'win32':
     except Exception:
         pass
 
-# =========================================================
-# 기본 설정
-# =========================================================
-
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(_SCRIPT_DIR, '..'))
 CATEGORY_TABLE_FILE = os.path.join(_PROJECT_ROOT, '.source', 'category_table.json') if _PROJECT_ROOT else None
-# category_table.json 원자적 쓰기(임시파일+replace)+락
 if _PROJECT_ROOT and _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 try:
@@ -47,6 +33,7 @@ try:
         safe_write_category_table,
         load_category_table,
         create_empty_category_table,
+        ensure_prepost_in_table,
         normalize_category_df,
         normalize_주식회사_for_match,
         CATEGORY_TABLE_COLUMNS,
@@ -75,6 +62,8 @@ except ImportError:
         df = df.fillna(''); df = df.drop(columns=['구분'], errors='ignore')
         for c in ['분류', '키워드', '카테고리']: df[c] = df[c] if c in df.columns else ''
         return df[['분류', '키워드', '카테고리']].copy()
+    def ensure_prepost_in_table(path):
+        return load_category_table(path, default_empty=True)
     CATEGORY_TABLE_COLUMNS = ['분류', '키워드', '카테고리']
     def normalize_주식회사_for_match(text):
         if text is None or (isinstance(text, str) and not str(text).strip()):
@@ -84,7 +73,6 @@ except ImportError:
         val = re.sub(r'[\s/]*㈜[\s/]*', '(주)', val)
         val = re.sub(r'(\(주\)[\s/]*)+', '(주)', val)
         return val
-# 원본 은행 파일: .source/Bank. before/after: MyBank 폴더
 SOURCE_BANK_DIR = os.path.join(_PROJECT_ROOT, '.source', 'Bank') if _PROJECT_ROOT else None
 INPUT_FILE = os.path.join(_SCRIPT_DIR, 'bank_before.xlsx')
 OUTPUT_FILE = os.path.join(_SCRIPT_DIR, 'bank_after.xlsx')
@@ -123,18 +111,16 @@ def _bank_before_is_empty():
     return False
 
 
-def ensure_all_bank_files():
-    """bank_before, category_table, bank_after 파일이 없으면 생성. 있으면 그대로 사용. before/after는 MyBank 폴더."""
-    # 1. bank_before.xlsx: 없거나 비어 있으면 .source/Bank 통합 실행
+def _ensure_bank_before_and_category_only():
+    """bank_before·category_table만 확보. bank_after 미생성."""
     empty = _bank_before_is_empty()
     if empty:
         integrate_bank_transactions()
         return
 
-    # 2. category_table.json: 없으면 생성, 손상 시 백업 후 재생성, 있으면 마이그레이션(거래방법/거래지점 행 제거)
     if not CATEGORY_TABLE_FILE:
-        pass
-    elif not os.path.exists(CATEGORY_TABLE_FILE):
+        return
+    if not os.path.exists(CATEGORY_TABLE_FILE):
         try:
             df = _safe_read_excel(INPUT_FILE, default_empty=True)
             if df is not None and not df.empty:
@@ -143,26 +129,28 @@ def ensure_all_bank_files():
                 create_empty_category_table(CATEGORY_TABLE_FILE)
         except Exception as e:
             print(f"오류: category_table 생성 실패 - {e}")
-    else:
-        # 파일 존재: 읽기 시도 후 손상이면 백업하고 기본 파일 재생성
-        full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
-        if (full is None or full.empty) and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
-            try:
-                import shutil
-                backup_path = CATEGORY_TABLE_FILE + '.bak'
-                shutil.move(CATEGORY_TABLE_FILE, backup_path)
-                df = _safe_read_excel(INPUT_FILE, default_empty=True)
-                create_category_table(df if df is not None and not df.empty else pd.DataFrame())
-            except Exception as e:
-                print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
-        elif full is not None and not full.empty:
-            try:
-                migrate_bank_category_file(CATEGORY_TABLE_FILE)
-            except Exception as e:
-                if not _is_bad_zip_error(e):
-                    print(f"오류: category_table 마이그레이션 실패 - {e}")
+        return
 
-    # 3. bank_after.xlsx: 없으면 생성 (카테고리 분류). 테이블/프린트 출력 시에는 호출하지 않음.
+    full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
+    if (full is None or full.empty) and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
+        try:
+            backup_path = CATEGORY_TABLE_FILE + '.bak'
+            shutil.move(CATEGORY_TABLE_FILE, backup_path)
+            df = _safe_read_excel(INPUT_FILE, default_empty=True)
+            create_category_table(df if df is not None and not df.empty else pd.DataFrame())
+        except Exception as e:
+            print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
+    elif full is not None and not full.empty:
+        try:
+            migrate_bank_category_file(CATEGORY_TABLE_FILE)
+        except Exception as e:
+            if not _is_bad_zip_error(e):
+                print(f"오류: category_table 마이그레이션 실패 - {e}")
+
+
+def ensure_all_bank_files():
+    """bank_before·category_table·bank_after 없으면 생성."""
+    _ensure_bank_before_and_category_only()
     if not os.path.exists(OUTPUT_FILE):
         try:
             classify_and_save()
@@ -171,50 +159,12 @@ def ensure_all_bank_files():
 
 
 def ensure_bank_before_and_category():
-    """bank_before, category_table만 생성·갱신. bank_after는 생성하지 않음. 테이블/프린트 출력 시 사용."""
-    # 1. bank_before.xlsx
-    empty = _bank_before_is_empty()
-    if empty:
-        integrate_bank_transactions()
-        return
-    # 2. category_table.json
-    if not CATEGORY_TABLE_FILE:
-        pass
-    elif not os.path.exists(CATEGORY_TABLE_FILE):
-        try:
-            df = _safe_read_excel(INPUT_FILE, default_empty=True)
-            if df is not None and not df.empty:
-                create_category_table(df)
-            else:
-                create_empty_category_table(CATEGORY_TABLE_FILE)
-        except Exception as e:
-            print(f"오류: category_table 생성 실패 - {e}")
-    else:
-        full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
-        if (full is None or full.empty) and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
-            try:
-                import shutil
-                backup_path = CATEGORY_TABLE_FILE + '.bak'
-                shutil.move(CATEGORY_TABLE_FILE, backup_path)
-                df = _safe_read_excel(INPUT_FILE, default_empty=True)
-                create_category_table(df if df is not None and not df.empty else pd.DataFrame())
-            except Exception as e:
-                print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
-        elif full is not None and not full.empty:
-            try:
-                migrate_bank_category_file(CATEGORY_TABLE_FILE)
-            except Exception as e:
-                if not _is_bad_zip_error(e):
-                    print(f"오류: category_table 마이그레이션 실패 - {e}")
-    # bank_after.xlsx는 생성하지 않음 (생성은 /api/generate-category에서만)
+    """bank_before·category_table만 확보. bank_after 미생성."""
+    _ensure_bank_before_and_category_only()
 
-
-# =========================================================
-# 유틸리티 함수
-# =========================================================
 
 def safe_str(value):
-    """NaN 값 처리 및 안전한 문자열 변환. 전처리/후처리 매칭용으로 주식회사·㈜ → (주) 통일."""
+    """NaN/공백 처리, 주식회사·㈜ → (주) 통일(매칭용)."""
     if pd.isna(value) or value is None:
         return ""
     val = str(value).strip()
@@ -233,13 +183,11 @@ def safe_str(value):
     return val
 
 def normalize_text(text):
-    """텍스트 정규화 (대소문자 구분)"""
     if not text:
         return ""
     return str(text).strip()
 
 def clean_amount(value):
-    """금액 데이터 정리 (쉼표 제거, 숫자 변환)"""
     if pd.isna(value) or value == '' or value == 0:
         return 0
     if isinstance(value, (int, float)):
@@ -279,14 +227,8 @@ def safe_write_excel(df, filepath, max_retries=3):
             raise e
     return False
 
-# 마지막 통합 실패 시 오류 메시지 (bank_app에서 안내용)
 LAST_INTEGRATE_ERROR = None
-# 마지막 카테고리 분류(bank_after) 실패 시 오류 메시지
 LAST_CLASSIFY_ERROR = None
-
-# =========================================================
-# 1. 은행 파일 읽기 함수들 (integrate_bank_transactions.py)
-# =========================================================
 
 def _excel_engine(path):
     """파일 확장자에 맞는 엔진 반환. .xls → xlrd, .xlsx → openpyxl"""
@@ -528,12 +470,8 @@ def read_hana_file(file_path):
         return pd.concat(all_data, ignore_index=True)
     return None
 
-# =========================================================
-# 2. 은행 파일 통합 함수 (integrate_bank_transactions.py)
-# =========================================================
-
 def _bank_excel_files(source_dir):
-    """ .source 폴더에서 은행 거래 .xls, .xlsx 파일 목록. .xls, .xlsx만 취급. (파일명에 국민/신한/하나 포함)"""
+    """국민/신한/하나 포함 .xls·.xlsx 목록."""
     out = []
     if not source_dir.exists():
         return out
@@ -545,7 +483,7 @@ def _bank_excel_files(source_dir):
     return sorted(set(out), key=lambda p: (p.name, str(p)))
 
 def integrate_bank_transactions(output_file=None):
-    """ .source/Bank 폴더의 은행 파일들을 통합하여 bank_before.xlsx 생성. .xls, .xlsx만 취급."""
+    """.source/Bank → bank_before.xlsx 통합."""
     if output_file is None:
         output_file = INPUT_FILE
 
@@ -567,7 +505,7 @@ def integrate_bank_transactions(output_file=None):
                 '파일명에 국민은행, 신한은행, 하나은행 중 하나가 포함되어야 합니다. '
                 f'(현재 .source/Bank에 .xls/.xlsx {len(all_xls_xlsx)}개 있으나 해당하는 파일 없음)'
             )
-        print(f"[경고] 은행 파일이 없습니다. 경로 확인: {source_dir}", flush=True)
+        print(f"경고: 은행 파일 없음 - {source_dir}", flush=True)
 
     for file_path in bank_files:
         name = file_path.name
@@ -605,7 +543,7 @@ def integrate_bank_transactions(output_file=None):
             '국민은행은 .xlsx만 지원(.xls 미지원). '
             '또는 파일을 읽었지만 데이터 행이 없거나 시트 구조가 맞지 않습니다.'
         )
-        print(f"[경고] .source/Bank 파일 {len(bank_files)}개 중 읽기 성공한 데이터가 없습니다. 위 오류를 확인하세요.", flush=True)
+        print("경고: 통합 데이터 없음.", flush=True)
 
     if not all_data:
         combined_df = pd.DataFrame(columns=['거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
@@ -657,6 +595,12 @@ def integrate_bank_transactions(output_file=None):
     if '취소' in combined_df.columns:
         combined_df['취소'] = combined_df['취소'].astype(str).str.replace('취소된 거래', '취소', regex=False)
 
+    # 전처리: before.xlsx 저장 전에 수행 (적요·내용·송금메모·거래점 치환)
+    try:
+        combined_df = _apply_전처리_only(combined_df)
+    except Exception as e:
+        print(f"경고: 전처리 오류(무시) - {e}", flush=True)
+
     # 적요/내용/송금메모가 모두 비어있으면 거래점을 송금메모에 저장
     if all(c in combined_df.columns for c in ['적요', '내용', '송금메모', '거래점']):
         empty_mask = (
@@ -689,13 +633,6 @@ def integrate_bank_transactions(output_file=None):
         print(f"오류: bank_after.xlsx 생성 실패 - {e}")
 
     return combined_df
-
-
-# =========================================================
-# 3. 카테고리 테이블 생성 (category_table.json 단일 테이블, 구분 없음)
-# 전처리, 후처리, 계정과목만 사용 (거래방법/거래지점 미사용)
-# category_create.md 파싱 또는 category_table_defaults 코드 기본값 사용
-# =========================================================
 
 
 def create_category_table(df):
@@ -842,12 +779,8 @@ def apply_category_from_bank(df, category_df):
     return df
 
 
-# =========================================================
-# 4. 분류 함수들 (classify_category.py, create_bank_after.py)
-# =========================================================
-
 def create_before_text(row):
-    """before_text 생성"""
+    """before_text 생성. 전처리 매칭용으로 적요·내용·송금메모·거래점 포함."""
     bank_name = safe_str(row.get("은행명", ""))
     parts = []
 
@@ -862,7 +795,7 @@ def create_before_text(row):
     parts.append(내용)
 
     parts.append(safe_str(row.get("송금메모", "")))
-    # 거래점은 카테고리 매칭용 검색 문자열에서 제외
+    parts.append(safe_str(row.get("거래점", "")))
 
     return "#".join([p for p in parts if p])
 
@@ -883,8 +816,32 @@ def classify_1st_category(row):
         return "출금"
     return "입금"
 
+def _keyword_in_text_ignore_space(keyword, text):
+    """키워드가 텍스트에 포함되는지 확인 (공백 무시). '초록 마을' 안에 '초록마을' 포함으로 인정."""
+    if not keyword or not text:
+        return False
+    text_nospace = re.sub(r'\s+', '', str(text))
+    return str(keyword).strip() in text_nospace
+
+
+def _replace_keyword_with_category_in_cell(cell_value, keyword_norm, category_str, keyword_fallback=None):
+    """셀 값에서 키워드(공백 허용)를 카테고리 문자열로 한 번만 치환."""
+    if not cell_value:
+        return cell_value
+    # 키워드 사이 공백 허용 정규식 (예: '초록마을' -> '초록\s*마을' 등)
+    pattern = r'\s*'.join(re.escape(c) for c in (keyword_norm or ''))
+    if not pattern:
+        return cell_value
+    new_value = re.sub(pattern, category_str, str(cell_value), count=1)
+    if new_value == cell_value and keyword_fallback:
+        pattern_fb = r'\s*'.join(re.escape(c) for c in (keyword_fallback or ''))
+        if pattern_fb:
+            new_value = re.sub(pattern_fb, category_str, str(cell_value), count=1)
+    return new_value
+
+
 def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
-    """전처리 분류 (계좌번호 등). 카테고리 키워드도 주식회사→(주) 정규화해 매칭."""
+    """전처리 분류. 적요·내용·송금메모·거래점에서 키워드 매칭(공백 무시) 후 카테고리로 치환."""
     row = df.iloc[row_idx]
     before_text_raw = row.get("before_text", "")
     before_text = normalize_text(before_text_raw)
@@ -894,6 +851,8 @@ def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
         category_rows_list = list(category_table.iterrows())
         sorted_rows = sorted(category_rows_list, key=lambda x: len(str(x[1].get("키워드", ""))), reverse=True)
 
+        전처리_대상_컬럼 = ['적요', '내용', '송금메모', '거래점']
+
         for _, cat_row in sorted_rows:
             keyword_raw = cat_row.get("키워드", "")
             if pd.isna(keyword_raw) or not keyword_raw:
@@ -902,27 +861,62 @@ def classify_2_chasu(row_idx, df, category_tables, create_before_text_func):
             keyword = normalize_text(keyword_raw)
             keyword_norm = normalize_주식회사_for_match(keyword)
 
-            if keyword_norm and before_text and keyword_norm in before_text:
-                category_raw = cat_row.get("카테고리", "")
-                if pd.notna(category_raw):
-                    category_str = str(category_raw).strip()
-                    if category_str:
-                        for col in ['적요', '내용', '송금메모']:
-                            if col in df.columns:
-                                cell_value = safe_str(df.iloc[row_idx].get(col, ""))
-                                if keyword_norm not in normalize_text(cell_value):
-                                    continue
-                                # 셀 전체를 카테고리로 바꾸지 않고, 키워드 부분만 카테고리로 치환 (예: "(주)진프랜드산" → "(주)"만 매칭 시 "(주)진프랜드산" 유지)
-                                new_value = cell_value.replace(keyword_norm, category_str)
-                                if new_value == cell_value and keyword:
-                                    new_value = cell_value.replace(keyword, category_str)
-                                df.at[row_idx, col] = new_value
-                                break
-                        df.at[row_idx, "before_text"] = create_before_text_func(df.iloc[row_idx])
-                        updated_text = normalize_text(df.iloc[row_idx].get("before_text", ""))
-                        updated_text = updated_text.replace(keyword_norm, "").strip()
-                        df.at[row_idx, "before_text"] = updated_text
+            if not keyword_norm or not before_text:
+                continue
+            if not _keyword_in_text_ignore_space(keyword_norm, before_text):
+                continue
+
+            category_raw = cat_row.get("카테고리", "")
+            if pd.isna(category_raw):
+                continue
+            category_str = str(category_raw).strip()
+            if not category_str:
+                continue
+            # 치환해도 동일한 규칙은 건너뛰기 (예: (주)→(주)). 다음 규칙(예: 초록마을→초록증권)이 적용되도록
+            if keyword_norm == category_str or (keyword and str(keyword).strip() == category_str):
+                continue
+
+            replaced = False
+            for col in 전처리_대상_컬럼:
+                if col not in df.columns:
+                    continue
+                cell_value = safe_str(df.iloc[row_idx].get(col, ""))
+                if not _keyword_in_text_ignore_space(keyword_norm, cell_value):
+                    continue
+                new_value = _replace_keyword_with_category_in_cell(
+                    cell_value, keyword_norm, category_str, keyword_fallback=keyword
+                )
+                if new_value != cell_value:
+                    df.at[row_idx, col] = new_value
+                    df.at[row_idx, "before_text"] = create_before_text_func(df.iloc[row_idx])
+                    replaced = True
+                    break
+            if replaced:
                 break
+
+
+def _apply_전처리_only(df):
+    """before.xlsx 저장 전 전처리만 적용. 적요·내용·송금메모·거래점 치환 후 df 반환 (before_text 컬럼은 제거)."""
+    if df is None or df.empty:
+        return df
+    df = df.copy()
+    # category_table 없으면 보강 시도 후 로드
+    if not CATEGORY_TABLE_FILE or not os.path.exists(CATEGORY_TABLE_FILE):
+        try:
+            create_empty_category_table(CATEGORY_TABLE_FILE)
+            ensure_prepost_in_table(CATEGORY_TABLE_FILE)
+        except Exception:
+            pass
+    category_tables = get_category_tables()
+    if category_tables is None or "전처리" not in category_tables:
+        return df
+    df["before_text"] = df.apply(create_before_text, axis=1)
+    for col in ['적요', '내용', '송금메모']:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda v: safe_str(v))
+    df.index.to_series().apply(lambda idx: classify_2_chasu(idx, df, category_tables, create_before_text))
+    df = df.drop(columns=["before_text"], errors='ignore')
+    return df
 
 
 def apply_후처리_bank(df, category_tables):
@@ -983,15 +977,11 @@ def compute_기타거래(row):
     return s.strip('_')
 
 
-# =========================================================
-# 5. 메인 처리 함수
-# =========================================================
-
 def get_category_tables():
-    """category_table.json 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용)."""
+    """category_table.json 로드 및 category_tables 구성 (구분 없음, 거래방법/거래지점 미사용). 전처리/후처리 없으면 기본 규칙 보강."""
     if not CATEGORY_TABLE_FILE or not os.path.exists(CATEGORY_TABLE_FILE):
         return None
-    category_df = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
+    category_df = ensure_prepost_in_table(CATEGORY_TABLE_FILE)
     if category_df is None or category_df.empty:
         return None
     category_df = category_df.fillna('')
@@ -1019,7 +1009,7 @@ def get_category_tables():
     return category_tables
 
 def classify_and_save(input_file=None, output_file=None):
-    """bank_before → bank_after 생성. category_table(은행거래)의 전처리/후처리·계정과목을 반드시 적용."""
+    """bank_before → bank_after 생성. 전처리는 before 저장 시 이미 적용됨. 후처리·계정과목만 적용."""
     global LAST_CLASSIFY_ERROR
     LAST_CLASSIFY_ERROR = None
     if input_file is None:
@@ -1028,14 +1018,14 @@ def classify_and_save(input_file=None, output_file=None):
         output_file = OUTPUT_FILE
     # 구분 1: 파일 없음 → 경고, 콘솔 메시지, before 생성 수행
     if not os.path.exists(input_file):
-        print(f"경고: bank_before.xlsx가 없습니다(파일 없음). before 생성 수행합니다.", flush=True)
+        print("경고: bank_before 없음, 통합 수행.", flush=True)
         integrate_bank_transactions(output_file=input_file)
         if not os.path.exists(input_file) or os.path.getsize(input_file) == 0:
             LAST_CLASSIFY_ERROR = "bank_before.xlsx 생성 실패. .source/Bank 폴더와 원본 파일을 확인하세요."
             print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
             return False
     elif os.path.getsize(input_file) == 0:
-        print(f"경고: bank_before.xlsx가 비어 있습니다(파일 없음). before 생성 수행합니다.", flush=True)
+        print("경고: bank_before 비어 있음, 통합 수행.", flush=True)
         integrate_bank_transactions(output_file=input_file)
         if os.path.getsize(input_file) == 0:
             LAST_CLASSIFY_ERROR = "bank_before.xlsx 생성 후에도 비어 있습니다. .source/Bank 원본을 확인하세요."
@@ -1046,8 +1036,7 @@ def classify_and_save(input_file=None, output_file=None):
     df = _safe_read_excel(input_file, default_empty=True)
     if df is None or df.empty:
         # 구분 2: 파일 손상 → 오류, 콘솔 메시지, bak 생성, before 재생성 수행
-        print(f"오류: bank_before.xlsx 읽기 실패(파일 손상). bak 백업 후 before 재생성 수행합니다.", flush=True)
-        import shutil
+        print("오류: bank_before 손상, bak 백업 후 재생성.", flush=True)
         p = Path(input_file)
         bak_path = str(p.with_suffix(p.suffix + '.bak'))
         try:
@@ -1087,7 +1076,6 @@ def classify_and_save(input_file=None, output_file=None):
         # 손상된 xlsx(File is not a zip file) 등: 한 번만 백업 후 재생성 시도
         if CATEGORY_TABLE_FILE and os.path.exists(CATEGORY_TABLE_FILE) and os.path.getsize(CATEGORY_TABLE_FILE) > 0:
             try:
-                import shutil
                 backup_path = CATEGORY_TABLE_FILE + '.bak'
                 shutil.move(CATEGORY_TABLE_FILE, backup_path)
                 create_category_table(df if not df.empty else pd.DataFrame())
@@ -1108,21 +1096,13 @@ def classify_and_save(input_file=None, output_file=None):
         traceback.print_exc()
         return False
 
-    # 전처리/후처리 매칭 전에 적요·내용·송금메모를 주식회사→(주) 등으로 정규화 (후처리 키워드 매칭 보장)
+    # 후처리 매칭 전에 적요·내용·송금메모를 주식회사→(주) 등으로 정규화 (전처리는 before 저장 시 이미 적용됨)
     for col in ['적요', '내용', '송금메모']:
         if col in df.columns:
             df[col] = df[col].apply(lambda v: safe_str(v))
 
     df["입출금"] = df.apply(classify_1st_category, axis=1)
-    try:
-        df.index.to_series().apply(lambda idx: classify_2_chasu(idx, df, category_tables, create_before_text))
-    except Exception as e:
-        LAST_CLASSIFY_ERROR = f"전처리(차수) 분류 실패: {e}"
-        print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-        import traceback
-        traceback.print_exc()
-        return False
-    # 후처리: category_table 후처리 규칙으로 적요/내용/송금메모 치환 (키워드 → 카테고리)
+    # 후처리: after.xlsx 생성 전에 수행. category_table 후처리 규칙으로 적요/내용/송금메모 치환
     try:
         df = apply_후처리_bank(df, category_tables)
     except Exception as e:
@@ -1274,10 +1254,6 @@ def classify_and_save(input_file=None, output_file=None):
         return False
 
     return True
-
-# =========================================================
-# 6. 메인 함수
-# =========================================================
 
 def main():
     """전체 워크플로우 실행"""
