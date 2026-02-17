@@ -52,10 +52,10 @@ BANK_AFTER_DISPLAY_COLUMNS = ['은행명', '계좌번호', '거래일', '거래�
 CARD_AFTER_DISPLAY_COLUMNS = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '카테고리']
 # 카테고리조회(cash_after) 테이블 출력 11컬럼 · 계좌번호 1.0, 기타거래 2.0 (index.html QUERY_WIDTHS)
 CATEGORY_QUERY_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호']
-# 카테고리 적용후(cash_after) 테이블 출력 15컬럼 · 사업자번호 뒤 구분(폐업만), 업종코드, 업종분류, 위험도
-CATEGORY_APPLIED_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도']
+# 카테고리 적용후(cash_after) 테이블 출력 15컬럼 · 사업자번호 뒤 구분(폐업만), 위험도키워드, 위험도분류, 위험도
+CATEGORY_APPLIED_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '위험도키워드', '위험도분류', '위험도']
 # cash_after 생성 시 저장 컬럼. 구분 = '폐업' 또는 ''
-CASH_AFTER_CREATION_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도']
+CASH_AFTER_CREATION_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '위험도키워드', '위험도분류', '위험도']
 # category_table.json 단일 테이블(구분 없음, category_table_io로 읽기/쓰기)
 try:
     from category_table_io import (
@@ -179,8 +179,26 @@ def load_category_file():
             if df is None:
                 df = pd.DataFrame()
             if not df.empty:
+                df = df.copy()
+                # 구 컬럼명 → 신규 컬럼명 (업종코드/업종키워드→위험도키워드, 업종분류→위험도분류)
+                if '업종코드' in df.columns and '위험도키워드' not in df.columns:
+                    df = df.rename(columns={'업종코드': '위험도키워드'})
+                if '업종키워드' in df.columns and '위험도키워드' not in df.columns:
+                    df = df.rename(columns={'업종키워드': '위험도키워드'})
+                if '업종분류' in df.columns and '위험도분류' not in df.columns:
+                    df = df.rename(columns={'업종분류': '위험도분류'})
+                # 위험도: 빈 값/NaN/문자열 → 0.1 보정 (최소 0.1 보장)
+                if '위험도' in df.columns:
+                    def _norm_위험도(v):
+                        if v is None or v == '' or (isinstance(v, float) and pd.isna(v)):
+                            return 0.1
+                        try:
+                            f = float(v)
+                            return max(0.1, f) if f >= 0 else 0.1
+                        except (TypeError, ValueError):
+                            return 0.1
+                    df['위험도'] = df['위험도'].apply(_norm_위험도)
                 if '은행명' not in df.columns and '금융사' in df.columns:
-                    df = df.copy()
                     df['은행명'] = df['금융사'].fillna('').astype(str).str.strip()
                 _cash_after_cache = df
                 _cash_after_cache_mtime = mtime
@@ -293,7 +311,8 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
         if df_bank is None or df_bank.empty:
             return
         kw_col = '키워드' if '키워드' in df_bank.columns else None
-        has_업종코드 = '업종코드' in df_bank.columns
+        has_위험도키워드 = '위험도키워드' in df_bank.columns or '업종키워드' in df_bank.columns or '업종코드' in df_bank.columns
+        col_code = '위험도키워드' if '위험도키워드' in df_bank.columns else ('업종키워드' if '업종키워드' in df_bank.columns else '업종코드')
         for _, r in df_bank.iterrows():
             kw = _safe_keyword(r.get(kw_col) if kw_col else r.get('키워드', ''))
             rows.append({
@@ -309,15 +328,16 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
                 '카테고리': r.get('카테고리', '') or '',
                 '사업자번호': '',
                 '구분': '',  # 구분은 폐업만 저장, 은행은 해당 없음
-                '업종코드': _str_strip(r.get('업종코드')) if has_업종코드 else '',
-                '업종분류': '',
+                '위험도키워드': _str_strip(r.get(col_code) or r.get('업종코드') or r.get('업종키워드')) if has_위험도키워드 else '',
+                '위험도분류': '',
                 '위험도': '',
             })
     def add_card():
         if df_card is None or df_card.empty:
             return
         kw_col = '키워드' if '키워드' in df_card.columns else None
-        has_업종코드 = '업종코드' in df_card.columns
+        has_code = '위험도키워드' in df_card.columns or '업종키워드' in df_card.columns or '업종코드' in df_card.columns
+        col_c = '위험도키워드' if '위험도키워드' in df_card.columns else ('업종키워드' if '업종키워드' in df_card.columns else '업종코드')
         for _, r in df_card.iterrows():
             kw = _safe_keyword(r.get(kw_col) if kw_col else r.get('키워드', ''))
             rows.append({
@@ -333,8 +353,8 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
                 '카테고리': r.get('카테고리', '') or '',
                 '사업자번호': _safe_사업자번호(r.get('사업자번호')),
                 '구분': _safe_구분(r.get('구분')),  # 폐업만 유지, 그 외 ''
-                '업종코드': _str_strip(r.get('업종코드')) if has_업종코드 else '',
-                '업종분류': '',
+                '위험도키워드': _str_strip(r.get(col_c) or r.get('업종코드') or r.get('업종키워드')) if has_code else '',
+                '위험도분류': '',
                 '위험도': '',
             })
     add_bank()
@@ -351,15 +371,17 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
 
 
 def _apply_업종분류_from_linkage(df):
-    """cash_after DataFrame에 대해: linkage_table.json만 사용. 업종코드로 업종분류·위험도(리스크) 매칭. in-place 수정."""
-    if df is None or df.empty or '업종코드' not in df.columns:
+    """cash_after DataFrame에 대해: linkage_table.json만 사용. 위험도키워드(구 업종코드)로 위험도분류·위험도(리스크) 매칭. in-place 수정."""
+    code_col = '위험도키워드' if '위험도키워드' in df.columns else ('업종키워드' if '업종키워드' in df.columns else '업종코드')
+    분류_col = '위험도분류' if '위험도분류' in df.columns else '업종분류'
+    if df is None or df.empty or code_col not in df.columns:
         return
     try:
         from linkage_table_io import get_linkage_map_for_apply
         code_to_업종분류, code_to_리스크 = get_linkage_map_for_apply()
         if not code_to_업종분류:
             return
-        codes = df['업종코드'].fillna('').astype(str).str.strip()
+        codes = df[code_col].fillna('').astype(str).str.strip()
         for i in df.index:
             c = codes.at[i] if i in codes.index else ''
             if c:
@@ -369,12 +391,12 @@ def _apply_업종분류_from_linkage(df):
                     위험도_val = float(리스크_str) if 리스크_str else (5 if 업종분류_val else 0)
                 except (ValueError, TypeError):
                     위험도_val = 5 if 업종분류_val else 0
-                df.at[i, '업종분류'] = 업종분류_val
+                df.at[i, 분류_col] = 업종분류_val
                 df.at[i, '위험도'] = 위험도_val
             else:
                 df.at[i, '위험도'] = 0
     except Exception as e:
-        print(f"업종분류 매칭 적용 중 오류(무시): {e}", flush=True)
+        print(f"위험도분류(linkage) 매칭 적용 중 오류(무시): {e}", flush=True)
 
 
 # 금융정보 고급분석: 가상자산·증권투자·금전대부 매칭 시 위험도 5.0
@@ -423,7 +445,8 @@ def _apply_risk_category_by_keywords(df):
                 for part in kw.replace(' ', '').split('/'):
                     key = part.strip()
                     if key and key in search_text:
-                        df.at[i, '업종분류'] = cat
+                        분류_col = '위험도분류' if '위험도분류' in df.columns else '업종분류'
+                        df.at[i, 분류_col] = cat
                         df.at[i, '위험도'] = 5.0
                         break
                 else:
@@ -504,18 +527,55 @@ def merge_bank_card_to_cash_after():
         if df.empty:
             return (False, '병합 결과 데이터가 비어 있습니다.')
         _apply_업종분류_from_linkage(df)
+        try:
+            # 통합 서버(app.py)에서 호출 시 sys.path에 MyCash가 없어 import 실패할 수 있음 → 명시적으로 추가
+            if SCRIPT_DIR not in sys.path:
+                sys.path.insert(0, SCRIPT_DIR)
+            from risk_indicators import apply_risk_indicators
+            apply_risk_indicators(df)
+        except Exception as e:
+            print(f"위험도 지표(1~8호) 적용 중 오류: {e}", flush=True)
+            traceback.print_exc()
+        # 저장 전 위험도 최소 0.1 보장
+        if '위험도' in df.columns:
+            def _min_risk(v):
+                if v is None or v == '' or (isinstance(v, float) and pd.isna(v)):
+                    return 0.1
+                try:
+                    return max(0.1, float(v))
+                except (TypeError, ValueError):
+                    return 0.1
+            df['위험도'] = df['위험도'].apply(_min_risk)
         if safe_write_data_json and CASH_AFTER_PATH.endswith('.json'):
             safe_write_data_json(CASH_AFTER_PATH, df)
         else:
             df.to_excel(str(CASH_AFTER_PATH), index=False, engine='openpyxl')
+        # 캐시 무효화: 다음 로드 시 새 파일 읽기
+        global _cash_after_cache, _cash_after_cache_mtime
+        _cash_after_cache = None
+        _cash_after_cache_mtime = None
         return (True, None)
     except Exception as e:
         print(f"오류: cash_after 병합 생성 실패 - {e}", flush=True)
         traceback.print_exc()
         return (False, str(e))
 
+def _delete_cash_after_on_enter():
+    """금융정보 진입 시 cash_after.json 삭제 및 캐시 초기화."""
+    global _cash_after_cache, _cash_after_cache_mtime
+    try:
+        if os.path.isfile(CASH_AFTER_PATH):
+            os.remove(CASH_AFTER_PATH)
+    except OSError:
+        pass
+    _cash_after_cache = None
+    _cash_after_cache_mtime = None
+
+
 @app.route('/')
 def index():
+    """금융거래 통합정보 홈에서 금융정보 선택 시 진입. 진입 시 cash_after.json 삭제."""
+    _delete_cash_after_on_enter()
     workspace_path = str(SCRIPT_DIR)  # 전처리전 작업폴더(MyCash 경로)
     resp = make_response(render_template('index.html', workspace_path=workspace_path))
     # 전처리 페이지 캐시 방지: 네비게이션 갱신이 바로 반영되도록
@@ -735,6 +795,15 @@ def get_category_applied_data():
             except Exception:
                 pass
         
+        # 위험도 최소값 필터 (금융거래 기본분석: 위험도 1.0 이상만)
+        min_risk = request.args.get('min_risk', '')
+        if min_risk != '' and '위험도' in df.columns:
+            try:
+                threshold = float(min_risk)
+                df = df[df['위험도'].fillna(0).astype(float) >= threshold]
+            except (TypeError, ValueError):
+                pass
+        
         # 행 정렬: 거래일 → 거래시간 → 금융사
         sort_cols = [c for c in ['거래일', '거래시간', '금융사'] if c in df.columns]
         if sort_cols:
@@ -742,7 +811,7 @@ def get_category_applied_data():
                 df = df.sort_values(by=sort_cols, na_position='last')
             except Exception:
                 pass
-        # 카테고리 적용후 테이블 출력 15컬럼 (구분, 업종코드, 업종분류, 위험도 포함)
+        # 카테고리 적용후 테이블 출력 15컬럼 (구분, 위험도키워드, 위험도분류, 위험도 포함)
         for c in CATEGORY_APPLIED_DISPLAY_COLUMNS:
             if c not in df.columns:
                 df[c] = '' if c not in ('입금액', '출금액') else 0
@@ -920,13 +989,13 @@ def get_category_table():
 @app.route('/api/linkage-table')
 @ensure_working_directory
 def get_linkage_table():
-    """업종분류 조회용: linkage_table.json 반환 (없으면 xlsx에서 생성). 업종분류, 리스크, 업종코드_업종코드세세분류."""
+    """업종분류 조회용: linkage_table.json 반환 (없으면 xlsx에서 생성). 업종분류, 업종리스크, 업종코드_업종코드세세분류."""
     try:
         from linkage_table_io import get_linkage_table_data
         data = get_linkage_table_data()
         response = jsonify({
             'data': data,
-            'columns': ['업종분류', '리스크', '업종코드_업종코드세세분류'],
+            'columns': ['업종분류', '업종리스크', '업종코드_업종코드세세분류'],
             'count': len(data),
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
@@ -1002,6 +1071,14 @@ def get_analysis_summary():
         bank_filter = request.args.get('bank', '')
         if bank_filter and '은행명' in df.columns:
             df = df[df['은행명'] == bank_filter]
+
+        # 금융정보 기본분석: 합계·건수는 위험도 1.0 이상만 반영
+        if '위험도' in df.columns:
+            try:
+                risk = df['위험도'].fillna(0).astype(float)
+                df = df.loc[risk >= 1.0]
+            except (TypeError, ValueError):
+                pass
 
         total_deposit = df['입금액'].sum()
         total_withdraw = df['출금액'].sum()
@@ -1766,7 +1843,7 @@ def generate_category():
 
 @app.route('/help')
 def help():
-    """금융거래 고급분석 페이지"""
+    """금융정보 도움말 페이지"""
     return render_template('help.html')
 
 if __name__ == '__main__':

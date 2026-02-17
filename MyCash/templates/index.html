@@ -819,12 +819,12 @@
             background-color: rgba(255, 152, 0, 0.1);
         }
 
-        /* 업종분류 조회 테이블: 너비 1.0 : 0.6 : 3.4 (20% : 12% : 68%), 말줄임 */
+        /* 업종분류 조회 테이블: 너비 25% : 15% : 60%, 말줄임 */
         #linkage-query-table { table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse; }
         #linkage-query-table th, #linkage-query-table td { padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 20%; }
-        #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 12%; }
-        #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 68%; }
+        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 25%; }
+        #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 15%; }
+        #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 60%; }
 
         /* 전처리전/전처리후/카테고리조회 테이블: 행 높이 동일 (padding, line-height 통일) */
         #source-data-table th, #source-data-table td,
@@ -1379,7 +1379,7 @@
             <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
             <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
             <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
-            <a href="/cash/help" class="nav-item">📋 금융거래 고급분석</a>
+            <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
         </nav>
     </div>
     <div class="preprocess-container">
@@ -2272,6 +2272,10 @@
                 clearTimeout(timeoutId);
                 const generateResult = await generateResponse.json().catch(() => ({}));
                 if (generateResult.success) {
+                    // cash_after 반영(업종키워드/위험도분류/위험도) 후 테이블 자동 갱신 — 새로고침 불필요
+                    if (typeof loadCategoryQueryTable === 'function') {
+                        await loadCategoryQueryTable();
+                    }
                     // 누락된 레코드가 있으면 팝업 표시
                     if (generateResult.missing_records) {
                         const hasMissing = 
@@ -3043,7 +3047,7 @@
                     return;
                 }
                 const data = result.data || [];
-                const cols = ['업종분류', '리스크', '업종코드_업종코드세세분류'];
+                const cols = ['업종분류', '업종리스크', '업종코드_업종코드세세분류'];
                 if (data.length === 0) {
                     contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">업종분류 데이터가 없습니다. .source/linkage_table.xlsx를 넣고 새로고침하세요.</div>';
                     return;

@@ -209,12 +209,12 @@
             min-height: 0;
         }
         
-        /* 업종분류 조회 테이블: 너비 1.0 : 0.6 : 3.4 (20% : 12% : 68%), 말줄임 */
+        /* 업종분류 조회 테이블: 너비 25% : 15% : 60%, 말줄임 */
         #linkage-query-table { table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse; }
         #linkage-query-table th, #linkage-query-table td { padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 20%; }
-        #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 12%; }
-        #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 68%; }
+        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 25%; }
+        #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 15%; }
+        #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 60%; }
 
         /* 카테고리 테이블: 카테고리조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
         #category-definition-table,
@@ -330,6 +330,11 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             min-width: 0;
+        }
+        /* 금융정보(위험도분류) 적용후 테이블 헤더 고정(스크롤 시 상단 고정) */
+        #category-applied-content thead th {
+            background-color: #f5f5f5 !important;
+            box-shadow: 0 1px 0 #ddd;
         }
 
         @keyframes blink {
@@ -520,6 +525,7 @@
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
                 <h1>금융정보 카테고리</h1>
+                <span class="page-filename" style="font-size: 12px; color: #666; font-weight: normal;">MyCash/templates/category.html</span>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
                 <div class="filter-group">
@@ -538,14 +544,14 @@
             <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
             <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
             <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
-            <a href="/cash/help" class="nav-item">📋 금융거래 고급분석</a>
+            <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
         </nav>
     </div>
 
     <!-- 카테고리 적용후 -->
     <div class="chart-card" style="margin-top: 0; margin-bottom: 10px; display: flex; flex-direction: column;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-            <h2 style="margin: 0;">금융정보(업종분류) 적용후</h2>
+            <h2 style="margin: 0;">금융정보(위험도분류) 적용후</h2>
         </div>
         <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -1157,9 +1163,10 @@
                 
                 if (data.data && data.data.length > 0) {
                     clearSafety();
-                    categoryAppliedDataOriginalForIndex = data.data;
+                    const sortedForIndex = sortCategoryAppliedByRiskAndDate(data.data);
+                    categoryAppliedDataOriginalForIndex = sortedForIndex;
                     syncCategoryBankFilterFromData(data.data);
-                    renderCategoryAppliedTableForIndex(data.data);
+                    renderCategoryAppliedTableForIndex(sortedForIndex);
                     loadMonthlyTrend();
                 } else {
                     // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
@@ -1205,6 +1212,24 @@
             }
         }
         
+        // 금융정보(위험도분류) 적용후 테이블 정렬: 위험도 → 위험도키워드 → 거래일 → 거래시간 (내림차순)
+        function sortCategoryAppliedByRiskAndDate(arr) {
+            if (!arr || arr.length === 0) return arr;
+            const sorted = arr.slice();
+            const r = (v) => (v !== null && v !== undefined && v !== '' ? v : '');
+            const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+            sorted.sort((x, y) => {
+                let c = num(y['위험도']) - num(x['위험도']);
+                if (c !== 0) return c;
+                c = String(r(y['위험도키워드'])).localeCompare(String(r(x['위험도키워드'])));
+                if (c !== 0) return c;
+                c = String(r(y['거래일'])).localeCompare(String(r(x['거래일'])));
+                if (c !== 0) return c;
+                return String(r(y['거래시간'])).localeCompare(String(r(x['거래시간'])));
+            });
+            return sorted;
+        }
+        
         // 카테고리 적용후 테이블 렌더링 (전처리 페이지에서 이동)
         function renderCategoryAppliedTableForIndex(data) {
             const contentDiv = document.getElementById('category-applied-content');
@@ -1214,13 +1239,14 @@
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            data = sortCategoryAppliedByRiskAndDate(data);
             
-            // 금융정보 전처리 페이지 카테고리조회 준용 + 사업자번호 뒤 구분, 업종코드, 업종분류, 위험도 (너비 0.5, 1.0, 1.5, 0.5)
+            // 위험도키워드·위험도분류·위험도 좌측 배치
             const columns = [
-                '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도'
+                '위험도키워드', '위험도분류', '위험도', '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분'
             ];
-            const QUERY_WIDTHS = [0.7, 1, 0.7, 0.7, 1, 1, 0.6, 2, 0.8, 1.5, 0.8, 0.6, 0.8, 1.5, 0.7];
-            const QUERY_ALIGN = ['center', 'left', 'center', 'center', 'right', 'right', 'center', 'left', 'left', 'left', 'center', 'center', 'center', 'left', 'center'];
+            const QUERY_WIDTHS = [1, 1, 0.5, 0.7, 1, 0.7, 0.7, 1, 1, 0.6, 2, 0.8, 1.5, 0.8, 0.6];
+            const QUERY_ALIGN = ['left', 'left', 'center', 'center', 'left', 'center', 'center', 'right', 'right', 'center', 'left', 'left', 'left', 'center', 'center'];
             
             let availableColumns = columns.filter(col => 
                 data[0] && data[0].hasOwnProperty(col)
@@ -1257,14 +1283,14 @@
             const columnBgColors = {};
             availableColumns.forEach(c => { columnBgColors[c] = 'rgba(33, 150, 243, 0.08)'; });
             
-            let html = '<table id="category-applied-table-index" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead><tr>';
+            let html = '<table id="category-applied-table-index" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;"><tr>';
             
             availableColumns.forEach(col => {
                 const ratio = QUERY_WIDTHS[columns.indexOf(col)] || 1.0;
                 const width = ((ratio / totalRatio) * 100).toFixed(2);
                 const headerAlign = QUERY_ALIGN[columns.indexOf(col)] || 'center';
                 const headerBgColor = columnBgColors[col] || '';
-                html += `<th style="width: ${width}%; white-space: nowrap; text-align: ${headerAlign}; padding: 4px; border: 1px solid #ddd;${headerBgColor ? ` background-color: ${headerBgColor};` : ''}">${col}</th>`;
+                html += `<th data-col="${col}" style="width: ${width}%; white-space: nowrap; text-align: ${headerAlign}; padding: 4px; border: 1px solid #ddd;${headerBgColor ? ` background-color: ${headerBgColor};` : ''}">${col}</th>`;
             });
             html += '</tr>';
             
@@ -1401,8 +1427,7 @@
             
             const availableColumns = [];
             headerRow.querySelectorAll('th').forEach((th) => {
-                const headerText = th.textContent.trim();
-                availableColumns.push(headerText);
+                availableColumns.push(th.getAttribute('data-col') || th.textContent.trim());
             });
             
             // 필터링된 데이터 수집 (합계 계산용)
@@ -1534,7 +1559,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     return;
                 }
                 const data = result.data || [];
-                const cols = ['업종분류', '리스크', '업종코드_업종코드세세분류'];
+                const cols = ['업종분류', '업종리스크', '업종코드_업종코드세세분류'];
                 if (data.length === 0) {
                     contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">업종분류 데이터가 없습니다. .source/linkage_table.xlsx를 넣고 새로고침하세요.</div>';
                     return;
@@ -1844,11 +1869,12 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 
                 if (data.data && data.data.length > 0) {
                     clearSafety();
-                    categoryAppliedDataOriginal = data.data;
+                    const sortedApplied = sortCategoryAppliedByRiskAndDate(data.data);
+                    categoryAppliedDataOriginal = sortedApplied;
                     syncCategoryBankFilterFromData(data.data);
                     const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
-                    renderCategoryAppliedTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
+                    renderCategoryAppliedTable(sortedApplied, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     loadMonthlyTrend();
                 } else {
                     // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
@@ -1902,15 +1928,16 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
             }
+            data = sortCategoryAppliedByRiskAndDate(data);
             const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
             const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
-            // 금융정보 전처리 페이지 카테고리조회와 동일 컬럼·너비 준용
+            // 위험도키워드·위험도분류·위험도 좌측 배치
             const columns = [
-                '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도'
+                '위험도키워드', '위험도분류', '위험도', '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분'
             ];
-            const QUERY_WIDTHS = [0.7, 1, 0.7, 0.7, 1, 1, 0.6, 2, 0.8, 1.5, 0.8, 0.6, 0.8, 1.5, 0.7];
-            const QUERY_ALIGN = ['center', 'left', 'center', 'center', 'right', 'right', 'center', 'left', 'left', 'left', 'center', 'center', 'center', 'left', 'center'];
+            const QUERY_WIDTHS = [1, 1, 0.5, 0.7, 1, 0.7, 0.7, 1, 1, 0.6, 2, 0.8, 1.5, 0.8, 0.6];
+            const QUERY_ALIGN = ['left', 'left', 'center', 'center', 'left', 'center', 'center', 'right', 'right', 'center', 'left', 'left', 'left', 'center', 'center'];
             
             let availableColumns = columns.filter(col => 
                 data[0] && data[0].hasOwnProperty(col)
@@ -1956,7 +1983,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 const width = ((ratio / totalRatio) * 100).toFixed(2);
                 const headerAlign = QUERY_ALIGN[columns.indexOf(col)] || 'center';
                 const headerBgColor = columnBgColors[col] || '';
-                html += `<th style="width: ${width}%; white-space: nowrap; text-align: ${headerAlign}; padding: 8px; border: 1px solid #ddd;${headerBgColor ? ` background-color: ${headerBgColor};` : ''}">${col}</th>`;
+                html += `<th data-col="${col}" style="width: ${width}%; white-space: nowrap; text-align: ${headerAlign}; padding: 8px; border: 1px solid #ddd;${headerBgColor ? ` background-color: ${headerBgColor};` : ''}">${col}</th>`;
             });
             html += '</tr>';
             
@@ -2129,7 +2156,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             
             const rows = tbody.querySelectorAll('tr');
             const columns = [
-                '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도'
+                '위험도키워드', '위험도분류', '위험도', '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분'
             ];
             
             // 필터링된 데이터 수집 (그래프 업데이트용)
@@ -2195,7 +2222,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 
                 // 합계 행의 셀 업데이트
                 const cells = sumRow.querySelectorAll('td');
-                const availableColumns = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                const headerRow = table.querySelector('thead tr:first-child');
+                const availableColumns = headerRow ? Array.from(headerRow.querySelectorAll('th')).map(th => th.getAttribute('data-col') || th.textContent.trim()) : [];
                 
                 availableColumns.forEach((col, colIndex) => {
                     const cell = cells[colIndex];
@@ -2229,7 +2257,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         totalWithdraw += parseFloat(rowData['출금액']) || 0;
                     });
                     
-                    const availableColumns = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                    const headerRow = table.querySelector('thead tr:first-child');
+                    const availableColumns = headerRow ? Array.from(headerRow.querySelectorAll('th')).map(th => th.getAttribute('data-col') || th.textContent.trim()) : [];
                     const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">' +
                         availableColumns.map(col => {
                             if (col === '입금액') {
@@ -2313,34 +2342,47 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             return filtered;
         }
         
-        // 카테고리 적용후 테이블 출력 (프린트용 새 창)
+        // 카테고리 적용후 테이블 출력 (프린트용 새 창). 위험도 1.0 이하는 생략.
         function exportCategoryAppliedTable() {
-            const data = getCategoryAppliedDataForExport();
+            let data = getCategoryAppliedDataForExport();
             if (!data || data.length === 0) {
                 alert('출력할 데이터가 없습니다.');
                 return;
             }
+            // 위험도 1.0 이하는 생략
+            data = data.filter(row => {
+                const v = row['위험도'];
+                if (v === null || v === undefined || v === '') return false;
+                const num = parseFloat(String(v).replace(/,/g, ''));
+                return !isNaN(num) && num > 1.0;
+            });
+            if (!data || data.length === 0) {
+                alert('위험도 1.0 초과인 데이터가 없습니다. 출력할 데이터가 없습니다.');
+                return;
+            }
             const columns = [
-                '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '업종코드', '업종분류', '위험도'
+                '위험도키워드', '위험도분류', '위험도', '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분'
             ];
-            const exportColWidths = { 금융사:0.7, 계좌번호:1, 거래일:0.7, 거래시간:0.7, 입금액:1, 출금액:1, 취소:0.6, 기타거래:2, 키워드:0.8, 카테고리:1.5, 사업자번호:0.8, 구분:0.6, 업종코드:0.8, 업종분류:1.5, 위험도:0.7 };
+            const exportColWidths = { 위험도키워드:1, 위험도분류:1, 위험도:0.5, 금융사:0.7, 계좌번호:1, 거래일:0.7, 거래시간:0.7, 입금액:1, 출금액:1, 취소:0.6, 기타거래:2, 키워드:0.8, 카테고리:1.5, 사업자번호:0.8, 구분:0.6 };
             let availableColumns = columns.filter(col => data[0] && data[0].hasOwnProperty(col));
             if (availableColumns.length === 0 && data[0]) {
                 availableColumns = Object.keys(data[0]).filter(k => k && typeof data[0][k] !== 'object');
             }
             const totalRatio = availableColumns.reduce((s, c) => s + (exportColWidths[c] != null ? exportColWidths[c] : 1), 0);
             const getAlign = (col) => {
-                if (col === '금융사' || col === '거래일' || col === '거래시간' || col === '취소' || col === '사업자번호' || col === '구분' || col === '업종코드' || col === '위험도') return 'center';
+                if (col === '위험도키워드' || col === '위험도분류') return 'left';
+                if (col === '금융사' || col === '거래일' || col === '거래시간' || col === '취소' || col === '사업자번호' || col === '구분' || col === '위험도') return 'center';
                 if (col === '입금액' || col === '출금액') return 'right';
                 return 'left';
             };
-            const ellipsisCols = ['기타거래', '키워드', '카테고리', '업종분류'];
+            const ellipsisCols = ['기타거래', '키워드', '카테고리', '위험도분류'];
             const theadCells = availableColumns.map(col => {
                 const w = ((exportColWidths[col] != null ? exportColWidths[col] : 1) / totalRatio * 100).toFixed(2);
                 const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';
                 return '<th style="border:1px solid #333;padding:4px;background:#f5f5f5;text-align:center;width:' + w + '%;"' + cls + '>' + (col.replace(/</g,'&lt;').replace(/>/g,'&gt;')) + '</th>';
             }).join('');
-            const tableRows = data.map(row => {
+            const formatNum = (n) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            const rowToTr = (row) => {
                 return '<tr>' + availableColumns.map(col => {
                     let val = row[col];
                     if (val === null || val === undefined) val = '';
@@ -2353,23 +2395,67 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';
                     return '<td style="border:1px solid #333;padding:4px;text-align:' + align + ';"' + cls + '>' + String(val).replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</td>';
                 }).join('') + '</tr>';
-            }).join('');
-            let sum입금액 = 0, sum출금액 = 0;
-            data.forEach(row => {
-                const d = row['입금액']; if (d != null && !isNaN(Number(d))) sum입금액 += Number(d);
-                const w = row['출금액']; if (w != null && !isNaN(Number(w))) sum출금액 += Number(w);
+            };
+            const buildSummaryRow = (sub입금액, sub출금액, label, bg, pageBreakAfter) => {
+                const bgStyle = bg || '#e8e8e8';
+                const trStyle = pageBreakAfter ? ' style="page-break-after: always;"' : '';
+                return '<tr' + trStyle + '>' + availableColumns.map((col, i) => {
+                    let val = '';
+                    if (i === 0) val = label;
+                    else if (col === '입금액') val = formatNum(sub입금액);
+                    else if (col === '출금액') val = formatNum(sub출금액);
+                    const align = getAlign(col);
+                    const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';
+                    return '<td style="border:1px solid #333;padding:4px;text-align:' + align + ';font-weight:bold;background:' + bgStyle + ';"' + cls + '>' + (val.replace(/</g,'&lt;').replace(/>/g,'&gt;')) + '</td>';
+                }).join('') + '</tr>';
+            };
+            // 정렬: 위험도분류 → 위험도키워드 순으로 그룹 구분
+            const sortedData = data.slice().sort((a, b) => {
+                const 분류A = String(a['위험도분류'] != null ? a['위험도분류'] : '').trim();
+                const 분류B = String(b['위험도분류'] != null ? b['위험도분류'] : '').trim();
+                if (분류A !== 분류B) return 분류A.localeCompare(분류B);
+                const kwA = String(a['위험도키워드'] != null ? a['위험도키워드'] : '').trim();
+                const kwB = String(b['위험도키워드'] != null ? b['위험도키워드'] : '').trim();
+                return kwA.localeCompare(kwB);
             });
-            const formatNum = (n) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-            const sumRowCells = availableColumns.map((col, i) => {
-                let val = '';
-                if (i === 0) val = '합계';
-                else if (col === '입금액') val = formatNum(sum입금액);
-                else if (col === '출금액') val = formatNum(sum출금액);
-                const align = getAlign(col);
-                const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';
-                return '<td style="border:1px solid #333;padding:4px;text-align:' + align + ';font-weight:bold;background:#f0f0f0;"' + cls + '>' + (val.replace(/</g,'&lt;').replace(/>/g,'&gt;')) + '</td>';
-            }).join('');
-            const sumRow = '<tr class="sum-row">' + sumRowCells + '</tr>';
+            let tableRows = '';
+            let total입금액 = 0, total출금액 = 0;
+            let keyword입금액 = 0, keyword출금액 = 0;
+            let 분류입금액 = 0, 분류출금액 = 0;
+            let prev분류 = null;
+            let prevKeyword = null;
+            for (let i = 0; i < sortedData.length; i++) {
+                const row = sortedData[i];
+                const 분류 = String(row['위험도분류'] != null ? row['위험도분류'] : '').trim();
+                const keyword = String(row['위험도키워드'] != null ? row['위험도키워드'] : '').trim();
+                // 다른 위험도분류 → 직전 분류에 대한 합계 출력 + 페이지 스킵
+                if (prev분류 !== null && 분류 !== prev분류) {
+                    tableRows += buildSummaryRow(분류입금액, 분류출금액, '합계', '#d8d8d8', true);
+                    분류입금액 = 0;
+                    분류출금액 = 0;
+                    prevKeyword = null;
+                }
+                // 같은 위험도분류, 다른 위험도키워드 → 소계 출력 (프린터 출력 시)
+                if (prev분류 === 분류 && prevKeyword !== null && keyword !== prevKeyword) {
+                    tableRows += buildSummaryRow(keyword입금액, keyword출금액, '소계', '#e8e8e8', false);
+                    keyword입금액 = 0;
+                    keyword출금액 = 0;
+                }
+                tableRows += rowToTr(row);
+                const d = row['입금액']; if (d != null && !isNaN(Number(d))) {
+                    keyword입금액 += Number(d); 분류입금액 += Number(d); total입금액 += Number(d);
+                }
+                const w = row['출금액']; if (w != null && !isNaN(Number(w))) {
+                    keyword출금액 += Number(w); 분류출금액 += Number(w); total출금액 += Number(w);
+                }
+                prev분류 = 분류;
+                prevKeyword = keyword;
+            }
+            if (sortedData.length > 0) {
+                tableRows += buildSummaryRow(keyword입금액, keyword출금액, '소계', '#e8e8e8', false);
+                tableRows += buildSummaryRow(분류입금액, 분류출금액, '합계', '#d8d8d8', true);
+            }
+            const totalRow = buildSummaryRow(total입금액, total출금액, '전체합계', '#f0f0f0', false);
             const printWindow = window.open('', '_blank');
             const printDate = new Date().toLocaleString('ko-KR');
             printWindow.document.write('<!DOCTYPE html><html><head>' +
@@ -2381,15 +2467,15 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 'body { font-family: "Malgun Gothic", sans-serif; padding: 5px; margin: 0; }' +
                 'h2 { text-align: center; margin: 0 0 8px 0; font-size: 14px; }' +
                 'table { border-collapse: collapse; width: 100%; margin-top: 5px; font-size: 10px; table-layout: fixed; }' +
-                'th, td { border: 1px solid #333; padding: 4px; }' +
+                'th, td { border: 1px solid #333; padding: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }' +
                 'th { background-color: #f5f5f5; font-weight: bold; }' +
                 'tr:nth-child(even) { background-color: rgba(33, 150, 243, 0.08); }' +
                 '.header-info { margin-bottom: 8px; font-size: 10px; color: #666; }' +
                 '.col-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }' +
                 '</style></head><body>' +
-                '<h2>금융정보 카테고리 적용후 (cash_after.xlsx)</h2>' +
+                '<h2>금융정보(위험도분류) 적용후 (cash_after)</h2>' +
                 '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건</div>' +
-                '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tableRows + sumRow + '</tbody></table>' +
+                '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tableRows + totalRow + '</tbody></table>' +
                 '<script>window.onload = function() { window.print(); };<\/script>' +
                 '</body></html>');
             printWindow.document.close();
@@ -2571,6 +2657,10 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 
                 const rowData = dataSource[rowIndex];
                 if (!rowData) return;
+                
+                // 금융정보: 월별 추이 그래프(전체)는 위험도 1.0 이상만 반영
+                const 위험도 = parseFloat(rowData['위험도']);
+                if (!isNaN(위험도) && 위험도 < 1.0) return;
                 
                 let 거래일 = rowData['거래일'];
                 const 입금액 = parseFloat(rowData['입금액']) || 0;

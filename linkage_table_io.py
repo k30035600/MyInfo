@@ -3,7 +3,8 @@
 linkage_table.xlsx → linkage_table.json 생성 및 로드.
 
 - MyInfo/.source에 linkage_table.json이 없으면 linkage_table.xlsx를 읽어 JSON 생성.
-- 컬럼: 업종분류, 리스크, 업종코드, 업종코드세세분류 (업종분류가 공백이면 skip).
+- 컬럼: 업종분류, 업종리스크, 업종코드, 업종코드세세분류 (업종분류가 공백이면 skip).
+- 업종코드는 숫자일 경우 소수점 없이 문자로 저장. 리스크는 업종리스크로 소수점 1자리.
 """
 import os
 import json
@@ -17,9 +18,9 @@ SOURCE_DIR = os.path.join(PROJECT_ROOT, '.source')
 LINKAGE_XLSX = os.path.join(SOURCE_DIR, 'linkage_table.xlsx')
 LINKAGE_JSON = os.path.join(SOURCE_DIR, 'linkage_table.json')
 
-REQUIRED_COLUMNS = ['업종분류', '리스크', '업종코드', '업종코드세세분류']
-# 엑셀 헤더 이름이 다를 수 있음 (공백 등)
-COLUMN_RENAME = {'업종코드 세세분류': '업종코드세세분류'}
+REQUIRED_COLUMNS = ['업종분류', '업종리스크', '업종코드', '업종코드세세분류']
+# 엑셀 헤더 이름이 다를 수 있음 (공백 등). 구 컬럼명 호환
+COLUMN_RENAME = {'업종코드 세세분류': '업종코드세세분류', '리스크': '업종리스크'}
 
 
 def _str_clean(v):
@@ -28,18 +29,28 @@ def _str_clean(v):
     return str(v).strip()
 
 
-def _업종코드_문자6자(v):
-    """업종분류 생성 시 업종코드는 문자(숫자 6자)로 저장. 숫자면 6자리 문자열로."""
+def _업종코드_문자_소수점없음(v):
+    """업종코드는 문자로 저장. 숫자면 소수점 없이 정수 문자열로 (예: 369101.0 → 369101)."""
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return ''
     s = str(v).strip()
     if not s:
         return ''
     try:
-        n = int(float(s))
-        return str(n).zfill(6)
+        n = float(s)
+        if n == int(n):
+            return str(int(n))
+        return s
     except (ValueError, TypeError):
         return s
+
+
+def _업종코드_문자6자(v):
+    """(호환) 업종코드 문자·소수점 제거. 숫자면 6자리 문자열로."""
+    out = _업종코드_문자_소수점없음(v)
+    if out and out.isdigit() and len(out) <= 6:
+        return out.zfill(6)
+    return out
 
 
 def ensure_linkage_table_json():
@@ -59,10 +70,15 @@ def ensure_linkage_table_json():
             업종분류 = _str_clean(r.get('업종분류'))
             if not 업종분류:
                 continue
+            risk_val = _str_clean(r.get('업종리스크') or r.get('리스크'))
+            try:
+                risk_val = format(float(risk_val), '.1f') if risk_val else ''
+            except (ValueError, TypeError):
+                pass
             rows.append({
                 '업종분류': 업종분류,
-                '리스크': _str_clean(r.get('리스크')),
-                '업종코드': _업종코드_문자6자(r.get('업종코드')),
+                '업종리스크': risk_val,
+                '업종코드': _업종코드_문자_소수점없음(r.get('업종코드')),
                 '업종코드세세분류': _str_clean(r.get('업종코드세세분류')),
             })
         os.makedirs(SOURCE_DIR, exist_ok=True)
@@ -73,10 +89,21 @@ def ensure_linkage_table_json():
         return False
 
 
+def _risk_value_1decimal(v):
+    """업종리스크 값 소수점 1자리로 정규화."""
+    v = _str_clean(v)
+    if not v:
+        return ''
+    try:
+        return format(float(v), '.1f')
+    except (ValueError, TypeError):
+        return v
+
+
 def get_linkage_table_data():
     """
     linkage_table.json 로드. 없으면 xlsx에서 생성 후 로드.
-    반환: list of dict with keys 업종분류, 리스크, 업종코드, 업종코드세세분류.
+    반환: list of dict with keys 업종분류, 업종리스크, 업종코드, 업종코드세세분류.
     표시용으로 '업종코드_업종코드세세분류' 연결 문자열 추가.
     """
     ensure_linkage_table_json()
@@ -89,19 +116,20 @@ def get_linkage_table_data():
         return []
     out = []
     for r in rows:
-        업종코드 = _업종코드_문자6자(r.get('업종코드', '')) or _str_clean(r.get('업종코드', ''))
+        업종코드 = _업종코드_문자_소수점없음(r.get('업종코드', '')) or _str_clean(r.get('업종코드', ''))
         세세 = _str_clean(r.get('업종코드세세분류', ''))
         combined = f"{업종코드}_{세세}" if 세세 else 업종코드
+        risk_val = _risk_value_1decimal(r.get('업종리스크') or r.get('리스크', ''))
         out.append({
             '업종분류': _str_clean(r.get('업종분류', '')),
-            '리스크': _str_clean(r.get('리스크', '')),
+            '업종리스크': risk_val,
             '업종코드': 업종코드,
             '업종코드세세분류': 세세,
             '업종코드_업종코드세세분류': combined,
         })
-    # 리스크 내림차순 (숫자면 큰 값 먼저, 그 외는 문자열이면 나중에)
+    # 업종리스크 내림차순 (숫자면 큰 값 먼저)
     def _risk_sort_key(x):
-        r = (x.get('리스크') or '').strip()
+        r = (x.get('업종리스크') or '').strip()
         try:
             return (0, -float(r))
         except (ValueError, TypeError):
@@ -112,8 +140,8 @@ def get_linkage_table_data():
 
 def get_linkage_map_for_apply():
     """
-    cash_after 적용용: 업종코드 → (업종분류, 리스크) 매핑.
-    반환: (code_to_업종분류: dict, code_to_리스크: dict)
+    cash_after 적용용: 업종코드 → (업종분류, 업종리스크) 매핑.
+    반환: (code_to_업종분류: dict, code_to_리스크: dict)  # code_to_리스크 값은 업종리스크(소수점 1자리)
     """
     data = get_linkage_table_data()
     code_to_업종분류 = {}
@@ -123,5 +151,37 @@ def get_linkage_map_for_apply():
         if not 코드:
             continue
         code_to_업종분류[코드] = (r.get('업종분류') or '').strip()
-        code_to_리스크[코드] = (r.get('리스크') or '').strip()
+        code_to_리스크[코드] = (r.get('업종리스크') or '').strip()
     return code_to_업종분류, code_to_리스크
+
+
+def export_linkage_table_to_xlsx(json_path=None, xlsx_path=None):
+    """
+    linkage_table.json 내용을 xlsx로 내보냄. 백업·엑셀 편집용.
+    json_path/xlsx_path 생략 시 .source/linkage_table.json, .source/linkage_table.xlsx 사용.
+    Returns: (success: bool, xlsx_path: str|None, error_msg: str|None)
+    """
+    jpath = json_path or LINKAGE_JSON
+    xpath = xlsx_path or LINKAGE_XLSX
+    if not os.path.exists(jpath) or os.path.getsize(jpath) == 0:
+        return (False, None, "linkage_table.json이 없거나 비어 있습니다.")
+    try:
+        with open(jpath, 'r', encoding='utf-8') as f:
+            rows = json.load(f)
+        if not rows:
+            return (False, None, "linkage_table.json 데이터가 비어 있습니다.")
+        # 컬럼 통일: 리스크 → 업종리스크, 업종코드 소수점 제거
+        out = []
+        for r in rows:
+            out.append({
+                '업종분류': _str_clean(r.get('업종분류', '')),
+                '업종리스크': _risk_value_1decimal(r.get('업종리스크') or r.get('리스크', '')),
+                '업종코드': _업종코드_문자_소수점없음(r.get('업종코드', '')) or _str_clean(r.get('업종코드', '')),
+                '업종코드세세분류': _str_clean(r.get('업종코드세세분류', '')),
+            })
+        df = pd.DataFrame(out)
+        os.makedirs(os.path.dirname(xpath), exist_ok=True)
+        df.to_excel(xpath, index=False, engine='openpyxl')
+        return (True, xpath, None)
+    except Exception as e:
+        return (False, xpath, str(e))
