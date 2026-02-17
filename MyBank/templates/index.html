@@ -1018,7 +1018,7 @@
             text-overflow: ellipsis !important;
         }
         
-        /* 카테고리 작업 테이블: 입출금 컬럼은 텍스트 전체 표시 */
+        /* 카테고리 작업 테이블 */
         #before-bank_category td:nth-child(1) {
             white-space: normal !important;
             word-break: break-word !important;
@@ -2916,7 +2916,6 @@
                 { label: '내용', key: '내용' },
                 { label: '송금메모', key: '송금메모' },
                 { label: '거래점', key: '거래점' },
-                { label: '입출금', key: '입출금' },
                 { label: '거래유형', key: '거래유형' },
                 { label: '카테고리', key: '카테고리' },
                 { label: '기타거래', key: '기타거래' }
@@ -3695,7 +3694,7 @@
                 '거래일': 0.6, '거래시간': 0.6, '은행명': 0.6, '계좌번호': 1.2,
                 '입금액': 0.9, '출금액': 0.9, '취소': 0.5,
                 '적요': 1.5, '내용': 1.5, '송금메모': 1.0, '거래점': 0.7,
-                '키워드': 0.8, '카테고리': 1.0, '기타거래': 1.5, '입출금': 0.7
+                '키워드': 0.8, '카테고리': 1.0, '기타거래': 1.5
             };
             
             const columnBgColors = {
@@ -3708,7 +3707,6 @@
                 '내용': 'rgba(33, 150, 243, 0.1)',
                 '거래점': 'rgba(33, 150, 243, 0.1)',
                 '송금메모': 'rgba(33, 150, 243, 0.1)',
-                '입출금': 'rgba(255, 152, 0, 0.1)',
                 '카테고리': 'rgba(255, 152, 0, 0.1)',
                 '키워드': 'rgba(255, 152, 0, 0.1)',
                 '기타거래': 'rgba(255, 152, 0, 0.1)'
@@ -3828,7 +3826,7 @@
                     let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     if (col === '입금액' || col === '출금액') {
                         cellStyle = ` style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: ${col === '입금액' ? '#0000FF' : '#FF0000'}; font-size: 11px;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
-                    } else if (col === '취소' || col === '입출금' || col === '은행명' || col === '거래일' || col === '거래시간') {
+                    } else if (col === '취소' || col === '은행명' || col === '거래일' || col === '거래시간') {
                         cellStyle = ` style="white-space: nowrap; text-align: center; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;
                     } else if (col === '계좌번호') {
                         cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;${cellBgColor ? ` background-color: ${cellBgColor};` : ''}"`;

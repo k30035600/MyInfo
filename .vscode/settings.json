@@ -10,16 +10,13 @@
   "terminal.integrated.profiles.windows": {
     "PowerShell 7 (UTF-8)": {
       "path": "pwsh.exe",
-      "args": ["-NoProfile"],
+      "args": ["-NoProfile", "-NoExit", "-Command", "chcp 65001 | Out-Null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8"],
       "icon": "terminal-powershell"
     },
     "PowerShell (UTF-8)": {
       "path": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "chcp 65001 | Out-Null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; powershell.exe -NoProfile -NoExit"
-      ]
+      "args": ["-NoProfile", "-Command", "chcp 65001 | Out-Null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; powershell.exe -NoProfile -NoExit"],
+      "icon": "terminal-powershell"
     }
   }
 }

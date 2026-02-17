@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Cursor 한글 깨짐 원인 제거: 한글 없는 경로 사용
 #
 # 1) C:\CursorWorkspace 폴더 생성
@@ -6,15 +5,16 @@
 # 3) C:\Temp 폴더 생성 (TEMP 환경변수용 - 한글 없음)
 #
 # 사용법:
-#   - PowerShell에서 이 스크립트 실행 (관리자 권한 불필요)
+#   - readme 폴더에 있음. PowerShell에서: .\readme(삭제하지 말것)\create-workspace-junction.ps1
 #   - Cursor: 파일 > 폴더 열기 > C:\CursorWorkspace 선택
 #   - Cursor 실행 시 TEMP 깨짐 방지: start-cursor-no-hangul.ps1 사용
 
 $CursorWorkspace = "C:\CursorWorkspace"
 $CursorTemp = "C:\Temp"
 
-# 현재 스크립트 경로 = 실제 프로젝트 (OneDrive\Cursor\MyInfo 등)
-$ActualProject = Split-Path -Parent $MyInvocation.MyCommand.Path
+# 스크립트가 readme(삭제하지 말것) 안에 있으므로 부모 = 프로젝트 루트(MyInfo)
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ActualProject = Split-Path -Parent $ScriptDir
 $JunctionTarget = Join-Path $CursorWorkspace "MyInfo"
 
 # 1) C:\CursorWorkspace 생성

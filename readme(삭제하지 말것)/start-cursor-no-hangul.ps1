@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
 # Cursor를 TEMP/TMP 한글 없음 경로로 실행 (한글 깨짐, Add-Content -Encoding 오류 방지)
 #
 # 사용자 프로필에 한글이 있으면 (예: C:\Users\삼아개발\) %TEMP% 경로가
 # Cursor 임시 스크립트에서 깨져 오류가 납니다. TEMP를 C:\Temp로 설정 후 Cursor를 실행합니다.
+#
+# 실행: .\readme(삭제하지 말것)\start-cursor-no-hangul.ps1
 
 $CursorTemp = "C:\Temp"
 $CursorWorkspace = "C:\CursorWorkspace"

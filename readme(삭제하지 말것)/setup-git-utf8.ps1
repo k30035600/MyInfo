@@ -1,5 +1,5 @@
 # Git / GitHub / 배포 시 한글 깨짐 방지 - UTF-8 설정 (최초 1회 실행)
-# PowerShell에서: .\setup-git-utf8.ps1
+# 실행: readme 폴더에서 .\setup-git-utf8.ps1 또는 프로젝트 루트에서 .\readme(삭제하지 말것)\setup-git-utf8.ps1
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot

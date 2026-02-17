@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
-"""가상자산 회사 목록을 category_table.json에 추가 (분류=가상자산)."""
+"""가상자산 회사 목록을 category_table.json에 추가 (분류=가상자산).
+위치: readme(삭제하지 말것)/ 에서 참고/유틸로 보관.
+실행: 프로젝트 루트(MyInfo)에서
+  python "readme(삭제하지 말것)/add_virtual_asset_category.py"
+"""
 import os
 import sys
 import pandas as pd
 
-# 프로젝트 루트(MyInfo) 기준
+# 스크립트가 readme 안에 있으므로 부모 = 프로젝트 루트
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, PROJECT_ROOT)
 
 from category_table_io import (
     load_category_table,
@@ -48,7 +53,7 @@ VIRTUAL_ASSET_ROWS = [
 ]
 
 def main():
-    path = get_category_table_path(SCRIPT_DIR)
+    path = get_category_table_path(PROJECT_ROOT)
     full = load_category_table(path, default_empty=True)
     if full is None:
         full = pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS)
