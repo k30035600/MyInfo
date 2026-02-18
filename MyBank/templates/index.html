@@ -847,6 +847,39 @@
         }
 
         /* 카테고리조회 테이블: 헤더·행 높이 최소화 */
+        /* 카테고리 조회/업종분류 조회 행 선택 시 말풍선 - 최상위 레이어 보장 */
+        #row-tooltip-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
+            pointer-events: none;
+            display: none;
+        }
+        #row-tooltip-overlay .row-tooltip-bubble { pointer-events: auto; }
+        .row-tooltip-bubble {
+            position: fixed;
+            z-index: 2147483647;
+            max-width: 480px;
+            max-height: 70vh;
+            min-width: 220px;
+            min-height: 80px;
+            overflow: auto;
+            background: rgb(255, 204, 128);
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.2;
+            font-family: 'Malgun Gothic', sans-serif;
+        }
+        .row-tooltip-bubble .tooltip-title { font-weight: bold; color: #333; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
+        .row-tooltip-bubble .tooltip-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .row-tooltip-bubble .tooltip-row:last-child { border-bottom: none; }
+        .row-tooltip-bubble .tooltip-key { flex: 0 0 100px; color: #333; opacity: 0.8; }
+        .row-tooltip-bubble .tooltip-val { flex: 1; word-break: break-all; color: #111; opacity: 1; }
+        .row-tooltip-selected { background-color: #bbb !important; }
+
         #category-query-table th, #category-query-table td {
             padding: 2px 2px !important;
             line-height: 1.1 !important;
@@ -915,47 +948,47 @@
             text-align: right !important;
         }
         
-        /* 전처리후 테이블: 11컬럼 거래일0.7 거래시간0.6 은행명0.6 계좌번호1.2 입금액1 출금액1 취소0.4 적요1.2 내용1.2 송금메모1 거래점0.6 (총 9.5) */
+        /* 전처리후 테이블: 11컬럼 거래일0.7 거래시간0.7 은행명0.7 계좌번호1.2 입금액1 출금액1 취소0.4 적요1.1 내용1.1 송금메모1 거래점0.5 (총 9.4) */
         #processed-data-table {
             table-layout: fixed !important;
         }
         #processed-data-table th:nth-child(1),
         #processed-data-table td:nth-child(1) {
-            width: 7.37% !important; /* 0.7/9.5 */
+            width: 7.45% !important; /* 0.7/9.4 거래일 */
         }
         #processed-data-table th:nth-child(2),
         #processed-data-table td:nth-child(2),
         #processed-data-table th:nth-child(3),
         #processed-data-table td:nth-child(3) {
-            width: 6.32% !important; /* 0.6/9.5 */
+            width: 7.45% !important; /* 0.7/9.4 거래시간, 은행명 */
         }
         #processed-data-table th:nth-child(4),
         #processed-data-table td:nth-child(4) {
-            width: 12.63% !important; /* 1.2/9.5 */
+            width: 12.77% !important; /* 1.2/9.4 계좌번호 */
         }
         #processed-data-table th:nth-child(5),
         #processed-data-table td:nth-child(5),
         #processed-data-table th:nth-child(6),
         #processed-data-table td:nth-child(6) {
-            width: 10.53% !important; /* 1.0/9.5 */
+            width: 10.64% !important; /* 1.0/9.4 입금액, 출금액 */
         }
         #processed-data-table th:nth-child(7),
         #processed-data-table td:nth-child(7) {
-            width: 4.21% !important; /* 0.4/9.5 */
+            width: 4.26% !important; /* 0.4/9.4 취소 */
         }
         #processed-data-table th:nth-child(8),
         #processed-data-table td:nth-child(8),
         #processed-data-table th:nth-child(9),
         #processed-data-table td:nth-child(9) {
-            width: 12.63% !important; /* 1.2/9.5 */
+            width: 11.70% !important; /* 1.1/9.4 적요, 내용 */
         }
         #processed-data-table th:nth-child(10),
         #processed-data-table td:nth-child(10) {
-            width: 6.32% !important; /* 0.6/9.5 */
+            width: 10.64% !important; /* 1/9.4 송금메모 */
         }
         #processed-data-table th:nth-child(11),
         #processed-data-table td:nth-child(11) {
-            width: 10.53% !important; /* 1/9.5 */
+            width: 5.32% !important; /* 0.5/9.4 거래점 */
         }
         
         /* 전처리후 테이블: 거래일(1)·거래시간(2)·은행명(3) 가운데 정렬 */
@@ -1583,16 +1616,11 @@
     
     <!-- 카테고리 테이블, 카테고리 조회, 카테고리 그래프 (단일 컨테이너) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin-bottom: 8px; font-size: 13px;">
-            <span id="category-query-count">총 0건</span>
-            <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
-            <span><span class="label">출금:</span> <span id="category-query-withdraw" style="color: #FF0000;">0</span>원<span id="category-query-withdraw-count"></span></span>
-        </div>
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
             <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 테이블</h2>
+                        <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 조회</h2>
                         <div class="path-filename-text" style="margin-left: 10px;"><span>category_table</span></div>
                     </div>
                     <button id="export-bank_category-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
@@ -1665,8 +1693,13 @@
             </div>
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 5px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 5px; font-size: 13px;">
                         <h2 style="margin: 0; padding-bottom: 3px;">은행거래(카테고리) 조회</h2>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span id="category-query-count">총 0건</span>
+                            <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
+                            <span><span class="label">출금:</span> <span id="category-query-withdraw" style="color: #FF0000;">0</span>원<span id="category-query-withdraw-count"></span></span>
+                        </div>
                     </div>
                     <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -1690,7 +1723,52 @@
         
         // 전역 변수: 파일 목록 저장
         let sourceFilesList = [];
+        let categoryQueryTableData = [];  // 카테고리 조회 테이블 행 데이터 (행 클릭 시 말풍선용)
+        let _tooltipSelectedRow = null;   // 말풍선 선택된 행 (회색 배경, 복구용)
         
+        // 행 선택 시 말풍선 툴팁 표시 (오버레이 최상위 레이어로 항상 보이도록)
+        function showRowTooltip(obj, targetEl) {
+            if (!obj || typeof obj !== 'object') return;
+            const overlay = document.getElementById('row-tooltip-overlay');
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (!overlay || !bubble) return;
+            if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+            _tooltipSelectedRow = targetEl;
+            if (targetEl) targetEl.classList.add('row-tooltip-selected');
+            if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+            let html = '<div class="tooltip-title">행 상세</div>';
+            Object.keys(obj).forEach(k => {
+                let v = obj[k];
+                if (v === null || v === undefined) v = '';
+                else if (typeof v === 'number') v = formatAmount(v);
+                else v = String(v);
+                html += '<div class="tooltip-row"><span class="tooltip-key">' + k + '</span><span class="tooltip-val">' + (String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</span></div>';
+            });
+            bubble.innerHTML = html;
+            const rect = targetEl.getBoundingClientRect();
+            let left = rect.left + (rect.width / 2) - 120;
+            let top = rect.bottom + 8;
+            if (left < 10) left = 10;
+            if (left + 300 > window.innerWidth) left = window.innerWidth - 310;
+            if (top + 250 > window.innerHeight) top = rect.top - 220;
+            if (top < 10) top = 10;
+            if (top + 250 > window.innerHeight - 10) top = Math.max(10, window.innerHeight - 260);
+            bubble.style.left = left + 'px';
+            bubble.style.top = top + 'px';
+            bubble.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+        function hideRowTooltip() {
+            if (_tooltipSelectedRow) {
+                _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+                _tooltipSelectedRow = null;
+            }
+            const overlay = document.getElementById('row-tooltip-overlay');
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (overlay) overlay.style.display = 'none';
+            if (bubble) bubble.style.display = 'none';
+        }
+
         // 필터 드롭다운 배경색 업데이트 함수
         function updateFilterBackground(selectElement) {
             if (!selectElement) return;
@@ -1754,6 +1832,15 @@
         if (btnRegeneratePrepost) {
             btnRegeneratePrepost.addEventListener('click', async function() {
                 if (!confirm('bank_before·bank_after를 삭제한 뒤 source부터 전처리·카테고리분류·후처리까지 다시 수행합니다. 계속할까요?')) return;
+                // 은행거래(카테고리) 조회 테이블 초기화
+                if (typeof categoryQueryDataOriginal !== 'undefined') categoryQueryDataOriginal = [];
+                const categoryQueryContent = document.getElementById('category-query-content');
+                if (categoryQueryContent) categoryQueryContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+                safeSetTextContent(document.getElementById('category-query-count'), '총 0건');
+                safeSetTextContent(document.getElementById('category-query-deposit'), '0');
+                safeSetTextContent(document.getElementById('category-query-deposit-count'), '');
+                safeSetTextContent(document.getElementById('category-query-withdraw'), '0');
+                safeSetTextContent(document.getElementById('category-query-withdraw-count'), '');
                 const contentDiv = document.getElementById('right-content');
                 const origText = btnRegeneratePrepost.textContent;
                 btnRegeneratePrepost.disabled = true;
@@ -2960,6 +3047,23 @@
         
         
         // 페이지 로드 시 필터 배경색 초기화
+        // 카테고리 조회 행 클릭 시 말풍선 표시
+        document.addEventListener('click', function(e) {
+            const row = e.target.closest('#category-query-content .category-query-row');
+            if (row && categoryQueryTableData.length > 0) {
+                const idx = parseInt(row.getAttribute('data-i'), 10);
+                if (!isNaN(idx) && categoryQueryTableData[idx]) {
+                    showRowTooltip(categoryQueryTableData[idx], row);
+                }
+            }
+            const overlay = document.getElementById('row-tooltip-overlay');
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.category-query-row')) {
+                hideRowTooltip();
+            }
+        });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideRowTooltip(); });
+
         window.addEventListener('DOMContentLoaded', () => {
             updateWorkspacePath();
             setupFilterBackgrounds();
@@ -3664,7 +3768,7 @@
         // 카테고리 조회 테이블 렌더링
         function renderCategoryQueryTable(data, options) {
             const contentDiv = document.getElementById('category-query-content');
-            
+            categoryQueryTableData = data || [];
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
@@ -3693,8 +3797,8 @@
             const columnWidths = {
                 '거래일': 0.6, '거래시간': 0.6, '은행명': 0.6, '계좌번호': 1.2,
                 '입금액': 0.9, '출금액': 0.9, '취소': 0.5,
-                '적요': 1.5, '내용': 1.5, '송금메모': 1.0, '거래점': 0.7,
-                '키워드': 0.8, '카테고리': 1.0, '기타거래': 1.5
+                '적요': 1.4, '내용': 1.4, '송금메모': 1.0, '거래점': 0.7,
+                '키워드': 0.8, '카테고리': 1.0, '기타거래': 1.4
             };
             
             const columnBgColors = {
@@ -4512,5 +4616,9 @@
         }
     });
     </script>
+    <!-- 말풍선: body 끝에 두어 항상 최상위에 표시 -->
+    <div id="row-tooltip-overlay">
+        <div id="row-tooltip-bubble" class="row-tooltip-bubble" style="display: none;"></div>
+    </div>
 </body>
 </html>

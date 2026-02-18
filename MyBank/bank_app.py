@@ -1734,14 +1734,8 @@ def get_analysis_transactions():
         extra_col = '기타거래' if '기타거래' in filtered_df.columns else '내용'
         
         if transaction_type == 'detail':
-            # 상세 모드(기본분석 카테고리 거래내역): 거래일, 은행명, 입금액, 출금액, 기타거래
-            detail_cols = ['거래일', '은행명', '입금액', '출금액']
-            if extra_col in filtered_df.columns:
-                detail_cols.append(extra_col)
-            elif '내용' in filtered_df.columns:
-                detail_cols.append('내용')
-            available_cols = [c for c in detail_cols if c in filtered_df.columns]
-            result_df = filtered_df[available_cols].copy() if available_cols else filtered_df.copy()
+            # 상세 모드(기본분석 카테고리 거래내역): 전체 컬럼 반환 (행 클릭 시 말풍선에 전체 표시용)
+            result_df = filtered_df.copy()
         elif transaction_type == 'deposit':
             filtered_df = filtered_df[filtered_df['입금액'] > 0]
             # 필요한 컬럼만 선택

@@ -1560,12 +1560,13 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 }
                 const data = result.data || [];
                 const cols = ['업종분류', '업종리스크', '업종코드_업종코드세세분류'];
+                const colLabels = { '업종리스크': '리스크' };
                 if (data.length === 0) {
                     contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">업종분류 데이터가 없습니다. .source/linkage_table.xlsx를 넣고 새로고침하세요.</div>';
                     return;
                 }
                 let html = '<table id="linkage-query-table" style="background-color: white;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;"><tr>';
-                cols.forEach(c => { html += '<th style="text-align: center; border: 1px solid #ddd;">' + c + '</th>'; });
+                cols.forEach(c => { html += '<th style="text-align: center; border: 1px solid #ddd;">' + (colLabels[c] || c) + '</th>'; });
                 html += '</tr></thead><tbody>';
                 data.forEach((row, i) => {
                     const isEven = i % 2 === 1;

@@ -815,6 +815,17 @@
             font-weight: bold !important;
         }
 
+        /* 카테고리 조회 행 선택 시 말풍선 - 최상위 레이어 보장 */
+        #row-tooltip-overlay { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: none; }
+        #row-tooltip-overlay .row-tooltip-bubble { pointer-events: auto; }
+        .row-tooltip-bubble { position: fixed; z-index: 2147483647; max-width: 480px; max-height: 70vh; min-width: 220px; min-height: 80px; overflow: auto; background: rgb(255, 204, 128); border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 10px; font-size: 11px; line-height: 1.2; font-family: 'Malgun Gothic', sans-serif; }
+        .row-tooltip-bubble .tooltip-title { font-weight: bold; color: #333; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
+        .row-tooltip-bubble .tooltip-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .row-tooltip-bubble .tooltip-row:last-child { border-bottom: none; }
+        .row-tooltip-bubble .tooltip-key { flex: 0 0 100px; color: #333; opacity: 0.8; }
+        .row-tooltip-bubble .tooltip-val { flex: 1; word-break: break-all; color: #111; opacity: 1; }
+        .row-tooltip-selected { background-color: #bbb !important; }
+
         /* 전처리전/전처리후/카테고리조회/카테고리적용후: 헤더·행 높이 최소화 */
         #source-data-table th, #source-data-table td,
         #processed-data-table th, #processed-data-table td,
@@ -1436,7 +1447,6 @@
                 <h1>신용카드 전처리</h1>
             </div>
             <div style="display: flex; align-items: center; gap: 12px;">
-                <button type="button" id="btn-reintegrate" class="btn-reintegrate" title="before/after 파일을 재 생성합니다">통합·전처리 다시 실행</button>
                 <button type="button" id="btn-regenerate-before-after" class="btn-reintegrate" title="card_before·card_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 재생성">전처리/후처리 재생성</button>
             </div>
         </div>
@@ -1533,16 +1543,11 @@
     
     <!-- 카테고리 테이블, 카테고리 조회, 카테고리 그래프 (단일 컨테이너) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin-bottom: 8px; font-size: 13px;">
-            <span id="category-query-count">총 0건</span>
-            <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
-            <span><span class="label">출금:</span> <span id="category-query-withdraw" style="color: #FF0000;">0</span>원<span id="category-query-withdraw-count"></span></span>
-        </div>
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
             <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <h2 style="margin: 0;">카테고리 테이블</h2>
+                        <h2 style="margin: 0;">카테고리 조회</h2>
                         <div style="font-size: 14px; opacity: 0.5; margin-left: 10px;"><span id="category-table-filename">category_table</span></div>
                     </div>
                     <button id="export-category-table-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
@@ -1615,11 +1620,13 @@
             </div>
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 13px;">
                         <h2 style="margin: 0;">신용카드(카테고리) 조회</h2>
-                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()" title="after 파일을 재 생성합니다">
-                            전처리후 다시 실행
-                        </button>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span id="category-query-count">총 0건</span>
+                            <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
+                            <span><span class="label">출금:</span> <span id="category-query-withdraw" style="color: #FF0000;">0</span>원<span id="category-query-withdraw-count"></span></span>
+                        </div>
                     </div>
                     <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -2448,6 +2455,22 @@
         
         
         // 페이지 로드 시 필터 배경색 초기화
+        document.addEventListener('click', function(e) {
+            const row = e.target.closest('#category-query-content .category-query-row');
+            if (row && categoryQueryTableData.length > 0) {
+                const idx = parseInt(row.getAttribute('data-row-index'), 10);
+                if (!isNaN(idx) && categoryQueryTableData[idx]) {
+                    showRowTooltip(categoryQueryTableData[idx], row);
+                }
+            }
+            const overlay = document.getElementById('row-tooltip-overlay');
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.category-query-row')) {
+                hideRowTooltip();
+            }
+        });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideRowTooltip(); });
+
         window.addEventListener('DOMContentLoaded', () => {
             // 카테고리 테이블 옆 파일명을 항상 category_table로 표시 (캐시/구버전 대응)
             const catFileEl = document.getElementById('category-table-filename');
@@ -2459,37 +2482,20 @@
             loadLeftData();
             loadRightData();
 
-            const btnReintegrate = document.getElementById('btn-reintegrate');
-            if (btnReintegrate) {
-                btnReintegrate.addEventListener('click', async function() {
-                    if (this.disabled) return;
-                    this.disabled = true;
-                    const origText = this.textContent;
-                    this.textContent = '실행 중...';
-                    try {
-                        const res = await fetchWithTimeout(`${API_BASE}/api/reintegrate`, { method: 'POST' });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok || !data.ok) {
-                            const msg = (data.error || `서버 오류 ${res.status}`).replace(/\n/g, ' ');
-                            alert('통합·전처리 다시 실행 실패: ' + msg);
-                            return;
-                        }
-                        await loadLeftData();
-                        await loadRightData();
-                        if (typeof loadCategoryQueryTable === 'function') await loadCategoryQueryTable();
-                    } catch (e) {
-                        alert('통합·전처리 다시 실행 중 오류: ' + (e && e.message ? e.message : '네트워크 확인'));
-                    } finally {
-                        this.disabled = false;
-                        this.textContent = origText;
-                    }
-                });
-            }
-
             const btnRegenerateBeforeAfter = document.getElementById('btn-regenerate-before-after');
             if (btnRegenerateBeforeAfter) {
                 btnRegenerateBeforeAfter.addEventListener('click', async function() {
                     if (this.disabled) return;
+                    // 신용카드(카테고리) 조회 테이블 초기화
+                        if (typeof categoryQueryDataOriginal !== 'undefined') categoryQueryDataOriginal = [];
+                        categoryQueryTableData = [];
+                    const categoryQueryContent = document.getElementById('category-query-content');
+                    if (categoryQueryContent) categoryQueryContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+                    safeSetTextContent(document.getElementById('category-query-count'), '총 0건');
+                    safeSetTextContent(document.getElementById('category-query-deposit'), '0');
+                    safeSetTextContent(document.getElementById('category-query-deposit-count'), '');
+                    safeSetTextContent(document.getElementById('category-query-withdraw'), '0');
+                    safeSetTextContent(document.getElementById('category-query-withdraw-count'), '');
                     this.disabled = true;
                     const origText = this.textContent;
                     this.textContent = '재생성 중...';
@@ -2540,8 +2546,51 @@
         // 카테고리 테이블 전체 데이터 저장
         let allCategoryTableData = [];
         
-        // 카테고리 조회 데이터 저장
+        // 카테고리 조회 데이터 저장 (행 클릭 시 말풍선용 - MyCash와 동일하게 categoryQueryTableData 사용)
         let categoryQueryDataOriginal = [];
+        let categoryQueryTableData = [];
+        let _tooltipSelectedRow = null;
+        function showRowTooltip(obj, targetEl) {
+            if (!obj || typeof obj !== 'object') return;
+            const overlay = document.getElementById('row-tooltip-overlay');
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (!overlay || !bubble) return;
+            if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+            _tooltipSelectedRow = targetEl;
+            if (targetEl) targetEl.classList.add('row-tooltip-selected');
+            if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+            let html = '<div class="tooltip-title">행 상세</div>';
+            Object.keys(obj).forEach(k => {
+                let v = obj[k];
+                if (v === null || v === undefined) v = '';
+                else if (typeof v === 'number') v = formatAmount(v);
+                else v = String(v);
+                html += '<div class="tooltip-row"><span class="tooltip-key">' + k + '</span><span class="tooltip-val">' + (String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</span></div>';
+            });
+            bubble.innerHTML = html;
+            const rect = targetEl.getBoundingClientRect();
+            let left = rect.left + (rect.width / 2) - 120;
+            let top = rect.bottom + 8;
+            if (left < 10) left = 10;
+            if (left + 300 > window.innerWidth) left = window.innerWidth - 310;
+            if (top + 250 > window.innerHeight) top = rect.top - 220;
+            if (top < 10) top = 10;
+            if (top + 250 > window.innerHeight - 10) top = Math.max(10, window.innerHeight - 260);
+            bubble.style.left = left + 'px';
+            bubble.style.top = top + 'px';
+            bubble.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+        function hideRowTooltip() {
+            if (_tooltipSelectedRow) {
+                _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+                _tooltipSelectedRow = null;
+            }
+            const overlay = document.getElementById('row-tooltip-overlay');
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (overlay) overlay.style.display = 'none';
+            if (bubble) bubble.style.display = 'none';
+        }
         
         // 차트 변수
         let categoryCombinedChart = null;
@@ -3218,11 +3267,11 @@
                             const createJson = await createRes.json().catch(() => ({}));
                             if (createRes.ok && createJson.success) {
                                 createOk = true;
-                                await loadCategoryQueryData(btn);
+                                await loadCategoryQueryTable();
                                 return;
                             }
                             const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
-                            contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다. 전처리후 다시 실행 버튼을 클릭하여 생성하세요.') + '</div>';
+                            contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다.') + '</div>';
                         } catch (createErr) {
                             console.error('card_after 자동 생성 실패:', createErr);
                             const msg = (createErr && createErr.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
@@ -3258,7 +3307,7 @@
         // 카테고리 조회 테이블 렌더링 (card_after: 카드 컬럼 1:1 너비, 은행 데이터: 기존 비율)
         function renderCategoryQueryTable(data, options) {
             const contentDiv = document.getElementById('category-query-content');
-            
+            categoryQueryTableData = data || [];
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 return;
@@ -3903,6 +3952,7 @@
         // card_after 파일 생성 함수 (card_category 적용)
         async function generateCategoryFile() {
             const btn = document.getElementById('generate-category-btn');
+            if (!btn) return;
             const originalText = btn.textContent;
             
             btn.disabled = true;
@@ -4155,5 +4205,8 @@
         }
     });
     </script>
+    <div id="row-tooltip-overlay">
+        <div id="row-tooltip-bubble" class="row-tooltip-bubble" style="display: none;"></div>
+    </div>
 </body>
 </html>

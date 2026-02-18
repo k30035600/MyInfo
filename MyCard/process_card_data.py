@@ -583,7 +583,7 @@ def _load_prepost_rules(category_path=None):
 
 
 def _apply_rules_to_columns(df, columns_to_apply, rule_list):
-    """지정 규칙 리스트만 컬럼에 적용 (전처리 또는 후처리만). 셀 전체가 키워드와 일치하면 치환하지 않음."""
+    """지정 규칙 리스트만 컬럼에 적용 (전처리 또는 후처리). 키워드가 등장하는 부분을 카테고리로 치환(셀 전체가 키워드여도 치환)."""
     if df is None or df.empty or not columns_to_apply or not rule_list:
         return df
     df = df.copy()
@@ -602,14 +602,7 @@ def _apply_rules_to_columns(df, columns_to_apply, rule_list):
             kw_norm = normalize_주식회사_for_match(kw)
             if not kw_norm:
                 continue
-            def replace_if_not_whole(cell_val):
-                s = (cell_val or '').strip()
-                if not s:
-                    return cell_val
-                if normalize_주식회사_for_match(s) == kw_norm:
-                    return cell_val
-                return s.replace(kw_norm, cat)
-            df[col] = df[col].fillna('').astype(str).apply(lambda v: replace_if_not_whole(v))
+            df[col] = df[col].fillna('').astype(str).str.replace(kw_norm, cat, regex=False)
     return df
 
 

@@ -235,9 +235,73 @@
             flex-direction: column;
             height: 100%;
         }
-        .risk-row:hover {
+        .risk-row:hover,
+        .risk-detail-row:hover {
             background-color: #f0f8ff !important;
         }
+
+        /* 행 선택 시 말풍선 툴팁 (은행정보와 동일 속성) */
+        .row-tooltip-bubble {
+            position: fixed;
+            z-index: 10000;
+            max-width: 480px;
+            max-height: 70vh;
+            overflow: auto;
+            background: rgb(255, 204, 128);
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.2;
+            font-family: 'Malgun Gothic', sans-serif;
+            pointer-events: auto;
+        }
+        .row-tooltip-bubble::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 20px;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid #ddd;
+        }
+        .row-tooltip-bubble::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 22px;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid rgb(255, 152, 0);
+        }
+        .row-tooltip-bubble .tooltip-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #eee;
+        }
+        .row-tooltip-bubble .tooltip-row {
+            display: flex;
+            gap: 8px;
+            padding: 3px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .row-tooltip-bubble .tooltip-row:last-child {
+            border-bottom: none;
+        }
+        .row-tooltip-bubble .tooltip-key {
+            flex: 0 0 100px;
+            color: #666;
+            opacity: 0.8;
+        }
+        .row-tooltip-bubble .tooltip-val {
+            flex: 1;
+            word-break: break-all;
+            opacity: 1;
+        }
+        .row-tooltip-selected { background-color: #bbb !important; }
         .risk-table-container,
         .risk-detail-table-container {
             flex: 1;
@@ -267,7 +331,7 @@
             padding: 3px;
             font-weight: bold;
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
+            grid-template-columns: 2fr 0.6fr 1fr 1fr;
             gap: 0;
             font-size: 11px;
             width: 100%;
@@ -589,6 +653,7 @@
     </style>
 </head>
 <body>
+    <div id="row-tooltip-bubble" class="row-tooltip-bubble" style="display: none;"></div>
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
@@ -668,19 +733,20 @@
                     <table id="risk-classification-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                         <thead style="position: sticky; top: 0; background-color: #f5f5f5;">
                             <tr>
-                                <th style="width: 50%; text-align: left; border-bottom: 2px solid #ddd;">위험도분류</th>
-                                <th style="width: 25%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
-                                <th style="width: 25%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
+                                <th style="width: 40%; text-align: left; border-bottom: 2px solid #ddd;">위험도분류</th>
+                                <th style="width: 15%; text-align: center; border-bottom: 2px solid #ddd;">위험도</th>
+                                <th style="width: 22.5%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
+                                <th style="width: 22.5%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
                             </tr>
                         </thead>
                         <tbody id="risk-classification-table-body">
                             <tr>
-                                <td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td>
+                                <td colspan="4" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td>
                             </tr>
                         </tbody>
                     </table>
                     <div id="risk-classification-footer" class="risk-table-footer-wrap" style="display: none;">
-                        <span>합계</span><span id="risk-total-deposit" style="text-align:right;color:#0000FF;">0</span><span id="risk-total-withdraw" style="text-align:right;color:#FF0000;">0</span>
+                        <span>합계</span><span></span><span id="risk-total-deposit" style="text-align:right;color:#0000FF;">0</span><span id="risk-total-withdraw" style="text-align:right;color:#FF0000;">0</span>
                     </div>
                 </div>
             </div>
@@ -691,11 +757,11 @@
                 <table id="risk-detail-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                     <thead>
                         <tr style="background-color: #f5f5f5; position: sticky; top: 0;">
-                            <th style="width: 14%; text-align: left; border-bottom: 2px solid #ddd;">금융사</th>
-                            <th style="width: 14%; text-align: center; border-bottom: 2px solid #ddd;">거래일</th>
-                            <th style="width: 38%; text-align: left; border-bottom: 2px solid #ddd;">기타거래</th>
-                            <th style="width: 17%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
-                            <th style="width: 17%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
+                            <th style="width: 15%; text-align: left; border-bottom: 2px solid #ddd;">금융사</th>
+                            <th style="width: 15%; text-align: center; border-bottom: 2px solid #ddd;">거래일</th>
+                            <th style="width: 30%; text-align: left; border-bottom: 2px solid #ddd;">기타거래</th>
+                            <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
+                            <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
                         </tr>
                     </thead>
                     <tbody id="risk-detail-table-body">
@@ -809,6 +875,7 @@
         let riskCombinedChart = null;
         let riskSectionData = [];      // 위험도 1.0 이상 원본 행 배열
         let riskGroupedByClassification = []; // 위험도분류별 집계 { classification, deposit, withdraw }
+        let riskDetailRowsData = [];   // 위험도 세부내역 행 데이터 (행 클릭 시 말풍선용)
 
         function formatAmount(value) {
             if (value === null || value === undefined || value === '') return '0';
@@ -925,10 +992,48 @@
             });
         }
 
+        let _tooltipSelectedRow = null;
+        // 행 선택 시 말풍선 툴팁 표시 (모든 컬럼 표시)
+        function showRowTooltip(obj, targetEl) {
+            if (!obj || typeof obj !== 'object') return;
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (!bubble) return;
+            if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+            _tooltipSelectedRow = targetEl;
+            if (targetEl) targetEl.classList.add('row-tooltip-selected');
+            let html = '<div class="tooltip-title">행 상세</div>';
+            const keys = Object.keys(obj);
+            keys.forEach(k => {
+                let v = obj[k];
+                if (v === null || v === undefined) v = '';
+                else if (typeof v === 'number') v = formatAmount(v);
+                else v = String(v);
+                html += `<div class="tooltip-row"><span class="tooltip-key">${k}</span><span class="tooltip-val">${v}</span></div>`;
+            });
+            bubble.innerHTML = html;
+            bubble.style.display = 'block';
+            const rect = targetEl.getBoundingClientRect();
+            let left = rect.left + (rect.width / 2) - 120;
+            let top = rect.bottom + 8;
+            if (left < 10) left = 10;
+            if (left + 300 > window.innerWidth) left = window.innerWidth - 310;
+            if (top + 250 > window.innerHeight) top = rect.top - 220;
+            bubble.style.left = left + 'px';
+            bubble.style.top = top + 'px';
+        }
+        function hideRowTooltip() {
+            if (_tooltipSelectedRow) {
+                _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+                _tooltipSelectedRow = null;
+            }
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (bubble) bubble.style.display = 'none';
+        }
+
         async function loadRiskSection() {
             const tbody = document.getElementById('risk-classification-table-body');
             const footer = document.getElementById('risk-classification-footer');
-            tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td></tr>';
             footer.style.display = 'none';
             document.getElementById('risk-detail-section-title').textContent = '금융거래 위험도 세부내역 (선택한 위험도분류)';
             document.getElementById('risk-detail-table-body').innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">위험도 내역에서 위험도분류를 선택하면 거래 내역이 표시됩니다.</td></tr>';
@@ -941,7 +1046,7 @@
                 const response = await fetch(url);
                 const json = await response.json();
                 if (json.error || !json.data) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터를 불러올 수 없습니다.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">데이터를 불러올 수 없습니다.</td></tr>';
                     riskSectionData = [];
                     riskGroupedByClassification = [];
                     updateRiskChart();
@@ -952,31 +1057,40 @@
                 const map = {};
                 riskSectionData.forEach(row => {
                     const key = (row[col] != null && row[col] !== '') ? String(row[col]) : '(빈값)';
-                    if (!map[key]) map[key] = { classification: key, deposit: 0, withdraw: 0 };
+                    if (!map[key]) {
+                        const riskNum = parseFloat(row['위험도']);
+                        map[key] = { classification: key, deposit: 0, withdraw: 0, risk: (isNaN(riskNum) ? null : riskNum) };
+                    }
                     map[key].deposit += Number(row['입금액']) || 0;
                     map[key].withdraw += Number(row['출금액']) || 0;
                 });
-                riskGroupedByClassification = Object.values(map).sort((a, b) => (b.withdraw - a.withdraw));
+                riskGroupedByClassification = Object.values(map).sort((a, b) => {
+                    const ra = a.risk != null ? a.risk : Infinity;
+                    const rb = b.risk != null ? b.risk : Infinity;
+                    return ra - rb;
+                });
                 let totalDep = 0, totalWith = 0;
                 let tableHtml = '';
                 riskGroupedByClassification.forEach((item, idx) => {
                     totalDep += item.deposit;
                     totalWith += item.withdraw;
+                    const riskDisplay = (item.risk != null && !isNaN(item.risk)) ? String(Number(item.risk) === Math.round(item.risk) ? item.risk : Number(item.risk).toFixed(1)) : '';
                     const esc = (item.classification || '(빈값)').replace(/"/g, '&quot;');
-                    tableHtml += `<tr class="risk-row" data-classification="${esc}" data-deposit="${item.deposit}" data-withdraw="${item.withdraw}">
-                        <td style="width: 50%; border-bottom: 1px solid #eee;">${item.classification || '(빈값)'}</td>
-                        <td style="width: 25%; text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(item.deposit)}</td>
-                        <td style="width: 25%; text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(item.withdraw)}</td>
+                    tableHtml += `<tr class="risk-row" data-classification="${esc}" data-deposit="${item.deposit}" data-withdraw="${item.withdraw}" style="cursor: pointer;">
+                        <td style="width: 40%; border-bottom: 1px solid #eee;">${item.classification || '(빈값)'}</td>
+                        <td style="width: 15%; text-align: center; border-bottom: 1px solid #eee;">${riskDisplay}</td>
+                        <td style="width: 22.5%; text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(item.deposit)}</td>
+                        <td style="width: 22.5%; text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(item.withdraw)}</td>
                     </tr>`;
                 });
-                tbody.innerHTML = tableHtml || '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">위험도 1.0 이상 데이터가 없습니다.</td></tr>';
+                tbody.innerHTML = tableHtml || '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">위험도 1.0 이상 데이터가 없습니다.</td></tr>';
                 document.getElementById('risk-total-deposit').textContent = formatAmount(totalDep);
                 document.getElementById('risk-total-withdraw').textContent = formatAmount(totalWith);
                 footer.style.display = tableHtml ? '' : 'none';
                 updateRiskChart();
             } catch (err) {
                 console.error('loadRiskSection:', err);
-                tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">로딩 오류</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #F44336;">로딩 오류</td></tr>';
                 riskSectionData = [];
                 riskGroupedByClassification = [];
                 updateRiskChart();
@@ -987,6 +1101,7 @@
             const tbody = document.getElementById('risk-detail-table-body');
             const titleEl = document.getElementById('risk-detail-section-title');
             if (!classification) {
+                riskDetailRowsData = [];
                 titleEl.textContent = '금융거래 위험도 세부내역 (선택한 위험도분류)';
                 tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">위험도 내역에서 위험도분류를 선택하면 거래 내역이 표시됩니다.</td></tr>';
                 document.getElementById('risk-detail-total-deposit').textContent = '0';
@@ -1000,9 +1115,10 @@
                 return (key === '' && (v == null || v === '')) || c === classification;
             });
             titleEl.textContent = '금융거래 위험도 세부내역 (' + classification + ')';
+            riskDetailRowsData = rows;
             let depSum = 0, withSum = 0;
             let html = '';
-            rows.forEach(row => {
+            rows.forEach((row, idx) => {
                 const dep = Number(row['입금액']) || 0;
                 const withAmt = Number(row['출금액']) || 0;
                 depSum += dep;
@@ -1010,20 +1126,43 @@
                 const fin = row['금융사'] || '';
                 const date = riskFormatDate(row['거래일'] || '');
                 const other = row['기타거래'] || '';
-                html += `<tr><td style="border-bottom: 1px solid #eee;">${fin}</td><td style="text-align: center; border-bottom: 1px solid #eee;">${date}</td><td style="border-bottom: 1px solid #eee;">${other}</td><td style="text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(dep)}</td><td style="text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(withAmt)}</td></tr>`;
+                html += `<tr class="risk-detail-row" data-tx-index="${idx}" style="cursor: pointer;"><td style="border-bottom: 1px solid #eee;">${fin}</td><td style="text-align: center; border-bottom: 1px solid #eee;">${date}</td><td style="border-bottom: 1px solid #eee;">${other}</td><td style="text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(dep)}</td><td style="text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(withAmt)}</td></tr>`;
             });
+            if (!html) riskDetailRowsData = [];
             tbody.innerHTML = html || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">해당 분류 거래가 없습니다.</td></tr>';
             document.getElementById('risk-detail-total-deposit').textContent = formatAmount(depSum);
             document.getElementById('risk-detail-total-withdraw').textContent = formatAmount(withSum);
         }
 
-        document.getElementById('risk-classification-table-body').addEventListener('click', function(e) {
+        document.getElementById('risk-classification-table').addEventListener('click', function(e) {
             const row = e.target.closest('.risk-row');
-            if (!row) return;
-            const classification = row.getAttribute('data-classification');
-            const dep = parseInt(row.getAttribute('data-deposit'), 10) || 0;
-            const withAmt = parseInt(row.getAttribute('data-withdraw'), 10) || 0;
-            loadRiskDetail(classification ? classification.replace(/&quot;/g, '"') : '(빈값)');
+            if (row) {
+                const classification = row.getAttribute('data-classification');
+                const dep = parseInt(row.getAttribute('data-deposit'), 10) || 0;
+                const withAmt = parseInt(row.getAttribute('data-withdraw'), 10) || 0;
+                loadRiskDetail(classification ? classification.replace(/&quot;/g, '"') : '(빈값)');
+            }
+        });
+
+        document.getElementById('risk-detail-table').addEventListener('click', function(e) {
+            const row = e.target.closest('.risk-detail-row');
+            if (row && riskDetailRowsData.length > 0) {
+                const idx = parseInt(row.getAttribute('data-tx-index'), 10);
+                if (!isNaN(idx) && riskDetailRowsData[idx]) {
+                    showRowTooltip(riskDetailRowsData[idx], row);
+                }
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (bubble && bubble.style.display === 'block' && !bubble.contains(e.target) &&
+                !e.target.closest('.risk-row') && !e.target.closest('.risk-detail-row')) {
+                hideRowTooltip();
+            }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') hideRowTooltip();
         });
         
         // 페이지 로드 시 데이터 로드

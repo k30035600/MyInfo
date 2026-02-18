@@ -209,6 +209,79 @@
             background-color: #f0f8ff !important;
         }
 
+        /* 행 클릭 시 말풍선(전체 컬럼 표시) */
+        .row-tooltip-bubble {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            max-width: 480px;
+            max-height: 70vh;
+            overflow: auto;
+            background: rgb(255, 204, 128);
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.2;
+            font-family: 'Malgun Gothic', sans-serif;
+            pointer-events: auto;
+        }
+        .row-tooltip-bubble::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 20px;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid #ddd;
+        }
+        .row-tooltip-bubble::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 22px;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid rgb(255, 152, 0);
+        }
+        .row-tooltip-bubble.visible {
+            display: block;
+        }
+        .row-tooltip-bubble .tooltip-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #eee;
+        }
+        .row-tooltip-bubble .tooltip-row {
+            display: flex;
+            gap: 8px;
+            padding: 3px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .row-tooltip-bubble .tooltip-row:last-child {
+            border-bottom: none;
+        }
+        .row-tooltip-bubble .tooltip-key {
+            flex: 0 0 100px;
+            color: #666;
+            opacity: 0.8;
+        }
+        .row-tooltip-bubble .tooltip-val {
+            flex: 1;
+            word-break: break-all;
+            opacity: 1;
+        }
+        .row-tooltip-selected { background-color: #bbb !important; }
+        .transaction-row-clickable {
+            cursor: pointer;
+        }
+        .transaction-row-clickable:hover {
+            background-color: #f0f8ff !important;
+        }
+
         .charts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -430,15 +503,15 @@
 
         /* 컬럼: 은행명, 거래일, 기타거래, 입금액, 출금액 (차액 제거) */
         #transaction-table th:nth-child(1),
-        #transaction-table td:nth-child(1) { width: 12%; }
+        #transaction-table td:nth-child(1) { width: 15%; }
 
         #transaction-table th:nth-child(2),
-        #transaction-table td:nth-child(2) { width: 12%; }
+        #transaction-table td:nth-child(2) { width: 15%; }
 
         /* 기타거래: 자릿수 모자르면 말줄임(...) */
         #transaction-table th:nth-child(3),
         #transaction-table td:nth-child(3) {
-            width: 38%;
+            width: 30%;
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -446,10 +519,10 @@
         }
 
         #transaction-table th:nth-child(4),
-        #transaction-table td:nth-child(4) { width: 19%; }
+        #transaction-table td:nth-child(4) { width: 20%; }
 
         #transaction-table th:nth-child(5),
-        #transaction-table td:nth-child(5) { width: 19%; }
+        #transaction-table td:nth-child(5) { width: 20%; }
 
         /* 카드사별 집계 / 카드별 집계: 헤더/행 25px, 셀 패딩 2px */
         #bank-table,
@@ -843,6 +916,9 @@
         </nav>
     </div>
 
+    <!-- 행 클릭 시 전체 컬럼 표시 말풍선 -->
+    <div id="row-tooltip-bubble" class="row-tooltip-bubble" role="tooltip"></div>
+
     <div class="charts-grid three-columns">
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
             <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">은행거래 입출금내역</h2>
@@ -875,11 +951,11 @@
                 <table id="transaction-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                     <thead>
                         <tr id="transaction-table-header" style="background-color: #f5f5f5; position: sticky; top: 0;">
-                            <th style="width: 12%; text-align: left; border-bottom: 2px solid #ddd;">은행명</th>
-                            <th style="width: 12%; text-align: center; border-bottom: 2px solid #ddd;">거래일</th>
-                            <th style="width: 38%; text-align: left; border-bottom: 2px solid #ddd;">기타거래</th>
-                            <th style="width: 19%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
-                            <th style="width: 19%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
+                            <th style="width: 15%; text-align: left; border-bottom: 2px solid #ddd;">은행명</th>
+                            <th style="width: 15%; text-align: center; border-bottom: 2px solid #ddd;">거래일</th>
+                            <th style="width: 30%; text-align: left; border-bottom: 2px solid #ddd;">기타거래</th>
+                            <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
+                            <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
                         </tr>
                     </thead>
                     <tbody id="transaction-table-body">
@@ -1039,6 +1115,7 @@
         // 차트 변수
         let categoryCombinedChart = null;
         let allCategoryData = []; // 전체 적요 데이터 저장
+        let allTransactionData = []; // 세부내역 행 클릭 시 말풍선용
         let divisionChart = null;
         let bankChart = null;
 
@@ -1526,6 +1603,7 @@
             };
             const titleEl = document.getElementById('transaction-section-title');
             if (!selectedCategory) {
+                allTransactionData = [];
                 tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">카테고리를 선택하세요.</td></tr>';
                 setFooterSums(0, 0);
                 if (titleEl) titleEl.textContent = '은행거래 세부내역';
@@ -1541,13 +1619,16 @@
                 const data = await response.json();
                 let html = '';
                 if (data.data && data.data.length > 0) {
-                    data.data.forEach(row => {
+                    allTransactionData = data.data;
+                    data.data.forEach((row, idx) => {
                         const dep = parseInt(row['입금액']) || 0;
                         const withAmt = parseInt(row['출금액']) || 0;
                         const merch = row['기타거래'] != null && row['기타거래'] !== '' ? String(row['기타거래']) : '';
-                        html += `<tr>
-                            <td style="border-bottom: 1px solid #eee;">${row['카드사'] || row['은행명'] || ''}</td>
-                            <td style="text-align: center; border-bottom: 1px solid #eee;">${formatDate(row['이용일'] || row['거래일'] || '')}</td>
+                        const bankName = row['카드사'] || row['은행명'] || '';
+                        const dateVal = row['이용일'] || row['거래일'] || '';
+                        html += `<tr class="transaction-row-clickable" data-index="${idx}" style="cursor: pointer; border-bottom: 1px solid #eee;">
+                            <td style="border-bottom: 1px solid #eee;">${bankName}</td>
+                            <td style="text-align: center; border-bottom: 1px solid #eee;">${formatDate(dateVal)}</td>
                             <td style="border-bottom: 1px solid #eee;">${merch}</td>
                             <td style="text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(dep)}</td>
                             <td style="text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(withAmt)}</td>
@@ -1559,6 +1640,7 @@
                         ? categoryTotalWithdraw : data.data.reduce((a, r) => a + (parseInt(r['출금액']) || 0), 0);
                     setFooterSums(depSum, withSum);
                 } else {
+                    allTransactionData = [];
                     html = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">거래 내역이 없습니다.</td></tr>';
                     setFooterSums(
                         (categoryTotalDeposit !== undefined ? categoryTotalDeposit : 0),
@@ -1568,6 +1650,7 @@
                 tableBody.innerHTML = html;
             } catch (error) {
                 console.error('Error loading transactions by category:', error);
+                allTransactionData = [];
                 tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #F44336;">거래 내역 로딩 오류가 발생했습니다.</td></tr>';
                 setFooterSums(
                     (categoryTotalDeposit !== undefined ? categoryTotalDeposit : 0),
@@ -1576,7 +1659,47 @@
             }
         }
 
-        // 카테고리별 입출금 내역 - 행 클릭 시 거래내역 로드 및 출력용 선택 카테고리 저장
+        let _tooltipSelectedRow = null;
+        // 말풍선: 행 데이터로 툴팁 표시
+        function showRowTooltip(rowData, title, event, targetRow) {
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (!bubble) return;
+            const row = targetRow || (event && event.target && event.target.closest('.transaction-row-clickable'));
+            if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+            _tooltipSelectedRow = row;
+            if (row) row.classList.add('row-tooltip-selected');
+            let html = '<div class="tooltip-title">' + (title || '행 정보') + '</div>';
+            const keys = Object.keys(rowData || {});
+            keys.forEach(function(k) {
+                let v = rowData[k];
+                if (v === null || v === undefined) v = '';
+                else if (typeof v === 'number' && !Number.isInteger(v)) v = v.toFixed(2);
+                else if (typeof v === 'object') v = JSON.stringify(v);
+                else v = String(v);
+                html += '<div class="tooltip-row"><span class="tooltip-key">' + k + '</span><span class="tooltip-val">' + (v.replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</span></div>';
+            });
+            bubble.innerHTML = html;
+            bubble.classList.add('visible');
+            const rect = (event && event.target) ? event.target.getBoundingClientRect() : { top: 100, left: 50 };
+            bubble.style.top = Math.max(10, rect.top - 10) + 'px';
+            bubble.style.left = Math.max(10, Math.min(rect.left, window.innerWidth - 500)) + 'px';
+        }
+        function hideRowTooltip() {
+            if (_tooltipSelectedRow) {
+                _tooltipSelectedRow.classList.remove('row-tooltip-selected');
+                _tooltipSelectedRow = null;
+            }
+            const bubble = document.getElementById('row-tooltip-bubble');
+            if (bubble) bubble.classList.remove('visible');
+        }
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('#row-tooltip-bubble')) return;
+            if (!e.target.closest('.category-row') && !e.target.closest('.transaction-row-clickable')) {
+                hideRowTooltip();
+            }
+        });
+
+        // 카테고리별 입출금 내역 - 행 클릭 시 거래내역 로드
         document.getElementById('category-table').addEventListener('click', function(e) {
             const row = e.target.closest('.category-row');
             if (row) {
@@ -1586,6 +1709,28 @@
                     const dep = row.getAttribute('data-deposit') || '0';
                     const withAmt = row.getAttribute('data-withdraw') || '0';
                     loadTransactionsByCategory(cat, parseInt(dep, 10) || 0, parseInt(withAmt, 10) || 0);
+                }
+            }
+        });
+
+        // 세부내역 테이블 - 행 클릭 시 말풍선(전체 컬럼)
+        document.getElementById('transaction-table-body').addEventListener('click', function(e) {
+            const row = e.target.closest('.transaction-row-clickable');
+            if (row) {
+                const idx = parseInt(row.getAttribute('data-index'), 10);
+                if (allTransactionData[idx]) {
+                    const r = allTransactionData[idx];
+                    const rowData = {};
+                    Object.keys(r).forEach(function(k) {
+                        let v = r[k];
+                        if (v && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+                            v = formatDate(v);
+                        } else if (typeof v === 'number' && (k === '입금액' || k === '출금액' || k === '잔액')) {
+                            v = formatAmount(v);
+                        }
+                        rowData[k] = v;
+                    });
+                    showRowTooltip(rowData, '은행거래 세부내역', e, row);
                 }
             }
         });

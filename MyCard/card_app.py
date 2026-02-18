@@ -1521,9 +1521,8 @@ def get_analysis_transactions():
         cat_col = '카테고리' if '카테고리' in filtered_df.columns else '적요'
         merch_col = '가맹점명' if '가맹점명' in filtered_df.columns else '거래점'
         if transaction_type == 'detail':
-            # 상세 모드: 카드사, 이용일, 입금액, 출금액, 거래점명 (전체 행 반환)
-            cols = [c for c in [bank_col, date_col, '입금액', '출금액', merch_col] if c in filtered_df.columns]
-            result_df = filtered_df[cols].copy() if cols else filtered_df.copy()
+            # 상세 모드: 전체 컬럼 반환 (행 선택 시 말풍선에서 모두 표시)
+            result_df = filtered_df.copy()
         elif transaction_type == 'deposit':
             filtered_df = filtered_df[filtered_df['입금액'] > 0]
             cols = [c for c in [cat_col, date_col, bank_col, '입금액'] if c in filtered_df.columns]
