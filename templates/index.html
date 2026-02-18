@@ -9,9 +9,14 @@
         html, body { height: 100%; margin: 0; padding: 0; }
         body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
         .container { max-width: 1920px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 40px; text-align: center; }
-        .header { margin-bottom: 6px; }
+        .header { margin-bottom: 6px; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+        .header-left { flex: 1; min-width: 0; }
         .header h1 { font-size: 2.5em; color: #333; margin-bottom: 4px; font-weight: bold; }
         .header p { font-size: 1.2em; color: #666; margin-top: 4px; }
+        .header-cache { flex: 0 0 auto; text-align: right; font-size: 0.85em; color: #555; background: #f5f5f5; padding: 10px 14px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .header-cache .cache-title { font-weight: bold; margin-bottom: 6px; color: #333; }
+        .header-cache .cache-app { margin-bottom: 4px; }
+        .header-cache .cache-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd; font-weight: bold; }
         .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
         .service-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; padding: 40px; text-decoration: none; color: white; transition: transform 0.3s ease, box-shadow 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
         .service-card:hover { transform: translateY(-10px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
@@ -38,9 +43,16 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💰 금융거래 통합정보</h1>
-            <p>MyInfo - Financial Information System Ver. {{ version }}{% if server_start_time %} (기동 {{ server_start_time }}){% endif %}</p>
-            <p style="font-size: 0.9em; color: #999; margin-top: 5px;">은행/신용카드 거래 통합관리 및 종합분석</p>
+            <div class="header-left">
+                <h1>💰 금융거래 통합정보</h1>
+                <p>MyInfo - Financial Information System Ver. {{ version }}{% if server_start_time %} (기동 {{ server_start_time }}){% endif %}</p>
+                <p style="font-size: 0.9em; color: #999; margin-top: 5px;">은행/신용카드 거래 통합관리 및 종합분석</p>
+            </div>
+            <div id="header-cache" class="header-cache" aria-label="캐시 메모리">
+                <div class="cache-title">캐시 메모리</div>
+                <div id="cache-info-content">로딩 중...</div>
+                <div id="cache-info-total" class="cache-total"></div>
+            </div>
         </div>
         <div class="services">
             <a href="/bank/" class="service-card bank"><div class="icon">🏦</div><h2>은행거래 통합정보</h2><p>MyBank</p><p style="margin-top: 15px; font-size: 0.95em;">은행 거래 내역을 전처리, 카테고리 분류,<br>기본 분석, 도움말을 통해 관리합니다.</p></a>
@@ -68,6 +80,63 @@
                 el.addEventListener('click', doShutdown);
                 el.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doShutdown(); } });
             }
+        })();
+        (function() {
+            var contentEl = document.getElementById('cache-info-content');
+            var totalEl = document.getElementById('cache-info-total');
+            if (!contentEl) return;
+            var urls = [
+                { url: '/bank/api/cache-info', app: 'MyBank' },
+                { url: '/card/api/cache-info', app: 'MyCard' },
+                { url: '/cash/api/cache-info', app: 'MyCash' }
+            ];
+            var results = [];
+            var totalBytes = 0;
+            function human(b) {
+                if (b < 1024) return b + ' B';
+                if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+                return (b / (1024 * 1024)).toFixed(2) + ' MB';
+            }
+            function render() {
+                if (results.length === 0) {
+                    contentEl.textContent = '캐시 없음';
+                    if (totalEl) totalEl.textContent = '';
+                    return;
+                }
+                var html = '';
+                results.forEach(function(r) {
+                    if (r.error) {
+                        html += '<div class="cache-app">' + r.app + ': 오류</div>';
+                        return;
+                    }
+                    html += '<div class="cache-app"><strong>' + r.app + '</strong>';
+                    if (r.caches && r.caches.length) {
+                        r.caches.forEach(function(c) {
+                            html += ' · ' + c.name + ' ' + c.size_human;
+                        });
+                    } else {
+                        html += ' (비어 있음)';
+                    }
+                    html += '</div>';
+                });
+                contentEl.innerHTML = html;
+                if (totalEl && totalBytes >= 0) {
+                    totalEl.textContent = '총 메모리: ' + human(totalBytes);
+                }
+            }
+            var pending = urls.length;
+            urls.forEach(function(item) {
+                fetch(item.url).then(function(res) { return res.json(); }).then(function(data) {
+                    results.push(data);
+                    if (data.total_bytes) totalBytes += data.total_bytes;
+                    pending--;
+                    if (pending === 0) render();
+                }).catch(function() {
+                    results.push({ app: item.app, error: true });
+                    pending--;
+                    if (pending === 0) render();
+                });
+            });
         })();
     </script>
     </div>

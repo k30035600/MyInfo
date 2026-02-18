@@ -182,8 +182,37 @@ def _card_deposit_withdraw_from_이용금액(df):
     df.loc[출금, '출금액'] = amt[출금].abs()
 
 
+def _json_safe_val(v):
+    """단일 값만 JSON 가능 타입으로 변환 (재귀 없음)."""
+    if hasattr(v, 'item'):
+        return v.item()
+    if hasattr(v, 'isoformat'):
+        try:
+            return v.isoformat()
+        except Exception:
+            return str(v)
+    if isinstance(v, (np.integer, np.int64, np.int32)):
+        return int(v)
+    if isinstance(v, (np.floating, np.float64, np.float32)):
+        return None if pd.isna(v) else float(v)
+    if isinstance(v, float) and pd.isna(v):
+        return None
+    if pd.isna(v):
+        return None
+    return v
+
+
+def _json_safe_records(data):
+    """list of dict 한 번 순회로 치환 (대용량 응답 시 CPU 절감)."""
+    if not data or not isinstance(data, list):
+        return data
+    return [{k: _json_safe_val(v) for k, v in row.items()} for row in data]
+
+
 def _json_safe(obj):
     """JSON 직렬화: NaN/NaT, numpy, datetime → Python 타입"""
+    if isinstance(obj, list) and obj and isinstance(obj[0], dict):
+        return _json_safe_records(obj)
     if isinstance(obj, dict):
         return {k: _json_safe(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -258,14 +287,14 @@ def _normalize_구분_column(df):
     )
 
 
-# card_before / card_after 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+# card_before / card_after 대용량 JSON 캐시 (재생성 버튼 시에만 무효화, 서버 종료까지 재사용)
 _card_before_cache = None
 _card_before_cache_mtime = None
 _card_after_cache = None
 _card_after_cache_mtime = None
 
 def load_card_before_file():
-    """전처리전 카드 통합 파일 card_before.json 로드. 대용량 시 캐시 사용."""
+    """전처리전 카드 통합 파일 card_before.json 로드. 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
     global _card_before_cache, _card_before_cache_mtime
     try:
         path = Path(CARD_BEFORE_PATH)
@@ -273,12 +302,12 @@ def load_card_before_file():
             _card_before_cache = None
             _card_before_cache_mtime = None
             return pd.DataFrame()
+        if _card_before_cache is not None:
+            return _card_before_cache.copy()
         try:
             mtime = path.stat().st_mtime
         except OSError:
             mtime = None
-        if _card_before_cache is not None and mtime is not None and _card_before_cache_mtime == mtime:
-            return _card_before_cache.copy()
         if safe_read_data_json and CARD_BEFORE_PATH.endswith('.json'):
             df = safe_read_data_json(CARD_BEFORE_PATH, default_empty=True)
         else:
@@ -298,19 +327,19 @@ def load_card_before_file():
         return pd.DataFrame()
 
 def _load_card_after_cached():
-    """card_after.json 로드 (캐시 사용). 컬럼 정규화·구분만 적용, 입금/출금 변환은 호출부에서."""
+    """card_after.json 로드. 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
     global _card_after_cache, _card_after_cache_mtime
     path = Path(CARD_AFTER_PATH)
     if not path.exists():
         _card_after_cache = None
         _card_after_cache_mtime = None
         return pd.DataFrame()
+    if _card_after_cache is not None:
+        return _card_after_cache.copy()
     try:
         mtime = path.stat().st_mtime
     except OSError:
         mtime = None
-    if _card_after_cache is not None and mtime is not None and _card_after_cache_mtime == mtime:
-        return _card_after_cache.copy()
     try:
         if safe_read_data_json and CARD_AFTER_PATH.endswith('.json'):
             df = safe_read_data_json(CARD_AFTER_PATH, default_empty=True)
@@ -349,6 +378,46 @@ def index():
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
+
+def _df_memory_bytes(df):
+    """DataFrame 메모리 바이트 수 (deep=True)."""
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return 0
+    try:
+        return int(df.memory_usage(deep=True).sum())
+    except Exception:
+        return 0
+
+@app.route('/api/cache-info')
+def get_cache_info():
+    """캐시 이름·크기·총메모리 (금융거래 통합정보 헤더 표시용)."""
+    try:
+        caches = []
+        total = 0
+        if _card_before_cache is not None:
+            b = _df_memory_bytes(_card_before_cache)
+            total += b
+            caches.append({'name': 'card_before', 'size_bytes': b})
+        if _card_after_cache is not None:
+            b = _df_memory_bytes(_card_after_cache)
+            total += b
+            caches.append({'name': 'card_after', 'size_bytes': b})
+        def _human(b):
+            if b < 1024:
+                return f'{b} B'
+            if b < 1024 * 1024:
+                return f'{b / 1024:.1f} KB'
+            return f'{b / (1024 * 1024):.2f} MB'
+        for c in caches:
+            c['size_human'] = _human(c['size_bytes'])
+        return jsonify({
+            'app': 'MyCard',
+            'caches': caches,
+            'total_bytes': total,
+            'total_human': _human(total),
+        })
+    except Exception as e:
+        return jsonify({'app': 'MyCard', 'caches': [], 'total_bytes': 0, 'total_human': '0 B', 'error': str(e)})
 
 @app.route('/api/source-files')
 @ensure_working_directory
@@ -584,9 +653,14 @@ def get_processed_data():
                 return '00:00:00' if not s else s
             df['이용시간'] = df['이용시간'].apply(_fill_time)
         
-        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
         total = len(df)
-        data = df.to_dict('records')
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int) or 0
+        if limit and limit > 0:
+            df_slice = df.iloc[offset:offset + limit]
+        else:
+            df_slice = df.iloc[offset:]
+        data = df_slice.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
             'total': total,
@@ -708,9 +782,15 @@ def get_category_applied_data():
         if sort_cols:
             # 이용일은 문자열이어도 YYYY-MM-DD/YY/MM/DD 형식이면 문자열 정렬로 순서 유지
             df = df.sort_values(by=sort_cols, ascending=True, na_position='last').reset_index(drop=True)
-        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
         total = len(df)
-        data = df.to_dict('records')
+        # 페이지네이션: limit/offset (limit 생략 또는 0이면 전체 반환)
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int) or 0
+        if limit and limit > 0:
+            df_slice = df.iloc[offset:offset + limit]
+        else:
+            df_slice = df.iloc[offset:]
+        data = df_slice.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
             'total': total,

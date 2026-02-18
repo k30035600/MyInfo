@@ -1150,10 +1150,11 @@
             const clearSafety = () => { if (safetyTimeoutId) clearTimeout(safetyTimeoutId); safetyTimeoutId = 0; };
             
             const btn = document.getElementById('generate-category-btn');
+            const CATEGORY_APPLIED_PAGE_SIZE = 1000;
             try {
                 const ctrl = new AbortController();
                 const timeoutId = setTimeout(() => ctrl.abort(), 60000);
-                const response = await fetch(`${API_BASE}/api/category-applied-data`, { signal: ctrl.signal });
+                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=${CATEGORY_APPLIED_PAGE_SIZE}&offset=0`, { signal: ctrl.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) {
                     const errText = await response.text();
@@ -1163,7 +1164,16 @@
                 
                 if (data.data && data.data.length > 0) {
                     clearSafety();
-                    const sortedForIndex = sortCategoryAppliedByRiskAndDate(data.data);
+                    let merged = data.data;
+                    const total = data.total || 0;
+                    if (total > CATEGORY_APPLIED_PAGE_SIZE) {
+                        try {
+                            const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=${CATEGORY_APPLIED_PAGE_SIZE}`);
+                            const restData = await restRes.json();
+                            if (restData.data && restData.data.length > 0) merged = merged.concat(restData.data);
+                        } catch (e) { console.warn('나머지 데이터 로드 건너뜀:', e); }
+                    }
+                    const sortedForIndex = sortCategoryAppliedByRiskAndDate(merged);
                     categoryAppliedDataOriginalForIndex = sortedForIndex;
                     syncCategoryBankFilterFromData(data.data);
                     renderCategoryAppliedTableForIndex(sortedForIndex);
@@ -1856,7 +1866,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             try {
                 const ctrl = new AbortController();
                 const timeoutId = setTimeout(() => ctrl.abort(), 60000);
-                const response = await fetch(`${API_BASE}/api/category-applied-data`, { signal: ctrl.signal });
+                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=1000&offset=0`, { signal: ctrl.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -1870,9 +1880,18 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 
                 if (data.data && data.data.length > 0) {
                     clearSafety();
-                    const sortedApplied = sortCategoryAppliedByRiskAndDate(data.data);
+                    let merged = data.data;
+                    const total = data.total || 0;
+                    if (total > 1000) {
+                        try {
+                            const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=1000`);
+                            const restData = await restRes.json();
+                            if (restData.data && restData.data.length > 0) merged = merged.concat(restData.data);
+                        } catch (e) { console.warn('나머지 데이터 로드 건너뜀:', e); }
+                    }
+                    const sortedApplied = sortCategoryAppliedByRiskAndDate(merged);
                     categoryAppliedDataOriginal = sortedApplied;
-                    syncCategoryBankFilterFromData(data.data);
+                    syncCategoryBankFilterFromData(merged);
                     const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
                     renderCategoryAppliedTable(sortedApplied, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });

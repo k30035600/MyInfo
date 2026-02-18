@@ -302,6 +302,9 @@
             opacity: 1;
         }
         .row-tooltip-selected { background-color: #bbb !important; }
+        /* 금융거래위험도내역 행 클릭 시 세부내역 조회 중 선택 행 회색 표시, 끝나면 원위치 */
+        #risk-detail-table tbody tr.row-tooltip-selected,
+        #risk-detail-table tbody tr.row-tooltip-selected td { background-color: #bbb !important; }
         .risk-table-container,
         .risk-detail-table-container {
             flex: 1;
@@ -993,16 +996,16 @@
         }
 
         let _tooltipSelectedRow = null;
-        // 행 선택 시 말풍선 툴팁 표시 (모든 컬럼 표시)
-        function showRowTooltip(obj, targetEl) {
+        // 행 선택 시 말풍선 툴팁 표시 (모든 컬럼 표시). columnOrder 있으면 해당 JSON 컬럼순서로 출력.
+        function showRowTooltip(obj, targetEl, columnOrder) {
             if (!obj || typeof obj !== 'object') return;
             const bubble = document.getElementById('row-tooltip-bubble');
             if (!bubble) return;
             if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
             _tooltipSelectedRow = targetEl;
             if (targetEl) targetEl.classList.add('row-tooltip-selected');
+            const keys = (columnOrder && columnOrder.length) ? [...columnOrder.filter(k => Object.prototype.hasOwnProperty.call(obj, k)), ...Object.keys(obj).filter(k => !columnOrder.includes(k))] : Object.keys(obj);
             let html = '<div class="tooltip-title">행 상세</div>';
-            const keys = Object.keys(obj);
             keys.forEach(k => {
                 let v = obj[k];
                 if (v === null || v === undefined) v = '';
@@ -1149,7 +1152,8 @@
             if (row && riskDetailRowsData.length > 0) {
                 const idx = parseInt(row.getAttribute('data-tx-index'), 10);
                 if (!isNaN(idx) && riskDetailRowsData[idx]) {
-                    showRowTooltip(riskDetailRowsData[idx], row);
+                    const columnOrder = riskDetailRowsData.length ? Object.keys(riskDetailRowsData[0]) : null;
+                    showRowTooltip(riskDetailRowsData[idx], row, columnOrder);
                 }
             }
         });

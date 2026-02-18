@@ -275,6 +275,9 @@
             opacity: 1;
         }
         .row-tooltip-selected { background-color: #bbb !important; }
+        /* 입출금내역 행 클릭 시 세부내역 조회 중 선택 행 회색 표시, 끝나면 원위치 */
+        #transaction-table tbody tr.row-tooltip-selected,
+        #transaction-table tbody tr.row-tooltip-selected td { background-color: #bbb !important; }
         .transaction-row-clickable {
             cursor: pointer;
         }
@@ -1660,18 +1663,19 @@
         }
 
         let _tooltipSelectedRow = null;
-        // 말풍선: 행 데이터로 툴팁 표시
-        function showRowTooltip(rowData, title, event, targetRow) {
+        // 말풍선: 행 데이터로 툴팁 표시. columnOrder 있으면 해당 JSON 컬럼순서로 출력.
+        function showRowTooltip(rowData, title, event, targetRow, columnOrder) {
             const bubble = document.getElementById('row-tooltip-bubble');
             if (!bubble) return;
             const row = targetRow || (event && event.target && event.target.closest('.transaction-row-clickable'));
             if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
             _tooltipSelectedRow = row;
             if (row) row.classList.add('row-tooltip-selected');
+            const data = rowData || {};
+            const keys = (columnOrder && columnOrder.length) ? [...columnOrder.filter(k => Object.prototype.hasOwnProperty.call(data, k)), ...Object.keys(data).filter(k => !columnOrder.includes(k))] : Object.keys(data);
             let html = '<div class="tooltip-title">' + (title || '행 정보') + '</div>';
-            const keys = Object.keys(rowData || {});
             keys.forEach(function(k) {
-                let v = rowData[k];
+                let v = data[k];
                 if (v === null || v === undefined) v = '';
                 else if (typeof v === 'number' && !Number.isInteger(v)) v = v.toFixed(2);
                 else if (typeof v === 'object') v = JSON.stringify(v);
@@ -1694,9 +1698,11 @@
         }
         document.addEventListener('click', function(e) {
             if (e.target.closest('#row-tooltip-bubble')) return;
-            if (!e.target.closest('.category-row') && !e.target.closest('.transaction-row-clickable')) {
-                hideRowTooltip();
-            }
+            if (e.target.closest('.transaction-row-clickable')) return;
+            hideRowTooltip();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') hideRowTooltip();
         });
 
         // 카테고리별 입출금 내역 - 행 클릭 시 거래내역 로드
@@ -1730,7 +1736,8 @@
                         }
                         rowData[k] = v;
                     });
-                    showRowTooltip(rowData, '은행거래 세부내역', e, row);
+                    const columnOrder = allTransactionData.length ? Object.keys(allTransactionData[0]) : null;
+                    showRowTooltip(rowData, '은행거래 세부내역', e, row, columnOrder);
                 }
             }
         });

@@ -1850,13 +1850,13 @@
             html += '</tr>';
             return html;
         }
-        // 카테고리 적용 테이블 로드 (card_after 파일 읽어서 출력)
+        const CATEGORY_APPLIED_PAGE_SIZE = 1000;
+        // 카테고리 적용 테이블 로드 (card_after 파일 읽어서 출력, 첫 1000건 빠른 표시 후 나머지 백그라운드 로드)
         async function loadCategoryAppliedTable() {
             try {
-                const response = await fetch(`${API_BASE}/api/category-applied-data`);
+                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=${CATEGORY_APPLIED_PAGE_SIZE}&offset=0`);
                 const data = await response.json();
                 
-                // 응답 상태 확인 (서버 오류 시 data.error에 상세 메시지 있음)
                 if (!response.ok) {
                     const errMsg = (data && data.error) ? data.error : `서버 오류: ${response.status}`;
                     console.error('Server error:', response.status, errMsg);
@@ -1866,7 +1866,6 @@
                     throw new Error(data.error);
                 }
                 
-                // 파일 존재 여부 확인 (file_exists 속성 사용)
                 const fileExists = data.file_exists === true;
                 
                 if (data.data && data.data.length > 0) {
@@ -1875,6 +1874,16 @@
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
                     renderCategoryAppliedTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     loadMonthlyTrend();
+                    const total = data.total || 0;
+                    if (total > CATEGORY_APPLIED_PAGE_SIZE) {
+                        const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=${CATEGORY_APPLIED_PAGE_SIZE}`);
+                        const restData = await restRes.json();
+                        if (restData.data && restData.data.length > 0) {
+                            categoryAppliedDataOriginal = categoryAppliedDataOriginal.concat(restData.data);
+                            renderCategoryAppliedTable(categoryAppliedDataOriginal, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
+                            loadMonthlyTrend();
+                        }
+                    }
                 } else {
                     const noFileMsg = !fileExists
                         ? 'card_after가 없습니다.'

@@ -10,3 +10,4 @@ requests>=2.25.0
 waitress>=2.1.0
 gunicorn>=23.0.0
 pywin32>=300; sys_platform == "win32"
+orjson>=3.9.0

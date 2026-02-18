@@ -1166,6 +1166,8 @@
 
         // 카테고리 적용후 원본 데이터 저장 (전처리 페이지에서 이동)
         let categoryAppliedDataOriginalForIndex = [];
+        /** 행 순서별 누적 잔액 (전잔액+입금액-출금액). renderCategoryAppliedTableForIndex에서 설정 */
+        let categoryAppliedCumulativeBalanceForIndex = [];
         
         // 카테고리 적용후 테이블 한 행 HTML (백그라운드 추가 로드용)
         function buildCategoryAppliedRowBankCategory(row, availableColumns, rowIndex) {
@@ -1194,14 +1196,15 @@
         }
         // 카테고리 적용후: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시)
         // 카테고리 적용후 데이터 로드 (전처리 페이지에서 이동)
+        const CATEGORY_APPLIED_PAGE_SIZE = 1000; // 첫 요청 건수 (로딩 속도 단축)
         async function loadCategoryAppliedDataForIndex() {
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
-            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...<br><small>데이터가 많으면 첫 로딩에 30초~1분 걸릴 수 있습니다.</small></div>';
+            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...<br><small>첫 화면을 먼저 불러옵니다.</small></div>';
             
             try {
-                const response = await fetch(`${API_BASE}/api/category-applied-data`);
+                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=${CATEGORY_APPLIED_PAGE_SIZE}&offset=0`);
                 const data = await response.json();
                 try {
                     const simyaRes = await fetch(`${API_BASE}/api/simya-ranges`);
@@ -1219,6 +1222,20 @@
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
                     renderCategoryAppliedTableForIndex(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
                     loadMonthlyTrend();
+                    const total = data.total || 0;
+                    if (total > CATEGORY_APPLIED_PAGE_SIZE) {
+                        const sumRow = contentDiv.querySelector('#category-applied-tbody-index tr.sum-row');
+                        if (sumRow) sumRow.insertAdjacentHTML('beforebegin',
+                            '<tr id="category-applied-load-more-row"><td colspan="20" style="text-align:center;padding:8px;background:#f0f0f0;">나머지 ' + (total - CATEGORY_APPLIED_PAGE_SIZE) + '건 로딩 중...</td></tr>');
+                        const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=${CATEGORY_APPLIED_PAGE_SIZE}`);
+                        const restData = await restRes.json();
+                        document.getElementById('category-applied-load-more-row')?.remove();
+                        if (restData.data && restData.data.length > 0) {
+                            categoryAppliedDataOriginalForIndex = categoryAppliedDataOriginalForIndex.concat(restData.data);
+                            renderCategoryAppliedTableForIndex(categoryAppliedDataOriginalForIndex, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
+                            loadMonthlyTrend();
+                        }
+                    }
                 } else {
                     contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다. 은행 전처리 후 카테고리 생성을 실행하면 여기에 표시됩니다.</div>';
                 }
@@ -1259,12 +1276,25 @@
             // 키워드/카테고리/기타거래 항상 표시 (데이터에 없으면 빈칸)
             const availableColumns = columns;
             
+            // 누적 잔액 계산 (전잔액 + 입금액 - 출금액)
+            categoryAppliedCumulativeBalanceForIndex = [];
+            let runningBalance = 0;
+            data.forEach(row => {
+                runningBalance += (parseFloat(row['입금액']) || 0) - (parseFloat(row['출금액']) || 0);
+                categoryAppliedCumulativeBalanceForIndex.push(runningBalance);
+            });
+            
             // 필터용 고유값 추출
             const uniqueValues = {};
             availableColumns.forEach(col => {
-                let uniqueValuesList = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined && v !== ''))];
+                let uniqueValuesList;
+                if (col === '잔액') {
+                    uniqueValuesList = [...new Set(categoryAppliedCumulativeBalanceForIndex)].filter(v => v !== null && v !== undefined).sort((a, b) => Number(a) - Number(b));
+                } else {
+                    uniqueValuesList = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined && v !== ''))];
+                }
                 
-                if (col === '입금액' || col === '출금액' || col === '잔액') {
+                if (col === '입금액' || col === '출금액') {
                     uniqueValuesList = uniqueValuesList.sort((a, b) => {
                         const numA = parseFloat(a);
                         const numB = parseFloat(b);
@@ -1365,12 +1395,15 @@
                 availableColumns.forEach(col => {
                     let value = row[col];
                     let displayValue = (value !== null && value !== undefined && value !== '') ? String(value) : '';
-                    
-                    if (col === '거래일') {
+                    // 잔액: 전잔액 + 입금액 - 출금액 (누적 잔액)
+                    if (col === '잔액') {
+                        const cumul = categoryAppliedCumulativeBalanceForIndex[rowIndex];
+                        displayValue = formatNumber(cumul != null ? cumul : 0);
+                    } else if (col === '거래일') {
                         displayValue = formatDate(displayValue, true);
                     } else if (col === '거래시간') {
                         displayValue = formatTime(displayValue);
-                    } else if (col === '입금액' || col === '출금액' || col === '잔액') {
+                    } else if (col === '입금액' || col === '출금액') {
                         if (displayValue) {
                             const numValue = parseFloat(displayValue) || 0;
                             displayValue = formatNumber(numValue);
@@ -1417,6 +1450,9 @@
                 } else if (col === '출금액') {
                     cellStyle = ' style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #FF0000; font-size: 11px;"';
                     displayValue = formatNumber(totalWithdraw);
+                } else if (col === '잔액') {
+                    cellStyle = ' style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #000000; font-size: 11px;"';
+                    displayValue = formatNumber(totalDeposit - totalWithdraw);
                 } else if (col === '거래일' || col === '거래시간') {
                     cellStyle = ' style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;"';
                     displayValue = '합계';
@@ -1493,10 +1529,16 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         const filterValue = filterSelect.value;
                         const cellValue = rowData[col];
                         
-                        if (col === '입금액' || col === '출금액' || col === '잔액') {
+                        if (col === '입금액' || col === '출금액') {
                             const filterNum = parseFloat(filterValue);
                             const cellNum = parseFloat(cellValue);
                             if (isNaN(filterNum) || isNaN(cellNum) || filterNum !== cellNum) {
+                                shouldShow = false;
+                            }
+                        } else if (col === '잔액') {
+                            const filterNum = parseFloat(filterValue);
+                            const cellNum = categoryAppliedCumulativeBalanceForIndex[rowIndex];
+                            if (isNaN(filterNum) || cellNum === undefined || filterNum !== cellNum) {
                                 shouldShow = false;
                             }
                         } else if (col === '키워드' && filterValue === '__미분류__') {
@@ -1547,6 +1589,9 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         } else if (col === '출금액') {
                             cell.textContent = formatNumber(totalWithdraw);
                             cell.setAttribute('data-sum-col', '출금액');
+                        } else if (col === '잔액') {
+                            cell.textContent = formatNumber(totalDeposit - totalWithdraw);
+                            cell.setAttribute('data-sum-col', '잔액');
                         } else if (col === '거래일' || col === '거래시간') {
                             cell.textContent = '합계';
                             cell.setAttribute('data-sum-col', col);
@@ -1576,6 +1621,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                                 return `<td style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;" data-sum-col="입금액">${formatNumber(totalDeposit)}</td>`;
                             } else if (col === '출금액') {
                                 return `<td style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #FF0000; font-size: 11px;" data-sum-col="출금액">${formatNumber(totalWithdraw)}</td>`;
+                            } else if (col === '잔액') {
+                                return `<td style="white-space: nowrap; text-align: right; padding: 2px; border: 1px solid #ddd; color: #000000; font-size: 11px;" data-sum-col="잔액">${formatNumber(totalDeposit - totalWithdraw)}</td>`;
                             } else if (col === '거래일' || col === '거래시간') {
                                 return `<td style="white-space: nowrap; text-align: center; padding: 2px; border: 1px solid #ddd;" data-sum-col="${col}">합계</td>`;
                             } else {
@@ -1812,7 +1859,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             });
             if (!anyFilter) return data;
             const filtered = [];
-            data.forEach((rowData) => {
+            data.forEach((rowData, idx) => {
                 let showRow = true;
                 columns.forEach(col => {
                     const filterSelect = document.getElementById(filterPrefix + col);
@@ -1823,6 +1870,10 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         const filterNum = parseFloat(String(filterValue).replace(/,/g, ''));
                         const cellNum = parseFloat(String(cellValue || '').replace(/,/g, ''));
                         if (isNaN(filterNum) || isNaN(cellNum) || filterNum !== cellNum) showRow = false;
+                    } else if (col === '잔액') {
+                        const filterNum = parseFloat(String(filterValue).replace(/,/g, ''));
+                        const balanceVal = categoryAppliedCumulativeBalanceForIndex[idx];
+                        if (isNaN(filterNum) || balanceVal === undefined || filterNum !== balanceVal) showRow = false;
                     } else {
                         if (String(cellValue || '') !== String(filterValue)) showRow = false;
                     }
@@ -1852,7 +1903,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const totalRatio = availableColumns.reduce((s, c) => s + (exportColWidths[c] != null ? exportColWidths[c] : 1), 0);
             const getAlign = (col) => {
                 if (col === '거래일' || col === '구분' || col === '은행명') return 'center';
-                if (col === '입금액' || col === '출금액') return 'right';
+                if (col === '입금액' || col === '출금액' || col === '잔액') return 'right';
                 return 'left';
             };
             // 너비 부족 시 말줄임(...) 처리할 컬럼 (문자열 긴 컬럼)
@@ -1863,9 +1914,13 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 return '<th style="border:1px solid #333;padding:4px;background:#f5f5f5;text-align:center;width:' + w + '%;"' + cls + '>' + (col.replace(/</g,'&lt;').replace(/>/g,'&gt;')) + '</th>';
             }).join('');
             let sum입금액 = 0, sum출금액 = 0;
+            const exportCumulativeBalance = [];
+            let runBal = 0;
             data.forEach(row => {
                 const d = row['입금액']; if (d != null && !isNaN(Number(d))) sum입금액 += Number(d);
                 const w = row['출금액']; if (w != null && !isNaN(Number(w))) sum출금액 += Number(w);
+                runBal += (parseFloat(row['입금액']) || 0) - (parseFloat(row['출금액']) || 0);
+                exportCumulativeBalance.push(runBal);
             });
             const formatNum = (n) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             const sumRowCells = availableColumns.map((col, i) => {
@@ -1873,6 +1928,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 if (i === 0) val = '합계';
                 else if (col === '입금액') val = formatNum(sum입금액);
                 else if (col === '출금액') val = formatNum(sum출금액);
+                else if (col === '잔액') val = formatNum(sum입금액 - sum출금액);
                 const align = getAlign(col);
                 const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';
                 return '<td style="border:1px solid #333;padding:4px;text-align:' + align + ';font-weight:bold;background:#f0f0f0;"' + cls + '>' + (val.replace(/</g,'&lt;').replace(/>/g,'&gt;')) + '</td>';
@@ -1881,11 +1937,12 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const ROWS_PER_PAGE = 30;
             const totalPages = Math.max(1, Math.ceil(data.length / ROWS_PER_PAGE));
             const printDate = new Date().toLocaleString('ko-KR');
-            const rowToTr = (row) => '<tr>' + availableColumns.map(col => {
+            const rowToTr = (row, rowIdx) => '<tr>' + availableColumns.map(col => {
                 let val = row[col];
+                if (col === '잔액') val = exportCumulativeBalance[rowIdx] != null ? exportCumulativeBalance[rowIdx] : ((parseFloat(row['입금액']) || 0) - (parseFloat(row['출금액']) || 0));
                 if (val === null || val === undefined) val = '';
                 if (col === '거래일' && val) val = formatDate(val, false);
-                if (typeof val === 'number' && (col === '입금액' || col === '출금액')) val = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                if (typeof val === 'number' && (col === '입금액' || col === '출금액' || col === '잔액')) val = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
                 const align = getAlign(col);
                 const cls = ellipsisCols.indexOf(col) >= 0 ? ' class="col-ellipsis"' : '';
                 return '<td style="border:1px solid #333;padding:4px;text-align:' + align + ';"' + cls + '>' + String(val).replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</td>';
@@ -1895,7 +1952,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 const start = p * ROWS_PER_PAGE;
                 const end = Math.min(start + ROWS_PER_PAGE, data.length);
                 const pageData = data.slice(start, end);
-                const pageRows = pageData.map(rowToTr).join('');
+                const pageRows = pageData.map((row, i) => rowToTr(row, start + i)).join('');
                 const isLastPage = (p === totalPages - 1);
                 const tbodyContent = pageRows + (isLastPage ? sumRow : '');
                 const pageHeader = '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건 &nbsp; &nbsp; ' + (p + 1) + ' / ' + totalPages + ' 페이지</div>';

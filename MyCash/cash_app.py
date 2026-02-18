@@ -10,6 +10,7 @@ import os
 import shutil
 from functools import wraps
 from datetime import datetime
+import json
 
 # UTF-8 인코딩 설정 (Windows 콘솔용)
 if sys.platform == 'win32':
@@ -90,8 +91,37 @@ def ensure_working_directory(func):
             os.chdir(original_cwd)
     return wrapper
 
+def _json_safe_val(v):
+    """단일 값만 JSON 가능 타입으로 변환 (재귀 없음)."""
+    if hasattr(v, 'item'):
+        return v.item()
+    if hasattr(v, 'isoformat'):
+        try:
+            return v.isoformat()
+        except Exception:
+            return str(v)
+    if isinstance(v, (np.integer, np.int64, np.int32)):
+        return int(v)
+    if isinstance(v, (np.floating, np.float64, np.float32)):
+        return None if pd.isna(v) else float(v)
+    if isinstance(v, float) and pd.isna(v):
+        return None
+    if pd.isna(v):
+        return None
+    return v
+
+
+def _json_safe_records(data):
+    """list of dict 한 번 순회로 치환 (대용량 응답 시 CPU 절감)."""
+    if not data or not isinstance(data, list):
+        return data
+    return [{k: _json_safe_val(v) for k, v in row.items()} for row in data]
+
+
 def _json_safe(obj):
     """JSON 직렬화: NaN/NaT, numpy, datetime → Python 타입"""
+    if isinstance(obj, list) and obj and isinstance(obj[0], dict):
+        return _json_safe_records(obj)
     if isinstance(obj, dict):
         return {k: _json_safe(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -149,12 +179,12 @@ def load_processed_file():
     """금융정보는 cash_after만 사용. cash_before 미사용으로 항상 빈 DataFrame 반환."""
     return pd.DataFrame()
 
-# cash_after 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+# cash_after 대용량 JSON 캐시 (재생성 버튼 시에만 무효화, 서버 종료까지 재사용)
 _cash_after_cache = None
 _cash_after_cache_mtime = None
 
 def load_category_file():
-    """카테고리 적용 파일 로드 (MyCash/cash_after.json). 대용량 시 캐시 사용."""
+    """카테고리 적용 파일 로드 (MyCash/cash_after.json). 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
     global _cash_after_cache, _cash_after_cache_mtime
     try:
         category_file = Path(CASH_AFTER_PATH)
@@ -162,15 +192,15 @@ def load_category_file():
             _cash_after_cache = None
             _cash_after_cache_mtime = None
             return pd.DataFrame()
-        try:
-            mtime = category_file.stat().st_mtime
-        except OSError:
-            mtime = None
-        if _cash_after_cache is not None and mtime is not None and _cash_after_cache_mtime == mtime:
+        if _cash_after_cache is not None:
             df = _cash_after_cache.copy()
             if not df.empty and '은행명' not in df.columns and '금융사' in df.columns:
                 df['은행명'] = df['금융사'].fillna('').astype(str).str.strip()
             return df
+        try:
+            mtime = category_file.stat().st_mtime
+        except OSError:
+            mtime = None
         try:
             if safe_read_data_json and CASH_AFTER_PATH.endswith('.json'):
                 df = safe_read_data_json(CASH_AFTER_PATH, default_empty=True)
@@ -489,8 +519,10 @@ def _load_bank_after_for_merge():
 def merge_bank_card_to_cash_after():
     """bank_after + card_after를 병합하여 cash_after.json 생성.
     금융정보(MyCash)에는 전처리·계정과목분류·후처리 없음. 은행/카드 after의 키워드·카테고리를 그대로 사용하고,
-    업종분류(linkage_table)·위험도만 추가 적용. .bak 생성하지 않음. 성공 시 True."""
+    업종분류(linkage_table)·위험도만 추가 적용. .bak 생성하지 않음. 성공 시 True.
+    재생성 시에만 기존 cash_after.json 삭제 후 새로 씀."""
     try:
+        _delete_cash_after_on_enter()  # 재생성 시에만 삭제: 기존 파일·캐시 제거 후 병합
         df_bank = _load_bank_after_for_merge()
         df_card_raw = pd.DataFrame()
         if CARD_AFTER_PATH.exists():
@@ -561,7 +593,7 @@ def merge_bank_card_to_cash_after():
         return (False, str(e))
 
 def _delete_cash_after_on_enter():
-    """금융정보 진입 시 cash_after.json 삭제 및 캐시 초기화."""
+    """cash_after.json 삭제 및 캐시 초기화. 재생성(merge_bank_card_to_cash_after) 시에만 호출됨."""
     global _cash_after_cache, _cash_after_cache_mtime
     try:
         if os.path.isfile(CASH_AFTER_PATH):
@@ -574,8 +606,7 @@ def _delete_cash_after_on_enter():
 
 @app.route('/')
 def index():
-    """금융거래 통합정보 홈에서 금융정보 선택 시 진입. 진입 시 cash_after.json 삭제."""
-    _delete_cash_after_on_enter()
+    """금융거래 통합정보 홈에서 금융정보 선택 시 진입. cash_after.json은 진입 시 삭제하지 않음."""
     workspace_path = str(SCRIPT_DIR)  # 전처리전 작업폴더(MyCash 경로)
     resp = make_response(render_template('index.html', workspace_path=workspace_path))
     # 전처리 페이지 캐시 방지: 네비게이션 갱신이 바로 반영되도록
@@ -615,6 +646,55 @@ def get_source_files():
             'error': f'파일 목록 로드 중 오류가 발생했습니다: {str(e)}\n현재 작업 디렉토리: {current_dir}\n스크립트 디렉토리: {SCRIPT_DIR}',
             'files': []
         }), 500
+
+def _df_memory_bytes(df):
+    """DataFrame 메모리 바이트 수 (deep=True)."""
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return 0
+    try:
+        return int(df.memory_usage(deep=True).sum())
+    except Exception:
+        return 0
+
+def _list_memory_bytes(data):
+    """list of dict 대략적 바이트 수 (JSON 직렬화 기준)."""
+    if not data:
+        return 0
+    try:
+        return len(json.dumps(data, ensure_ascii=False).encode('utf-8'))
+    except Exception:
+        return 0
+
+@app.route('/api/cache-info')
+def get_cache_info():
+    """캐시 이름·크기·총메모리 (금융거래 통합정보 헤더 표시용)."""
+    try:
+        caches = []
+        total = 0
+        if _cash_after_cache is not None:
+            b = _df_memory_bytes(_cash_after_cache)
+            total += b
+            caches.append({'name': 'cash_after', 'size_bytes': b})
+        if _linkage_table_cache is not None:
+            b = _list_memory_bytes(_linkage_table_cache)
+            total += b
+            caches.append({'name': 'linkage_table', 'size_bytes': b})
+        def _human(b):
+            if b < 1024:
+                return f'{b} B'
+            if b < 1024 * 1024:
+                return f'{b / 1024:.1f} KB'
+            return f'{b / (1024 * 1024):.2f} MB'
+        for c in caches:
+            c['size_human'] = _human(c['size_bytes'])
+        return jsonify({
+            'app': 'MyCash',
+            'caches': caches,
+            'total_bytes': total,
+            'total_human': _human(total),
+        })
+    except Exception as e:
+        return jsonify({'app': 'MyCash', 'caches': [], 'total_bytes': 0, 'total_human': '0 B', 'error': str(e)})
 
 @app.route('/api/bank-after-data')
 @ensure_working_directory
@@ -699,14 +779,21 @@ def get_processed_data():
             df = df[df['이용일'].astype(str).str.replace(r'[\s\-/.]', '', regex=True).str.startswith(d)]
         if account_filter and '카드번호' in df.columns:
             df = df[df['카드번호'].fillna('').astype(str).str.strip() == account_filter]
-        count = len(df)
+        total = len(df)
         deposit_amount = df['입금액'].sum() if not df.empty else 0
         withdraw_amount = df['출금액'].sum() if not df.empty else 0
         df = df.where(pd.notna(df), None)
-        data = df.to_dict('records')
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int) or 0
+        if limit and limit > 0:
+            df_slice = df.iloc[offset:offset + limit]
+        else:
+            df_slice = df.iloc[offset:]
+        data = df_slice.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
-            'count': count,
+            'total': total,
+            'count': len(data),
             'deposit_amount': int(deposit_amount),
             'withdraw_amount': int(withdraw_amount),
             'data': data,
@@ -830,9 +917,15 @@ def get_category_applied_data():
         withdraw_amount = df['출금액'].sum() if not df.empty and '출금액' in df.columns else 0
         
         df = df.where(pd.notna(df), None)
-        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
         total = len(df)
-        data = df.to_dict('records')
+        # 페이지네이션: limit/offset (limit 생략 또는 0이면 전체 반환)
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int) or 0
+        if limit and limit > 0:
+            df_slice = df.iloc[offset:offset + limit]
+        else:
+            df_slice = df.iloc[offset:]
+        data = df_slice.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
             'total': total,
@@ -986,13 +1079,21 @@ def get_category_table():
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response, 500
 
+# linkage_table 조회 캐시 (서버 종료까지 재사용, 재생성 시 무효화는 linkage 전용 API가 있을 경우 적용)
+_linkage_table_cache = None
+
 @app.route('/api/linkage-table')
 @ensure_working_directory
 def get_linkage_table():
-    """업종분류 조회용: linkage_table.json 반환 (없으면 xlsx에서 생성). 업종분류, 업종리스크, 업종코드_업종코드세세분류."""
+    """업종분류 조회용: linkage_table.json 반환. 캐시 있으면 재사용하여 로딩 시간 단축."""
+    global _linkage_table_cache
     try:
-        from linkage_table_io import get_linkage_table_data
-        data = get_linkage_table_data()
+        if _linkage_table_cache is not None:
+            data = _linkage_table_cache
+        else:
+            from linkage_table_io import get_linkage_table_data
+            data = get_linkage_table_data()
+            _linkage_table_cache = data
         response = jsonify({
             'data': data,
             'columns': ['업종분류', '업종리스크', '업종코드_업종코드세세분류'],

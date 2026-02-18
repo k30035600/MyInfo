@@ -153,8 +153,37 @@ def ensure_working_directory(func):
             os.chdir(original_cwd)
     return wrapper
 
+def _json_safe_val(v):
+    """단일 값만 JSON 가능 타입으로 변환 (재귀 없음, list of dict 경량화용)."""
+    if hasattr(v, 'item'):
+        return v.item()
+    if hasattr(v, 'isoformat'):
+        try:
+            return v.isoformat()
+        except Exception:
+            return str(v)
+    if isinstance(v, (np.integer, np.int64, np.int32)):
+        return int(v)
+    if isinstance(v, (np.floating, np.float64, np.float32)):
+        return None if pd.isna(v) else float(v)
+    if isinstance(v, float) and pd.isna(v):
+        return None
+    if pd.isna(v):
+        return None
+    return v
+
+
+def _json_safe_records(data):
+    """list of dict 한 번 순회로 치환 (대용량 응답 시 _json_safe 대비 CPU 절감)."""
+    if not data or not isinstance(data, list):
+        return data
+    return [{k: _json_safe_val(v) for k, v in row.items()} for row in data]
+
+
 def _json_safe(obj):
     """JSON 직렬화: NaN/NaT, numpy, datetime → Python 타입"""
+    if isinstance(obj, list) and obj and isinstance(obj[0], dict):
+        return _json_safe_records(obj)
     if isinstance(obj, dict):
         return {k: _json_safe(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -208,12 +237,12 @@ def load_source_files():
     
     return files
 
-# bank_before 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+# bank_before 대용량 JSON 캐시 (재생성 버튼 시에만 무효화, 서버 종료까지 재사용)
 _processed_file_cache = None
 _processed_file_cache_mtime = None
 
 def load_processed_file():
-    """전처리된 파일 로드 (MyBank/bank_before.json). 손상 시 빈 DataFrame 반환. 대용량 시 캐시 사용."""
+    """전처리된 파일 로드 (MyBank/bank_before.json). 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
     global _processed_file_cache, _processed_file_cache_mtime
     try:
         path = Path(BANK_BEFORE_PATH)
@@ -221,12 +250,12 @@ def load_processed_file():
             _processed_file_cache = None
             _processed_file_cache_mtime = None
             return pd.DataFrame()
+        if _processed_file_cache is not None:
+            return _processed_file_cache.copy()
         try:
             mtime = path.stat().st_mtime
         except OSError:
             mtime = None
-        if _processed_file_cache is not None and mtime is not None and _processed_file_cache_mtime == mtime:
-            return _processed_file_cache.copy()
         if safe_read_data_json:
             df = safe_read_data_json(BANK_BEFORE_PATH, default_empty=True)
         else:
@@ -240,12 +269,12 @@ def load_processed_file():
         print(f"오류: bank_before.json 파일 로드 실패 - {e}", flush=True)
         return pd.DataFrame()
 
-# bank_after 대용량 JSON 캐시 (파일 mtime 기준 갱신)
+# bank_after 대용량 JSON 캐시 (재생성 버튼 시에만 무효화, 서버 종료까지 재사용)
 _category_file_cache = None
 _category_file_cache_mtime = None
 
 def load_category_file():
-    """카테고리 적용 파일 로드 (MyBank/bank_after.json). 손상 시 빈 DataFrame 반환. 대용량 시 캐시 사용."""
+    """카테고리 적용 파일 로드 (MyBank/bank_after.json). 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
     global _category_file_cache, _category_file_cache_mtime
     try:
         category_file = Path(BANK_AFTER_PATH)
@@ -253,12 +282,12 @@ def load_category_file():
             _category_file_cache = None
             _category_file_cache_mtime = None
             return load_processed_file() if load_processed_file() is not None else pd.DataFrame()
+        if _category_file_cache is not None:
+            return _category_file_cache.copy()
         try:
             mtime = category_file.stat().st_mtime
         except OSError:
             mtime = None
-        if _category_file_cache is not None and mtime is not None and _category_file_cache_mtime == mtime:
-            return _category_file_cache.copy()
         if safe_read_data_json:
             df = safe_read_data_json(BANK_AFTER_PATH, default_empty=True)
         else:
@@ -291,6 +320,46 @@ def index():
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
+
+def _df_memory_bytes(df):
+    """DataFrame 메모리 바이트 수 (deep=True)."""
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return 0
+    try:
+        return int(df.memory_usage(deep=True).sum())
+    except Exception:
+        return 0
+
+@app.route('/api/cache-info')
+def get_cache_info():
+    """캐시 이름·크기·총메모리 (금융거래 통합정보 헤더 표시용)."""
+    try:
+        caches = []
+        total = 0
+        if _processed_file_cache is not None:
+            b = _df_memory_bytes(_processed_file_cache)
+            total += b
+            caches.append({'name': 'bank_before', 'size_bytes': b})
+        if _category_file_cache is not None:
+            b = _df_memory_bytes(_category_file_cache)
+            total += b
+            caches.append({'name': 'bank_after', 'size_bytes': b})
+        def _human(b):
+            if b < 1024:
+                return f'{b} B'
+            if b < 1024 * 1024:
+                return f'{b / 1024:.1f} KB'
+            return f'{b / (1024 * 1024):.2f} MB'
+        for c in caches:
+            c['size_human'] = _human(c['size_bytes'])
+        return jsonify({
+            'app': 'MyBank',
+            'caches': caches,
+            'total_bytes': total,
+            'total_human': _human(total),
+        })
+    except Exception as e:
+        return jsonify({'app': 'MyBank', 'caches': [], 'total_bytes': 0, 'total_human': '0 B', 'error': str(e)})
 
 @app.route('/api/source-files')
 @ensure_working_directory
@@ -405,49 +474,51 @@ def regenerate_prepost():
 @app.route('/api/processed-data')
 @ensure_working_directory
 def get_processed_data():
-    """전처리된 데이터 반환 (필터링 지원). 전체 JSON 반환, 클라이언트에서 테이블 렌더."""
+    """전처리된 데이터 반환 (필터링 지원). 캐시 있으면 ensure 생략하여 로딩 시간 단축."""
     try:
         output_path = Path(BANK_BEFORE_PATH).resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        bank_before_existed = output_path.exists()  # 요청 시작 시 존재 여부 (이번 요청에서 생성됐으면 에러 문구 구분)
-        # bank_before, category_table만 준비 (bank_after 생성/카테고리분류는 하지 않음). 경로를 명시해 동일 경로에 생성 보장.
-        _path_added = False
-        try:
-            _dir_str = str(SCRIPT_DIR)
-            if _dir_str not in sys.path:
-                sys.path.insert(0, _dir_str)
-                _path_added = True
-            import process_bank_data as _pbd
-            _pbd.ensure_bank_before_and_category(bank_before_path=str(output_path))
-        except Exception as e:
-            error_msg = str(e)
-            if 'No such file' in error_msg and 'bank_before' in error_msg:
-                _create_empty_bank_before(output_path)
-            else:
-                hint = []
-                if 'bank_after' in error_msg or 'PermissionError' in error_msg or '사용 중' in error_msg:
-                    hint.append('bank_after.xlsx를 열어둔 프로그램(Excel 등)을 닫아주세요.')
-                if 'xlrd' in error_msg or 'No module' in error_msg:
-                    hint.append('.xls 파일 읽기에는 xlrd 패키지가 필요합니다: pip install xlrd')
-                extra = '\n' + '\n'.join(hint) if hint else ''
-                return jsonify({
-                    'error': f'파일 생성 실패: {error_msg}{extra}',
-                    'count': 0,
-                    'deposit_amount': 0,
-                    'withdraw_amount': 0,
-                    'data': []
-                }), 500
-        finally:
-            if _path_added and str(SCRIPT_DIR) in sys.path:
-                sys.path.remove(str(SCRIPT_DIR))
-
-        if not output_path.exists():
+        bank_before_existed = output_path.exists()
+        # 캐시 없을 때만 ensure 실행 (재생성 버튼 시 캐시 무효화 후 여기서 다시 준비)
+        if _processed_file_cache is None:
+            _path_added = False
             try:
-                _pbd.integrate_bank_transactions(output_file=str(output_path))
-            except Exception:
-                pass
-        if not output_path.exists():
-            _create_empty_bank_before(output_path)
+                _dir_str = str(SCRIPT_DIR)
+                if _dir_str not in sys.path:
+                    sys.path.insert(0, _dir_str)
+                    _path_added = True
+                import process_bank_data as _pbd
+                _pbd.ensure_bank_before_and_category(bank_before_path=str(output_path))
+            except Exception as e:
+                error_msg = str(e)
+                if 'No such file' in error_msg and 'bank_before' in error_msg:
+                    _create_empty_bank_before(output_path)
+                else:
+                    hint = []
+                    if 'bank_after' in error_msg or 'PermissionError' in error_msg or '사용 중' in error_msg:
+                        hint.append('bank_after.xlsx를 열어둔 프로그램(Excel 등)을 닫아주세요.')
+                    if 'xlrd' in error_msg or 'No module' in error_msg:
+                        hint.append('.xls 파일 읽기에는 xlrd 패키지가 필요합니다: pip install xlrd')
+                    extra = '\n' + '\n'.join(hint) if hint else ''
+                    return jsonify({
+                        'error': f'파일 생성 실패: {error_msg}{extra}',
+                        'count': 0,
+                        'deposit_amount': 0,
+                        'withdraw_amount': 0,
+                        'data': []
+                    }), 500
+            finally:
+                if _path_added and str(SCRIPT_DIR) in sys.path:
+                    sys.path.remove(str(SCRIPT_DIR))
+
+            if not output_path.exists():
+                try:
+                    import process_bank_data as _pbd
+                    _pbd.integrate_bank_transactions(output_file=str(output_path))
+                except Exception:
+                    pass
+            if not output_path.exists():
+                _create_empty_bank_before(output_path)
 
         # 전처리후: bank_after 있으면 사용. 없으면 before 기준으로 계정과목분류·후처리 후 after 생성해 사용.
         category_file_exists = Path(BANK_AFTER_PATH).exists()
@@ -536,9 +607,14 @@ def get_processed_data():
         # NaN 값을 None으로 변환
         df = df.where(pd.notna(df), None)
 
-        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더, 스크롤은 CSS)
         total = len(df)
-        data = df.to_dict('records')
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int) or 0
+        if limit and limit > 0:
+            df_slice = df.iloc[offset:offset + limit]
+        else:
+            df_slice = df.iloc[offset:]
+        data = df_slice.to_dict('records')
         data = _json_safe(data)
         resp_payload = {
             'total': total,
@@ -612,24 +688,24 @@ def get_simya_ranges():
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (필터링 지원). 전체 JSON 반환."""
+    """카테고리 적용된 데이터 반환 (필터링 지원). 캐시 있으면 즉시 반환, 없을 때만 ensure 후 로드."""
     try:
-        # bank_before, category_table만 준비 (테이블/출력 시 카테고리 분류 미수행)
-        _path_added = False
-        try:
-            _dir_str = str(SCRIPT_DIR)
-            if _dir_str not in sys.path:
-                sys.path.insert(0, _dir_str)
-                _path_added = True
-            import process_bank_data as _pbd
-            _pbd.ensure_bank_before_and_category()
-        except Exception:
-            pass  # ensure 실패 시 기존 파일로 진행
-        finally:
-            if _path_added and str(SCRIPT_DIR) in sys.path:
-                sys.path.remove(str(SCRIPT_DIR))
-
         category_file_exists = Path(BANK_AFTER_PATH).exists()
+        # 캐시 있으면 ensure 생략하여 테이블 로딩 시간 단축 (재생성 버튼 시에만 캐시 무효화)
+        if _category_file_cache is None:
+            _path_added = False
+            try:
+                _dir_str = str(SCRIPT_DIR)
+                if _dir_str not in sys.path:
+                    sys.path.insert(0, _dir_str)
+                    _path_added = True
+                import process_bank_data as _pbd
+                _pbd.ensure_bank_before_and_category()
+            except Exception:
+                pass
+            finally:
+                if _path_added and str(SCRIPT_DIR) in sys.path:
+                    sys.path.remove(str(SCRIPT_DIR))
         
         try:
             df = load_category_file()
@@ -710,9 +786,15 @@ def get_category_applied_data():
             sort_cols.append('계좌번호')
         if sort_cols:
             df = df.sort_values(by=sort_cols, ascending=True, na_position='last').reset_index(drop=True)
-        # 전체 JSON 반환 (클라이언트에서 한 번에 테이블 렌더)
         total = len(df)
-        data = df.to_dict('records')
+        # 페이지네이션: limit/offset (limit 생략 또는 0이면 전체 반환)
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int) or 0
+        if limit and limit > 0:
+            df_slice = df.iloc[offset:offset + limit]
+        else:
+            df_slice = df.iloc[offset:]
+        data = df_slice.to_dict('records')
         data = _json_safe(data)
         response = jsonify({
             'total': total,

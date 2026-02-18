@@ -8,6 +8,11 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
+try:
+    import orjson
+except ImportError:
+    orjson = None
+
 
 def _json_serializable(value):
     """JSON 직렬화 가능한 값으로 변환 (numpy, datetime, NaN)."""
@@ -28,20 +33,24 @@ def _json_serializable(value):
 
 
 def safe_read_data_json(path, default_empty=True):
-    """JSON 파일을 DataFrame으로 읽기. 없거나 손상 시 빈 DataFrame 또는 None 반환. .bak 생성하지 않음."""
+    """JSON 파일을 DataFrame으로 읽기. 없거나 손상 시 빈 DataFrame 또는 None 반환. orjson 있으면 사용(파싱 가속)."""
     if not path:
         return pd.DataFrame() if default_empty else None
     path = Path(path)
     if not path.exists() or path.stat().st_size == 0:
         return pd.DataFrame() if default_empty else None
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        with open(path, 'rb') as f:
+            raw = f.read()
+        if orjson is not None:
+            data = orjson.loads(raw)
+        else:
+            data = json.loads(raw.decode('utf-8'))
         if not data or not isinstance(data, list):
             return pd.DataFrame() if default_empty else None
         df = pd.DataFrame(data)
         return df if df is not None else (pd.DataFrame() if default_empty else None)
-    except (json.JSONDecodeError, TypeError, IOError, OSError):
+    except (json.JSONDecodeError, TypeError, IOError, OSError, ValueError):
         return pd.DataFrame() if default_empty else None
 
 
@@ -65,8 +74,14 @@ def safe_write_data_json(path, df, max_retries=3):
             for row in rec:
                 for k in list(row.keys()):
                     row[k] = _json_serializable(row[k])
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(rec, f, ensure_ascii=False, indent=2)
+            if orjson is not None:
+                with open(path, 'wb') as f:
+                    # 대용량(5000행 초과)은 indent 없이 저장 → 쓰기·파일 크기·읽기 소폭 개선
+                    opt = orjson.OPT_INDENT_2 if len(rec) <= 5000 else 0
+                    f.write(orjson.dumps(rec, option=opt))
+            else:
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(rec, f, ensure_ascii=False, indent=2)
             return True
         except PermissionError:
             if attempt < max_retries - 1:

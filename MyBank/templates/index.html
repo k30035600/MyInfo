@@ -847,32 +847,10 @@
         }
 
         /* 카테고리조회 테이블: 헤더·행 높이 최소화 */
-        /* 카테고리 조회/업종분류 조회 행 선택 시 말풍선 - 최상위 레이어 보장 */
-        #row-tooltip-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 2147483647;
-            pointer-events: none;
-            display: none;
-        }
+        /* 카테고리 조회 말풍선 - 금융정보 업종분류조회 말풍선과 동일 속성 (최상위 레이어 보장) */
+        #row-tooltip-overlay { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: none; }
         #row-tooltip-overlay .row-tooltip-bubble { pointer-events: auto; }
-        .row-tooltip-bubble {
-            position: fixed;
-            z-index: 2147483647;
-            max-width: 480px;
-            max-height: 70vh;
-            min-width: 220px;
-            min-height: 80px;
-            overflow: auto;
-            background: rgb(255, 204, 128);
-            border: 1px solid #ddd;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-            padding: 10px;
-            font-size: 11px;
-            line-height: 1.2;
-            font-family: 'Malgun Gothic', sans-serif;
-        }
+        .row-tooltip-bubble { position: fixed; z-index: 2147483647; max-width: 480px; max-height: 70vh; min-width: 220px; min-height: 80px; overflow: auto; background: rgb(255, 204, 128); border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 10px; font-size: 11px; line-height: 1.2; font-family: 'Malgun Gothic', sans-serif; }
         .row-tooltip-bubble .tooltip-title { font-weight: bold; color: #333; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
         .row-tooltip-bubble .tooltip-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
         .row-tooltip-bubble .tooltip-row:last-child { border-bottom: none; }
@@ -1726,8 +1704,8 @@
         let categoryQueryTableData = [];  // 카테고리 조회 테이블 행 데이터 (행 클릭 시 말풍선용)
         let _tooltipSelectedRow = null;   // 말풍선 선택된 행 (회색 배경, 복구용)
         
-        // 행 선택 시 말풍선 툴팁 표시 (오버레이 최상위 레이어로 항상 보이도록)
-        function showRowTooltip(obj, targetEl) {
+        // 행 선택 시 말풍선 툴팁 표시 (금융정보 업종분류조회 말풍선과 동일 속성). columnOrder 있으면 해당 JSON 컬럼순서로 출력.
+        function showRowTooltip(obj, targetEl, columnOrder) {
             if (!obj || typeof obj !== 'object') return;
             const overlay = document.getElementById('row-tooltip-overlay');
             const bubble = document.getElementById('row-tooltip-bubble');
@@ -1735,9 +1713,10 @@
             if (_tooltipSelectedRow) _tooltipSelectedRow.classList.remove('row-tooltip-selected');
             _tooltipSelectedRow = targetEl;
             if (targetEl) targetEl.classList.add('row-tooltip-selected');
-            if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+            document.body.appendChild(overlay);
+            const keys = (columnOrder && columnOrder.length) ? [...columnOrder.filter(k => Object.prototype.hasOwnProperty.call(obj, k)), ...Object.keys(obj).filter(k => !columnOrder.includes(k))] : Object.keys(obj);
             let html = '<div class="tooltip-title">행 상세</div>';
-            Object.keys(obj).forEach(k => {
+            keys.forEach(k => {
                 let v = obj[k];
                 if (v === null || v === undefined) v = '';
                 else if (typeof v === 'number') v = formatAmount(v);
@@ -1753,10 +1732,15 @@
             if (top + 250 > window.innerHeight) top = rect.top - 220;
             if (top < 10) top = 10;
             if (top + 250 > window.innerHeight - 10) top = Math.max(10, window.innerHeight - 260);
+            bubble.style.position = 'fixed';
             bubble.style.left = left + 'px';
             bubble.style.top = top + 'px';
-            bubble.style.display = 'block';
-            overlay.style.display = 'block';
+            bubble.style.visibility = 'visible';
+            overlay.style.visibility = 'visible';
+            requestAnimationFrame(function() {
+                overlay.style.display = 'block';
+                bubble.style.display = 'block';
+            });
         }
         function hideRowTooltip() {
             if (_tooltipSelectedRow) {
@@ -2514,7 +2498,7 @@
                 const params = new URLSearchParams();
                 if (bankFilter) params.append('bank', bankFilter);
                 if (accountFilter) params.append('account', accountFilter);
-                // yy/mm 형식을 YYYY-MM 형식으로 변환하여 전송
+                // yy/mm 형식을 YYYY-MM 형식으로 전송
                 if (yearMonthFilter && String(yearMonthFilter).includes('/')) {
                     const parts = String(yearMonthFilter).split('/');
                     const yy = parts[0];
@@ -2527,13 +2511,15 @@
                         params.append('date', dateFilter);
                     }
                 }
+                params.append('limit', '1000');
+                params.append('offset', '0');
 
                 const response = await fetch(`${API_BASE}/api/processed-data?${params}`);
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || `서버 오류: ${response.status} ${response.statusText}`);
                 }
-                const data = await response.json();
+                let data = await response.json();
                 if (data.error) {
                     console.error('데이터 로딩 오류 (전처리후):', data.error);
                     const errorMsg = (data.error || '').replace(/\n/g, '<br>');
@@ -2541,6 +2527,16 @@
                     const retryBtn = document.getElementById('right-data-retry-btn');
                     if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                     return;
+                }
+                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                    try {
+                        const restParams = new URLSearchParams(params);
+                        restParams.set('offset', '1000');
+                        restParams.delete('limit');
+                        const restRes = await fetch(`${API_BASE}/api/processed-data?${restParams}`);
+                        const restData = await restRes.json();
+                        if (restData.data && restData.data.length > 0) data.data = data.data.concat(restData.data);
+                    } catch (e) { console.warn('나머지 전처리후 데이터 로드 건너뜀:', e); }
                 }
                 
                 // 년월 필터 채우기 (전처리후 데이터에서) - yy/mm 형식
@@ -2979,7 +2975,7 @@
             }
         }
         
-        // 거래 상세 정보 표시 함수
+        // 거래 상세 정보 표시 함수 (JSON 컬럼 순서로 출력)
         function showTransactionDetail(record) {
             const modal = document.getElementById('transaction-detail-modal');
             const content = document.getElementById('transaction-detail-content');
@@ -2988,51 +2984,21 @@
                 console.error('모달 요소를 찾을 수 없습니다.');
                 return;
             }
-            
-            // 표시할 필드 목록
-            const fields = [
-                { label: '거래일', key: '거래일' },
-                { label: '거래시간', key: '거래시간' },
-                { label: '은행명', key: '은행명' },
-                { label: '계좌번호', key: '계좌번호' },
-                { label: '입금액', key: '입금액' },
-                { label: '출금액', key: '출금액' },
-                { label: '잔액', key: '잔액' },
-                { label: '취소', key: '취소' },
-                { label: '적요', key: '적요' },
-                { label: '내용', key: '내용' },
-                { label: '송금메모', key: '송금메모' },
-                { label: '거래점', key: '거래점' },
-                { label: '거래유형', key: '거래유형' },
-                { label: '카테고리', key: '카테고리' },
-                { label: '기타거래', key: '기타거래' }
-            ];
-            
+            const keys = Object.keys(record || {});
             let html = '<div style="line-height: 2;">';
-            fields.forEach(field => {
-                let value = record[field.key];
+            keys.forEach(key => {
+                let value = record[key];
                 if (value === null || value === undefined || value === '') {
                     value = '(없음)';
                 } else {
                     value = String(value);
-                    // 날짜 형식 변환
-                    if (field.key === '거래일') {
-                        value = formatDate(value, false);
-                    }
-                    // 시간 형식 변환
-                    else if (field.key === '거래시간') {
-                        value = formatTime(value);
-                    }
-                    // 금액 형식 변환
-                    else if (field.key === '입금액' || field.key === '출금액' || field.key === '잔액') {
-                        const numValue = parseFloat(value) || 0;
-                        value = formatNumber(numValue);
-                    }
+                    if (key === '거래일' || key === '이용일') value = formatDate(value, false);
+                    else if (key === '거래시간' || key === '이용시간') value = formatTime(value);
+                    else if (key === '입금액' || key === '출금액' || key === '잔액') value = formatNumber(parseFloat(value) || 0);
                 }
-                html += `<div style="padding: 5px 0; border-bottom: 1px solid #eee;"><strong>${field.label}:</strong> ${value}</div>`;
+                html += `<div style="padding: 5px 0; border-bottom: 1px solid #eee;"><strong>${key}:</strong> ${value}</div>`;
             });
             html += '</div>';
-            
             content.innerHTML = html;
             modal.style.display = 'block';
         }
@@ -3053,7 +3019,8 @@
             if (row && categoryQueryTableData.length > 0) {
                 const idx = parseInt(row.getAttribute('data-i'), 10);
                 if (!isNaN(idx) && categoryQueryTableData[idx]) {
-                    showRowTooltip(categoryQueryTableData[idx], row);
+                    const columnOrder = Object.keys(categoryQueryTableData[0]);
+                    showRowTooltip(categoryQueryTableData[idx], row, columnOrder);
                 }
             }
             const overlay = document.getElementById('row-tooltip-overlay');
@@ -3692,6 +3659,8 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
+                params.append('limit', '1000');
+                params.append('offset', '0');
                 const response = await fetch(`${API_BASE}/api/category-applied-data?${params}`);
                 const text = await response.text();
                 
@@ -3716,7 +3685,16 @@
                 }
                 
                 const fileExists = data.file_exists === true;
-                
+                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                    try {
+                        const restParams = new URLSearchParams(params);
+                        restParams.set('offset', '1000');
+                        restParams.delete('limit');
+                        const restRes = await fetch(`${API_BASE}/api/category-applied-data?${restParams}`);
+                        const restJson = await restRes.json();
+                        if (restJson.data && restJson.data.length > 0) data.data = data.data.concat(restJson.data);
+                    } catch (e) { console.warn('나머지 카테고리 조회 데이터 로드 건너뜀:', e); }
+                }
                 // 카테고리 적용후 요약: 총 N건, 입금 X원 (N건), 출금 Y원 (M건)
                 const total = data.total != null ? data.total : (data.data ? data.data.length : 0);
                 const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;

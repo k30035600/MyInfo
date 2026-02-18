@@ -23,7 +23,7 @@ if sys.platform == "win32":
         pass
 
 from datetime import datetime
-from flask import Flask, render_template, render_template_string, redirect, make_response
+from flask import Flask, render_template, render_template_string, redirect, make_response, request
 
 SERVER_START_TIME = None
 
@@ -64,6 +64,21 @@ warnings.filterwarnings('ignore', message='.*Cannot parse header or footer.*')
 
 app = Flask(__name__)
 SERVER_START_TIME = datetime.now()
+
+# Flask 2.2+: orjson으로 응답 직렬화 가속 (선택)
+try:
+    from flask.json.provider import DefaultJSONProvider
+    import orjson as _orjson
+    class _ORJSONProvider(DefaultJSONProvider):
+        def dumps(self, obj, **kwargs):
+            return _orjson.dumps(obj).decode('utf-8')
+        def loads(self, s, **kwargs):
+            if isinstance(s, bytes):
+                return _orjson.loads(s)
+            return _orjson.loads(s.encode('utf-8'))
+    app.json_provider_class = _ORJSONProvider
+except Exception:
+    pass
 
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
@@ -132,6 +147,8 @@ def _ensure_category_table_file():
         pass
 
 
+_GZIP_MIN_SIZE = 1024  # 이 크기 이상일 때만 gzip 적용
+
 @app.after_request
 def _ensure_utf8_charset(response):
     """응답 Content-Type에 charset=utf-8 보장."""
@@ -139,6 +156,31 @@ def _ensure_utf8_charset(response):
     if ct.startswith("text/") or ct.startswith("application/json"):
         if "charset=" not in ct:
             response.content_type = f"{ct}; charset=utf-8"
+    return response
+
+
+@app.after_request
+def _compress_response(response):
+    """JSON/텍스트 응답이 일정 크기 이상이면 gzip 압축 (로딩 시간 단축)."""
+    accept = request.headers.get("Accept-Encoding") or ""
+    if "gzip" not in accept.lower():
+        return response
+    if response.direct_passthrough or response.status_code not in (200, 201):
+        return response
+    ct = (response.content_type or "").split(";")[0].strip()
+    if ct not in ("application/json", "text/html", "text/plain", "text/css"):
+        return response
+    data = response.get_data(as_text=False)
+    if not data or len(data) < _GZIP_MIN_SIZE:
+        return response
+    try:
+        import gzip
+        compressed = gzip.compress(data, compresslevel=6)
+        response.set_data(compressed)
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Content-Length"] = len(compressed)
+    except Exception:
+        pass
     return response
 
 
@@ -474,9 +516,126 @@ def page_not_found(e):
     return render_template('404.html'), 404
 
 
+def _run_bank_before_after(bank_dir):
+    """MyBank before/after 생성. chdir 사용 안 함(sys.path + 절대경로만 사용) → 스레드 병렬 실행 가능."""
+    path_added = False
+    try:
+        if bank_dir not in sys.path:
+            sys.path.insert(0, bank_dir)
+            path_added = True
+        import process_bank_data as _pbd
+        _pbd.ensure_bank_before_and_category()
+        _pbd.classify_and_save()
+        print('[백그라운드] MyBank bank_before/bank_after 생성 완료', flush=True)
+    except Exception as e:
+        print(f'[백그라운드] MyBank 생성 건너뜀: {e}', flush=True)
+    finally:
+        if path_added and bank_dir in sys.path:
+            sys.path.remove(bank_dir)
+
+
+def _run_card_before_after(card_dir):
+    """MyCard before/after 생성. chdir 사용 안 함 → 스레드 병렬 실행 가능."""
+    path_added = False
+    try:
+        if card_dir not in sys.path:
+            sys.path.insert(0, card_dir)
+            path_added = True
+        import process_card_data as _pcd
+        _pcd.integrate_card_excel()
+        import card_app as _ca
+        _ca._create_card_after()
+        print('[백그라운드] MyCard card_before/card_after 생성 완료', flush=True)
+    except Exception as e:
+        print(f'[백그라운드] MyCard 생성 건너뜀: {e}', flush=True)
+    finally:
+        if path_added and card_dir in sys.path:
+            sys.path.remove(card_dir)
+
+
+def _run_cash_after(cash_dir):
+    """MyCash cash_after 병합. bank_after + card_after 완료 후 호출."""
+    path_added = False
+    try:
+        if cash_dir not in sys.path:
+            sys.path.insert(0, cash_dir)
+            path_added = True
+        import cash_app as _cash
+        ok, _ = _cash.merge_bank_card_to_cash_after()
+        if ok:
+            print('[백그라운드] MyCash cash_after 병합 완료', flush=True)
+    except Exception as e:
+        print(f'[백그라운드] MyCash 병합 건너뜀: {e}', flush=True)
+    finally:
+        if path_added and cash_dir in sys.path:
+            sys.path.remove(cash_dir)
+
+
+def _background_before_after_job():
+    """서버 기동 후 백그라운드에서 before/after JSON 선행 생성.
+    Bank·Card는 병렬 스레드로 동시 실행, 완료 후 Cash 병합 → 캐시 프리웜.
+
+    로딩 속도 비교:
+    - 앱 진입 시 JSON 생성: 첫 진입 시 ensure + classify/merge 등 전부 실행 → 수십 초~수 분(데이터 규모에 따라).
+    - 서버 시작 시 백그라운드 생성: 기동 시 미리 생성해 두면, 앱 진입 시 파일만 읽어 캐시 채움 → 수 초 이내.
+    - 캐시 프리웜: 백그라운드 완료 후 각 앱 API를 한 번 호출해 메모리 캐시까지 채우면, 첫 요청 시 파일 I/O 없이 즉시 응답.
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    legacy_folders = {'MyBank': 'MYBCBANK', 'MyCard': 'MYBCCARD'}
+    def _app_dir(name):
+        if os.path.isdir(os.path.join(base_dir, name)):
+            return os.path.join(base_dir, name)
+        if name in legacy_folders and os.path.isdir(os.path.join(base_dir, legacy_folders[name])):
+            return os.path.join(base_dir, legacy_folders[name])
+        return os.path.join(base_dir, name)
+
+    try:
+        bank_dir = _app_dir('MyBank')
+        card_dir = _app_dir('MyCard')
+        cash_dir = _app_dir('MyCash')
+
+        # Bank·Card 병렬 실행 (chdir 미사용으로 cwd 경쟁 없음)
+        import threading
+        threads = []
+        if os.path.isdir(bank_dir):
+            t_bank = threading.Thread(target=_run_bank_before_after, args=(bank_dir,), name='BgBank')
+            t_bank.start()
+            threads.append(('MyBank', t_bank))
+        if os.path.isdir(card_dir):
+            t_card = threading.Thread(target=_run_card_before_after, args=(card_dir,), name='BgCard')
+            t_card.start()
+            threads.append(('MyCard', t_card))
+        for _name, t in threads:
+            t.join()
+
+        # Cash: bank_after + card_after 병합 (순차)
+        if os.path.isdir(cash_dir):
+            _run_cash_after(cash_dir)
+
+        # 캐시 프리웜: 생성된 JSON을 각 앱의 메모리 캐시에 적재해 첫 요청 시 파일 읽기 생략
+        try:
+            with app.test_client() as client:
+                for _prefix in ('/bank', '/card', '/cash'):
+                    try:
+                        r = client.get(f'{_prefix}/api/category-applied-data', timeout=60)
+                        if r.status_code == 200:
+                            print(f'[백그라운드] {_prefix} 캐시 프리웜 완료', flush=True)
+                    except Exception as e:
+                        print(f'[백그라운드] {_prefix} 캐시 프리웜 건너뜀: {e}', flush=True)
+        except Exception as e:
+            print(f'[백그라운드] 캐시 프리웜 오류: {e}', flush=True)
+    except Exception as e:
+        print(f'[백그라운드] before/after 작업 오류: {e}', flush=True)
+        traceback.print_exc()
+
+
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
+    # 서버 기동과 동시에 백그라운드에서 before/after JSON 선행 생성 (bank→card→cash)
+    import threading
+    _bg = threading.Thread(target=_background_before_after_job, name='BeforeAfterInit', daemon=True)
+    _bg.start()
     # Railway/Heroku 등에서는 PORT가 주입되며 0.0.0.0으로 바인딩 필요
     port = int(os.environ.get('PORT', 8080))
     host = '0.0.0.0' if os.environ.get('PORT') else '127.0.0.1'
