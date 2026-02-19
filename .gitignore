@@ -59,6 +59,11 @@ dist/
 build/
 *.egg
 
+# 쓰기 시 생성되는 임시 파일 (저장 완료 전 중단 시 남을 수 있음)
+.data_*.json
+.cat_tbl_*.json
+.cat_tbl_*.xlsx
+
 # 테스트/커버리지
 .pytest_cache/
 .coverage

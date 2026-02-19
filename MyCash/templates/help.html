@@ -35,7 +35,7 @@
     <nav class="main-nav" aria-label="금융정보 메뉴">
         <a href="/" class="nav-item">🏠 홈</a>
         <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-        <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+        <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
         <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
         <a href="/cash/help" class="nav-item active">❓ 금융정보 도움말</a>
     </nav>
@@ -60,7 +60,7 @@
             <ol>
                 <li><strong>은행·카드 전처리</strong>: .source/Bank, .source/Card에 원본 엑셀을 넣고 각각 전처리하여 bank_after, card_after를 만듭니다.</li>
                 <li><strong>금융정보 전처리(/cash/)</strong>: 화면에서 은행·카드 데이터를 확인한 뒤 <strong>「cash_after 생성(병합)」</strong>을 클릭합니다. bank_after + card_after가 합쳐져 <strong>MyCash/cash_after.json</strong>이 생성되고, 1~8호 위험도가 자동 적용됩니다.</li>
-                <li><strong>금융정보 카테고리(/cash/category)</strong>: 「금융정보(위험도분류) 적용후」 테이블에서 위험도키워드·위험도분류·위험도·필터·출력을 확인합니다.</li>
+                <li><strong>금융정보 업종분류(/cash/category)</strong>: 「금융정보(위험도분류) 적용후」 테이블에서 위험도키워드·위험도분류·위험도·필터·출력을 확인합니다.</li>
                 <li><strong>금융정보 기본분석(/cash/analysis/basic)</strong>: cash_after 기준 통계·차트를 확인합니다.</li>
             </ol>
             <p><strong>참고</strong>: 금융정보 메뉴에 들어갈 때마다 기존 <strong>cash_after.json</strong>이 삭제됩니다. 데이터를 보려면 전처리 후 다시 「cash_after 생성(병합)」을 실행하세요.</p>
@@ -70,7 +70,7 @@
             <h2>2. 메뉴별 안내</h2>
             <h3>금융정보 전처리 (/cash/)</h3>
             <p>은행거래(bank_after)와 신용카드(card_after) 테이블을 한 화면에서 볼 수 있습니다. <strong>cash_after 생성(병합)</strong> 버튼을 누르면 두 데이터를 합쳐 cash_after.json을 만들고, linkage_table 매칭과 1~8호 위험도 지표를 적용한 뒤 저장합니다.</p>
-            <h3>금융정보 카테고리 (/cash/category)</h3>
+            <h3>금융정보 업종분류 (/cash/category)</h3>
             <p>카테고리 정의 테이블과 <strong>금융정보(위험도분류) 적용후</strong> 테이블을 제공합니다. 적용후 테이블은 cash_after.json을 위험도·위험도키워드·거래일·거래시간 내림차순으로 정렬하며, 헤더는 스크롤 시 고정됩니다. 각 컬럼의 드롭다운으로 필터링하고 「📄 출력」으로 인쇄용 창을 띄울 수 있습니다.</p>
             <h3>금융정보 기본분석 (/cash/analysis/basic)</h3>
             <p>cash_after 기준 전체 통계, 카테고리별·월별·금융사별 집계와 차트를 제공합니다.</p>
@@ -127,8 +127,17 @@
 
         <div class="help-section" id="trouble">
             <h2>5. 문제 해결</h2>
+            <h3>「cash_after 생성 중...」만 보이고 생성이 안 돼요</h3>
+            <p>금융정보(업종분류) 조회에서 데이터가 없을 때 자동으로 cash_after 생성을 시도하며 이 메시지를 띄웁니다. <strong>생성에 실패하면 그 아래에 서버가 반환한 오류 사유가 표시됩니다.</strong> 흔한 원인은 다음과 같습니다.</p>
+            <ul>
+                <li><strong>bank_after와 card_after가 모두 없거나 비어 있음</strong> — cash_after는 bank_after + card_after 병합으로 생성됩니다. <strong>둘 중 하나라도</strong> 있으면 생성 가능합니다. 은행 또는 신용카드 전처리에서 <strong>전처리후 다시 실행</strong>으로 한 개 이상 만든 뒤, 금융정보에서 <strong>전처리후 다시 실행</strong>을 시도하세요.</li>
+                <li><strong>병합 결과 데이터가 비어 있음</strong> — bank_after·card_after는 있으나 읽기 오류나 컬럼 문제로 병합 결과가 0건인 경우. 은행·카드 after 파일이 정상 생성되었는지 해당 메뉴에서 확인하세요.</li>
+                <li><strong>임시 파일 쓰기/교체 실패</strong> — MyCash 폴더에 쓰기 권한이 없거나, 디스크 부족·한글 경로 등으로 cash_after.json 저장이 실패한 경우. 프로젝트 경로를 한글이 없는 경로(C:\CursorWorkspace 등)로 옮기고 다시 시도하세요.</li>
+                <li><strong>요청 시간 초과</strong> — 데이터가 많을 때 120초 안에 완료되지 않으면 타임아웃됩니다. 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도하세요.</li>
+            </ul>
+            <p>수동으로 생성하려면: 금융정보 전처리 페이지에서 <strong>전처리후 다시 실행</strong> 버튼을 누르면 동일한 API(POST /api/generate-category)가 호출됩니다. 실패 시 버튼 위/아래에 표시되는 오류 문구를 확인하세요.</p>
             <h3>데이터가 없습니다</h3>
-            <p>금융정보 카테고리에서 이 메시지가 나오면 cash_after.json이 없거나 비어 있는 상태입니다. 금융정보 전처리에서 <strong>cash_after 생성(병합)</strong>을 실행하세요. 은행·카드 전처리를 먼저 완료해 bank_after, card_after가 있어야 합니다.</p>
+            <p>금융정보 업종분류에서 이 메시지가 나오면 cash_after.json이 없거나 비어 있는 상태입니다. 금융정보 전처리에서 <strong>cash_after 생성(병합)</strong>을 실행하세요. bank_after와 card_after <strong>둘 중 하나라도</strong> 있으면 cash_after 생성이 가능합니다.</p>
             <h3>위험도가 모두 0.1로 나와요</h3>
             <p>1~8호 조건에 맞는 거래가 없거나, 예전에 생성된 cash_after를 쓰는 경우입니다. <strong>cash_after 생성(병합)</strong>을 다시 실행하면 최신 위험도 규칙이 적용됩니다.</p>
             <h3>한글 깨짐 / Add-Content 오류</h3>

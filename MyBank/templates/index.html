@@ -1493,9 +1493,9 @@
 <body>
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
                 <h1>은행거래 전처리</h1>
-                <div style="font-size: 14px; opacity: 0.5;">MyBank</div>
+                <span class="path-filename-text" style="opacity: 0.7;" title="작업 폴더">{{ folder_name }}</span>
             </div>
             <div style="display: flex; align-items: center;">
                 <button type="button" id="btn-regenerate-prepost" class="btn-reintegrate" title="bank_before·bank_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 재생성">전처리/후처리 재생성</button>
@@ -1516,8 +1516,9 @@
             <div class="box left-box">
                     <div class="box-header">
                         <div class="box-header-row">
-                            <div class="box-header-left">
+                            <div class="box-header-left" style="display: flex; align-items: center; gap: 8px;">
                                 <div class="box-title">은행거래 전처리전</div>
+                                <span class="path-filename-text" style="opacity: 0.6;" title="원본 폴더">.\source</span>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1544,8 +1545,9 @@
             <div class="box right-box">
                     <div class="box-header">
                         <div class="box-header-row">
-                            <div class="box-header-left">
+                            <div class="box-header-left" style="display: flex; align-items: center; gap: 8px;">
                                 <div class="box-title">은행거래 전처리후</div>
+                                <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">bank_before.json</span>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1599,7 +1601,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">카테고리 조회</h2>
-                        <div class="path-filename-text" style="margin-left: 10px;"><span>category_table</span></div>
+                        <div class="path-filename-text" style="margin-left: 10px;"><span>category_table.json</span></div>
                     </div>
                     <button id="export-bank_category-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
                 </div>
@@ -1672,7 +1674,10 @@
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 5px; font-size: 13px;">
-                        <h2 style="margin: 0; padding-bottom: 3px;">은행거래(카테고리) 조회</h2>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h2 style="margin: 0; padding-bottom: 3px;">은행거래(카테고리) 조회</h2>
+                            <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">bank_after.json</span>
+                        </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <span id="category-query-count">총 0건</span>
                             <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
@@ -2511,7 +2516,7 @@
                         params.append('date', dateFilter);
                     }
                 }
-                params.append('limit', '1000');
+                params.append('limit', '500');
                 params.append('offset', '0');
 
                 const response = await fetch(`${API_BASE}/api/processed-data?${params}`);
@@ -2528,10 +2533,10 @@
                     if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                     return;
                 }
-                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '1000');
+                        restParams.set('offset', '500');
                         restParams.delete('limit');
                         const restRes = await fetch(`${API_BASE}/api/processed-data?${restParams}`);
                         const restData = await restRes.json();
@@ -2715,15 +2720,12 @@
                             let displayValue = '';
                             
                             if (value !== null && value !== undefined && value !== '') {
-                                // 날짜 형식 변환
                                 if (col === '거래일') {
                                     displayValue = formatDate(value);
                                 }
-                                // 시간 형식 변환
                                 else if (col === '거래시간') {
                                     displayValue = formatTime(value);
                                 }
-                                // 금액 형식 변환 (입금액/출금액만, 잔액 컬럼은 삭제됨)
                                 else if (col === '입금액' || col === '출금액') {
                                     displayValue = formatAmount(value);
                                 }
@@ -2732,7 +2734,6 @@
                                 }
                             }
                             
-                    // 입금액/출금액 색상 적용 및 정렬 (잔액/입출금 컬럼은 삭제됨)
                     let cellStyle = '';
                     if (col === '입금액') {
                         cellStyle = ' style="color: #0000FF; white-space: nowrap; text-align: right !important;"';
@@ -3013,19 +3014,11 @@
         
         
         // 페이지 로드 시 필터 배경색 초기화
-        // 카테고리 조회 행 클릭 시 말풍선 표시
+        // 말풍선: 카테고리 조회(왼쪽 분류/키워드/카테고리)만 selectCategoryRow에서 표시. 은행거래(카테고리) 조회에서는 미표시.
         document.addEventListener('click', function(e) {
-            const row = e.target.closest('#category-query-content .category-query-row');
-            if (row && categoryQueryTableData.length > 0) {
-                const idx = parseInt(row.getAttribute('data-i'), 10);
-                if (!isNaN(idx) && categoryQueryTableData[idx]) {
-                    const columnOrder = Object.keys(categoryQueryTableData[0]);
-                    showRowTooltip(categoryQueryTableData[idx], row, columnOrder);
-                }
-            }
             const overlay = document.getElementById('row-tooltip-overlay');
             const bubble = document.getElementById('row-tooltip-bubble');
-            if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.category-query-row')) {
+            if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.bank_category-row')) {
                 hideRowTooltip();
             }
         });
@@ -3363,7 +3356,7 @@
         // 선택된 행 정보 저장
         let selectedRowData = null;
 
-        // 카테고리 테이블 행 선택 함수
+        // 카테고리 테이블 행 선택 함수 (선택 시 말풍선으로 전체 텍스트 표시)
         function selectCategoryRow(rowElement) {
             document.querySelectorAll('.bank_category-row').forEach(r => {
                 r.style.backgroundColor = '';
@@ -3372,14 +3365,18 @@
             rowElement.style.backgroundColor = 'rgba(33, 150, 243, 0.3)';
             
             selectedRowData = {
-                분류: rowElement.getAttribute('data-chasu'),
-                키워드: rowElement.getAttribute('data-keyword'),
-                카테고리: rowElement.getAttribute('data-category')
+                분류: rowElement.getAttribute('data-chasu') || '',
+                키워드: rowElement.getAttribute('data-keyword') || '',
+                카테고리: rowElement.getAttribute('data-category') || ''
             };
             
             document.getElementById('new-category-chasu-input').value = VALID_CHASU_VALUES.includes(selectedRowData.분류) ? selectedRowData.분류 : '';
             document.getElementById('new-category-keyword-input').value = selectedRowData.키워드;
             document.getElementById('new-category-name-input').value = selectedRowData.카테고리;
+            // 말풍선 표시 (잘린 키워드/카테고리 전체 내용 확인용)
+            if (typeof showRowTooltip === 'function') {
+                showRowTooltip(selectedRowData, rowElement, ['분류', '키워드', '카테고리']);
+            }
         }
 
         // 버튼 텍스트 변경 함수
@@ -3638,6 +3635,7 @@
             html += '</tr>';
             return html;
         }
+
         // 카테고리 조회 테이블 로드 (전처리후 은행/계좌에 따라 필터링, 드롭다운 모두 전체이면 전처리후와 연동)
         async function loadCategoryQueryTable() {
             const btn = document.getElementById('generate-category-btn');
@@ -3659,7 +3657,7 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
-                params.append('limit', '1000');
+                params.append('limit', '500');
                 params.append('offset', '0');
                 const response = await fetch(`${API_BASE}/api/category-applied-data?${params}`);
                 const text = await response.text();
@@ -3685,10 +3683,10 @@
                 }
                 
                 const fileExists = data.file_exists === true;
-                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '1000');
+                        restParams.set('offset', '500');
                         restParams.delete('limit');
                         const restRes = await fetch(`${API_BASE}/api/category-applied-data?${restParams}`);
                         const restJson = await restRes.json();

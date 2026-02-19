@@ -1373,6 +1373,13 @@
             color: #FF9800;
         }
 
+        /* 폴더/파일명 텍스트 통일 (전처리전·전처리후·카테고리테이블·카테고리조회) */
+        .path-filename-text {
+            font-size: 12px !important;
+            color: #666 !important;
+            font-family: inherit;
+        }
+
         @keyframes blink {
             0%, 100% {
                 opacity: 1;
@@ -1442,11 +1449,11 @@
 <body>
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
-            <div>
-                <div class="path-filename-text" style="font-size: 12px; opacity: 0.7; margin-bottom: 2px;">{{ folder_name or 'MyCard' }}</div>
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
                 <h1>신용카드 전처리</h1>
+                <span class="path-filename-text" style="opacity: 0.7;" title="작업 폴더">{{ folder_name }}</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center;">
                 <button type="button" id="btn-regenerate-before-after" class="btn-reintegrate" title="card_before·card_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 재생성">전처리/후처리 재생성</button>
             </div>
         </div>
@@ -1465,8 +1472,9 @@
             <div class="box left-box">
                     <div class="box-header">
                         <div class="box-header-row">
-                            <div class="box-header-left">
+                            <div class="box-header-left" style="display: flex; align-items: center; gap: 8px;">
                                 <div class="box-title">신용카드 전처리전</div>
+                                <span class="path-filename-text" style="opacity: 0.6;" title="원본 폴더">.\source</span>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1495,8 +1503,9 @@
             <div class="box right-box">
                     <div class="box-header">
                         <div class="box-header-row">
-                            <div class="box-header-left">
+                            <div class="box-header-left" style="display: flex; align-items: center; gap: 8px;">
                                 <div class="box-title">신용카드 전처리후</div>
+                                <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">card_before.json</span>
                             </div>
                             <div class="box-header-right">
                                 <div class="stat-item" style="margin-right: 0; margin-left: 15px;">
@@ -1548,7 +1557,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0;">카테고리 조회</h2>
-                        <div style="font-size: 14px; opacity: 0.5; margin-left: 10px;"><span id="category-table-filename">category_table</span></div>
+                        <div style="font-size: 14px; opacity: 0.5; margin-left: 10px;"><span id="category-table-filename">category_table.json</span></div>
                     </div>
                     <button id="export-category-table-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
                 </div>
@@ -1621,7 +1630,10 @@
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 13px;">
-                        <h2 style="margin: 0;">신용카드(카테고리) 조회</h2>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h2 style="margin: 0;">신용카드(카테고리) 조회</h2>
+                            <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">card_after.json</span>
+                        </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <span id="category-query-count">총 0건</span>
                             <span><span class="label">입금:</span> <span id="category-query-deposit" style="color: #0000FF;">0</span>원<span id="category-query-deposit-count"></span></span>
@@ -2030,7 +2042,7 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
-                params.append('limit', '1000');
+                params.append('limit', '500');
                 params.append('offset', '0');
 
                 const response = await fetchWithTimeout(`${API_BASE}/api/processed-data?${params}`);
@@ -2048,10 +2060,10 @@
                     if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                     return;
                 }
-                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '1000');
+                        restParams.set('offset', '500');
                         restParams.delete('limit');
                         const restRes = await fetchWithTimeout(`${API_BASE}/api/processed-data?${restParams}`);
                         const restData = await restRes.json();
@@ -2438,17 +2450,10 @@
         
         // 페이지 로드 시 필터 배경색 초기화
         document.addEventListener('click', function(e) {
-            const row = e.target.closest('#category-query-content .category-query-row');
-            if (row && categoryQueryTableData.length > 0) {
-                const idx = parseInt(row.getAttribute('data-row-index'), 10);
-                if (!isNaN(idx) && categoryQueryTableData[idx]) {
-                    const columnOrder = Object.keys(categoryQueryTableData[0]);
-                    showRowTooltip(categoryQueryTableData[idx], row, columnOrder);
-                }
-            }
+            // 신용카드(카테고리) 조회 테이블에서는 말풍선 미표시. 카테고리 조회(왼쪽 분류/키워드/카테고리)만 selectCategoryRow에서 말풍선 표시.
             const overlay = document.getElementById('row-tooltip-overlay');
             const bubble = document.getElementById('row-tooltip-bubble');
-            if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.category-query-row')) {
+            if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.category-table-row')) {
                 hideRowTooltip();
             }
         });
@@ -2855,7 +2860,7 @@
         // 선택된 행 정보 저장
         let selectedRowData = null;
 
-        // 카테고리 테이블 행 선택 함수
+        // 카테고리 테이블 행 선택 함수 (선택 시 말풍선으로 분류/키워드/카테고리 전체 텍스트 표시)
         function selectCategoryRow(rowElement) {
             document.querySelectorAll('.category-table-row').forEach(r => {
                 r.style.backgroundColor = '';
@@ -2864,14 +2869,18 @@
             rowElement.style.backgroundColor = 'rgba(33, 150, 243, 0.3)';
             
             selectedRowData = {
-                분류: rowElement.getAttribute('data-chasu'),
-                키워드: rowElement.getAttribute('data-keyword'),
-                카테고리: rowElement.getAttribute('data-category')
+                분류: rowElement.getAttribute('data-chasu') || '',
+                키워드: rowElement.getAttribute('data-keyword') || '',
+                카테고리: rowElement.getAttribute('data-category') || ''
             };
             
             document.getElementById('new-category-chasu-input').value = VALID_CHASU_VALUES.includes(selectedRowData.분류) ? selectedRowData.분류 : '';
             document.getElementById('new-category-keyword-input').value = selectedRowData.키워드;
             document.getElementById('new-category-name-input').value = selectedRowData.카테고리;
+            // 카테고리 조회(왼쪽 테이블) 말풍선 표시
+            if (typeof showRowTooltip === 'function') {
+                showRowTooltip(selectedRowData, rowElement, ['분류', '키워드', '카테고리']);
+            }
         }
 
         // 버튼 텍스트 변경 함수
@@ -3204,7 +3213,7 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
-                params.append('limit', '1000');
+                params.append('limit', '500');
                 params.append('offset', '0');
                 const response = await fetch(`${API_BASE}/api/category-applied-data?${params}`);
                 const text = await response.text();
@@ -3230,10 +3239,10 @@
                 }
                 
                 const fileExists = data.file_exists === true;
-                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '1000');
+                        restParams.set('offset', '500');
                         restParams.delete('limit');
                         const restRes = await fetch(`${API_BASE}/api/category-applied-data?${restParams}`);
                         const restJson = await restRes.json();
@@ -4211,3 +4220,4 @@
     </div>
 </body>
 </html>
+                 

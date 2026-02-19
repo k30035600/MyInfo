@@ -819,14 +819,14 @@
             background-color: rgba(255, 152, 0, 0.1);
         }
 
-        /* 카테고리 조회/업종분류 조회 말풍선 - 은행/신용카드 카테고리조회와 동일 속성 (최상위 레이어 보장) */
+        /* 업종분류 조회 말풍선 - 은행/신용카드 카테고리조회와 동일 속성 (최상위 레이어 보장) */
         #row-tooltip-overlay { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: none; }
         #row-tooltip-overlay .row-tooltip-bubble { pointer-events: auto; }
-        .row-tooltip-bubble { position: fixed; z-index: 2147483647; max-width: 480px; max-height: 70vh; min-width: 220px; min-height: 80px; overflow: auto; background: rgb(255, 204, 128); border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 10px; font-size: 11px; line-height: 1.2; font-family: 'Malgun Gothic', sans-serif; }
+        .row-tooltip-bubble { position: fixed; z-index: 2147483647; max-width: 560px; max-height: 70vh; min-width: 280px; min-height: 80px; overflow: auto; background: rgb(255, 204, 128); border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 10px; font-size: 11px; line-height: 1.2; font-family: 'Malgun Gothic', sans-serif; }
         .row-tooltip-bubble .tooltip-title { font-weight: bold; color: #333; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
         .row-tooltip-bubble .tooltip-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
         .row-tooltip-bubble .tooltip-row:last-child { border-bottom: none; }
-        .row-tooltip-bubble .tooltip-key { flex: 0 0 100px; color: #333; opacity: 0.8; }
+        .row-tooltip-bubble .tooltip-key { flex: 0 0 60px; color: #333; opacity: 0.8; }
         .row-tooltip-bubble .tooltip-val { flex: 1; word-break: break-all; color: #111; opacity: 1; }
         .row-tooltip-selected { background-color: #bbb !important; }
 
@@ -837,11 +837,11 @@
         #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 12%; }
         #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 68%; }
 
-        /* 카테고리 조회 테이블: 한 줄 표시, 말줄임 */
+        /* 업종분류 조회 테이블: 한 줄 표시, 말줄임 */
         #category-query-table { table-layout: fixed; width: 100%; font-size: 11px; }
         #category-query-table th, #category-query-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* 전처리전/전처리후/카테고리조회 테이블: 행 높이 동일 (padding, line-height 통일) */
+        /* 전처리전/전처리후/업종분류조회 테이블: 행 높이 동일 (padding, line-height 통일) */
         #source-data-table th, #source-data-table td,
         #processed-data-table th, #processed-data-table td {
             padding: 4px 6px !important;
@@ -924,7 +924,7 @@
             word-break: break-word !important;
         }
         
-        /* 카테고리 적용후 테이블: 모든 컬럼 줄바꿈 방지 및 오버플로우 처리 */
+        /* 업종분류 적용후 테이블: 모든 컬럼 줄바꿈 방지 및 오버플로우 처리 */
         #category-applied-table th,
         #category-applied-table td {
             white-space: nowrap !important;
@@ -932,7 +932,7 @@
             text-overflow: ellipsis !important;
         }
         
-        /* 카테고리 적용후 테이블: 입출금 컬럼은 텍스트 전체 표시 */
+        /* 업종분류 적용후 테이블: 입출금 컬럼은 텍스트 전체 표시 */
         #category-applied-table td:nth-child(13) {
             white-space: normal !important;
             word-break: break-word !important;
@@ -1294,7 +1294,7 @@
             }
         }
 
-        /* 폴더/파일명 텍스트 통일 (전처리전·전처리후·카테고리테이블·카테고리조회) */
+        /* 폴더/파일명 텍스트 통일 (전처리전·전처리후·카테고리테이블·업종분류조회) */
         .path-filename-text {
             font-size: 12px !important;
             color: #666 !important;
@@ -1339,7 +1339,7 @@
             max-height: 330px;
         }
         
-        /* 카테고리 테이블: 카테고리조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
+        /* 카테고리 테이블: 업종분류조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
         #category-definition-table,
         #category-definition-table th,
         #category-definition-table td,
@@ -1396,14 +1396,14 @@
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
             <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-            <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
             <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
             <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
         </nav>
     </div>
     <div class="preprocess-container">
         <div class="wrapper-box">
-            <!-- 좌측 박스: 은행거래 (bank_after.xlsx) -->
+            <!-- 좌측 박스: 은행거래 (bank_after.json) -->
             <div class="box left-box">
                     <div class="box-header">
                         <div class="box-header-row">
@@ -1439,7 +1439,7 @@
                     </div>
             </div>
 
-            <!-- 우측 박스: 신용카드 (card_after.xlsx) -->
+            <!-- 우측 박스: 신용카드 (card_after.json) -->
             <div class="box right-box">
                     <div class="box-header">
                         <div class="box-header-row">
@@ -1491,14 +1491,14 @@
         </div>
     </div>
     
-    <!-- 금융정보: 업종분류 조회 + 금융정보(카테고리) 조회 + 금융정보(카테고리) 그래프 (신용카드 전처리와 동일 너비/높이) -->
+    <!-- 금융정보: 업종분류 조회 + 금융정보(업종분류) 조회 + 금융정보(업종분류) 그래프 (신용카드 전처리와 동일 너비/높이) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
             <!-- 좌측: 업종분류 조회 (신용카드 전처리 카테고리 테이블과 동일 25%, 높이 600px) -->
             <div style="display: flex; flex-direction: column; width: 25%; min-width: 300px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <h2 style="margin: 0;">업종분류 조회</h2>
-                    <div class="path-filename-text" style="font-size: 14px; opacity: 0.5; margin-left: 10px;">linkage_table.json</div>
+                    <div class="path-filename-text" style="opacity: 0.5; margin-left: 10px;">linkage_table.json</div>
                 </div>
                 <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 600px; max-height: 600px; min-height: 600px; flex: none; position: relative;">
                     <div id="linkage-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -1506,12 +1506,13 @@
                     </div>
                 </div>
             </div>
-            <!-- 우측: 금융정보(카테고리) 조회 + 금융정보(카테고리) 그래프 (신용카드 전처리와 동일 75%, 조회 300px·그래프 250px) -->
+            <!-- 우측: 금융정보(업종분류) 조회 + 금융정보(업종분류) 그래프 (신용카드 전처리와 동일 75%, 조회 300px·그래프 250px) -->
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(카테고리) 조회</h2>
+                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(업종분류) 조회</h2>
+                            <div class="path-filename-text" style="opacity: 0.6; margin-left: 8px;">cash_after.json</div>
                         </div>
                         <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()" title="after 파일을 재 생성합니다">전처리후 다시 실행</button>
                     </div>
@@ -1522,7 +1523,7 @@
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column;">
-                    <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(카테고리) 그래프</h2>
+                    <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(업종분류) 그래프</h2>
                     <div class="chart-container" style="height: 250px; max-height: 250px;">
                         <canvas id="category-combined-chart"></canvas>
                     </div>
@@ -1973,7 +1974,7 @@
                         params.append('date', dateFilter);
                     }
                 }
-                params.append('limit', '1000');
+                params.append('limit', '500');
                 params.append('offset', '0');
 
                 const response = await fetch(`${API_BASE}/api/processed-data?${params}`);
@@ -1991,10 +1992,10 @@
                     if (retryBtn) retryBtn.addEventListener('click', loadRightData);
                     return;
                 }
-                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '1000');
+                        restParams.set('offset', '500');
                         restParams.delete('limit');
                         const restRes = await fetch(`${API_BASE}/api/processed-data?${restParams}`);
                         const restData = await restRes.json();
@@ -2276,7 +2277,9 @@
                         else if (col === '이용일') html += '<td style="text-align: center;" data-sum-col="이용일">합계</td>';
                         else html += `<td style="text-align: ${align};" data-sum-col="${col}"></td>`;
                     });
-                    html += '</tr></tbody></table>';
+                    html += '</tr>';
+                    
+                    html += '</tbody></table>';
                     contentDiv.innerHTML = html;
                 } else {
                     // 데이터가 없는 경우 - error 메시지가 있으면 표시, 없으면 기본 메시지
@@ -2334,11 +2337,11 @@
             }
         }
 
-        // 카테고리 적용 함수
+        // 업종분류 적용(cash_after 생성) 함수
         async function generateCategory() {
             try {
                 const ctrl = new AbortController();
-                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+                const timeoutId = setTimeout(() => ctrl.abort(), 120000);
                 const generateResponse = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2365,12 +2368,12 @@
                 } else {
                     const errorMsg = (generateResult.error || '알 수 없는 오류').replace(/\n/g, ' ');
                     console.error('Category generation failed:', errorMsg);
-                    alert(`카테고리 적용 실패: ${errorMsg}`);
+                    alert(`업종분류 적용 실패: ${errorMsg}`);
                 }
             } catch (error) {
                 console.error('Error generating category:', error);
                 const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '알 수 없는 오류';
-                alert(`카테고리 적용 중 오류가 발생했습니다: ${msg}`);
+                alert(`업종분류 적용 중 오류가 발생했습니다: ${msg}`);
             }
         }
         
@@ -2493,7 +2496,7 @@
         }
         
         
-        // 금융정보 전처리 페이지: 업종분류 조회에만 말풍선 사용. "금융정보(카테고리) 조회"에는 말풍선 없음.
+        // 금융정보 전처리 페이지: 업종분류 조회에만 말풍선 사용. "금융정보(업종분류) 조회"에는 말풍선 없음.
         document.addEventListener('click', function(e) {
             const linkageRow = e.target.closest('#linkage-query-content .linkage-query-row');
             if (linkageRow && linkageTableData.length > 0) {
@@ -2517,7 +2520,12 @@
             setupFilterBackgrounds();
             loadSourceFiles();
             loadLeftData();
-            loadRightData();
+            // 전처리후·금융정보(업종분류) 조회 병렬 로드 (로딩 시간 단축)
+            Promise.all([
+                loadRightData(),
+                typeof loadCategoryQueryTable === 'function' ? loadCategoryQueryTable() : Promise.resolve()
+            ]).catch(() => {});
+            loadLinkageTable();
             
             // ESC, F1~F12: 입력/수정/삭제 모드 취소 → 출력 모드로 전환
             document.addEventListener('keydown', (e) => {
@@ -2528,10 +2536,6 @@
                     switchToCategoryOutputMode();
                 }
             });
-            
-            // 금융정보: 업종분류 카테고리 + 카테고리 조회 + 카테고리 그래프 (bank+card와 동일)
-            loadLinkageTable();
-            loadCategoryQueryTable();
         });
         
         // 카테고리 차수별 분류 매핑
@@ -2556,7 +2560,7 @@
         // 카테고리 테이블 전체 데이터 저장
         let allCategoryTableData = [];
         
-        // 금융정보(카테고리) 조회 데이터 저장 (필터/그래프용. 이 페이지에서는 행 클릭 말풍선 없음)
+        // 금융정보(업종분류) 조회 데이터 저장 (필터/그래프용. 이 페이지에서는 행 클릭 말풍선 없음)
         let categoryQueryDataOriginal = [];
         let categoryQueryTableData = [];
         let _tooltipSelectedRow = null;
@@ -2665,7 +2669,7 @@
             
             try {
                 const ctrl = new AbortController();
-                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+                const timeoutId = setTimeout(() => ctrl.abort(), 120000);
                 const response = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -3097,7 +3101,7 @@
             printWindow.document.close();
         }
         
-        // 업종분류 카테고리 테이블 로드 (linkage_table.json, 카테고리 조회와 동일 스타일)
+        // 업종분류 카테고리 테이블 로드 (linkage_table.json, 업종분류 조회와 동일 스타일)
         async function loadLinkageTable() {
             const contentEl = document.getElementById('linkage-query-content');
             if (!contentEl) return;
@@ -3141,8 +3145,8 @@
             }
         }
 
-        // 카테고리 조회 테이블 로드 (전처리후 은행/계좌에 따라 필터링, 드롭다운 모두 전체이면 전처리후와 연동)
-        // 카테고리 조회 테이블 한 행 HTML (백그라운드 추가 로드용)
+        // 업종분류 조회 테이블 로드 (전처리후 은행/계좌에 따라 필터링, 드롭다운 모두 전체이면 전처리후와 연동)
+        // 업종분류 조회 테이블 한 행 HTML (백그라운드 추가 로드용)
         function buildCategoryQueryRowCash(row, availableColumns, columnAlign, rowIndex) {
             const isEvenRow = rowIndex % 2 === 1;
             const columnBgColors = {};
@@ -3165,8 +3169,8 @@
             html += '</tr>';
             return html;
         }
-        // 카테고리 조회: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시)
-        async function loadCategoryQueryTable() {
+        // 업종분류 조회: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시). skipAutoCreate: 생성 직후 재조회에서 빈 값이어도 "생성 중" 루프 방지.
+        async function loadCategoryQueryTable(skipAutoCreate) {
             const btn = document.getElementById('generate-category-btn');
             const contentEl = document.getElementById('category-query-content');
             if (!contentEl) return;
@@ -3195,10 +3199,10 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
-                params.append('limit', '1000');
+                params.append('limit', '500');
                 params.append('offset', '0');
                 const ctrl = new AbortController();
-                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+                const timeoutId = setTimeout(() => ctrl.abort(), 120000);
                 const response = await fetch(`${API_BASE}/api/category-applied-data?${params}`, { signal: ctrl.signal });
                 clearTimeout(timeoutId);
                 const text = await response.text();
@@ -3222,15 +3226,15 @@
                     console.error('Category query API invalid JSON:', e);
                     throw new Error('서버 응답 형식 오류');
                 }
-                if ((data.total || 0) > 1000 && data.data && data.data.length > 0) {
+                if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '1000');
+                        restParams.set('offset', '500');
                         restParams.delete('limit');
                         const restRes = await fetch(`${API_BASE}/api/category-applied-data?${restParams}`);
                         const restJson = await restRes.json();
                         if (restJson.data && restJson.data.length > 0) data.data = data.data.concat(restJson.data);
-                    } catch (e) { console.warn('나머지 카테고리 조회 데이터 로드 건너뜀:', e); }
+                    } catch (e) { console.warn('나머지 업종분류 조회 데이터 로드 건너뜀:', e); }
                 }
                 
                 if (data.data && data.data.length > 0) {
@@ -3239,25 +3243,38 @@
                     const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
                     renderCategoryQueryTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
-                    updateCategoryChartFromQuery();
+                    setTimeout(() => { if (typeof updateCategoryChartFromQuery === 'function') updateCategoryChartFromQuery(); }, 0);
                 } else {
-                    // 데이터 없음 → cash_after 생성 시도
-                    contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...</div>';
-                    let createOk = false;
-                    try {
-                        const ctrl2 = new AbortController();
-                        const timeoutId2 = setTimeout(() => ctrl2.abort(), 60000);
-                        const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
-                        clearTimeout(timeoutId2);
-                        const createJson = await createRes.json().catch(() => ({}));
-                        if (createRes.ok && createJson.success) {
-                            clearSafety();
-                            createOk = true;
-                            await loadCategoryQueryTable();
-                            return;
-                        }
+                    if (skipAutoCreate) {
+                        clearSafety();
+                        contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">생성되었습니다. 새로고침(F5) 해 주세요.</div>';
+                    } else {
+                        // 데이터 없음 → cash_after 생성 시도
+                        contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...<br><small style="color:#888;margin-top:8px;display:block;">MyCash/cash_after_progress.log 파일을 열어 단계별 진행 상황을 확인할 수 있습니다. (서버를 터미널에서 직접 실행한 경우 터미널에도 출력됩니다.) 데이터가 많으면 2분까지 걸릴 수 있습니다.</small></div>';
+                        let createOk = false;
+                        try {
+                            const ctrl2 = new AbortController();
+                            const timeoutId2 = setTimeout(() => ctrl2.abort(), 120000);
+                            const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
+                            clearTimeout(timeoutId2);
+                            const createJson = await createRes.json().catch(() => ({}));
+                            if (createRes.ok && createJson.success) {
+                                clearSafety();
+                                createOk = true;
+                                await loadCategoryQueryTable(true);
+                                return;
+                            }
                         const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
-                        contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다.') + '</div>';
+                        const safeErr = (errMsg || '데이터가 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #333;">'
+                            + '<p style="margin: 0 0 12px 0; font-weight: bold; color: #F44336;">' + safeErr + '</p>'
+                            + '<p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">cash_after를 생성하지 못하는 흔한 이유:</p>'
+                            + '<ul style="text-align: left; margin: 0 auto 12px auto; padding-left: 24px; max-width: 420px; font-size: 12px; color: #555;">'
+                            + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>전처리후 다시 실행</strong> 후 재시도</li>'
+                            + '<li>쓰기 권한·한글 경로·디스크 부족 → 한글 없는 경로(C:\\CursorWorkspace 등)에서 실행</li>'
+                            + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도</li>'
+                            + '</ul><a href="' + API_BASE + '/help#trouble" style="font-size: 12px;">자세한 문제 해결 (도움말)</a>'
+                            + '</div>';
                     } catch (createErr) {
                         console.error('cash_after 자동 생성 실패:', createErr);
                         const isTimeout = createErr && createErr.name === 'AbortError';
@@ -3267,7 +3284,8 @@
                         const retryBtn = document.getElementById('category-query-retry-btn');
                         if (retryBtn) retryBtn.addEventListener('click', function() { loadCategoryQueryTable(); });
                     }
-                    if (!createOk) contentEl.innerHTML = contentEl.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                        if (!createOk) contentEl.innerHTML = contentEl.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                    }
                 }
                 
                 if (btn) {
@@ -3288,7 +3306,7 @@
             }
         }
         
-        // 카테고리 조회 테이블 렌더링
+        // 업종분류 조회 테이블 렌더링
         function renderCategoryQueryTable(data, options) {
             const contentDiv = document.getElementById('category-query-content');
             categoryQueryTableData = data || [];
@@ -3299,7 +3317,7 @@
             const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
             const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
-            // 카테고리 조회 — 컬럼비 계좌번호 1.0, 기타거래 2.0 (QUERY_WIDTHS) / 정렬 중,중,중,중,우,우,중,좌,좌,좌,중 / 헤더 중앙
+            // 업종분류 조회 — 컬럼비 계좌번호 1.0, 기타거래 2.0 (QUERY_WIDTHS) / 정렬 중,중,중,중,우,우,중,좌,좌,좌,중 / 헤더 중앙
             const columns = [
                 '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호'
             ];
@@ -3473,7 +3491,7 @@
                 }
             });
             
-            updateCategoryChartFromQuery();
+            setTimeout(() => { if (typeof updateCategoryChartFromQuery === 'function') updateCategoryChartFromQuery(); }, 0);
             
             const categoryQueryContent = document.getElementById('category-query-content');
             if (categoryQueryContent) {
@@ -3482,11 +3500,11 @@
                 }
                 categoryQueryContent._scrollHandler = () => {
                     updateCategoryChartFromQuery();
-                    // 신용카드(card_after)와 카테고리조회(cash_after) 스크롤 연동 제거 (cash는 bank+card 병합이라 행 대응 의미 없음)
+                    // 신용카드(card_after)와 업종분류조회(cash_after) 스크롤 연동 제거 (cash는 bank+card 병합이라 행 대응 의미 없음)
                 };
                 categoryQueryContent.addEventListener('scroll', categoryQueryContent._scrollHandler);
             }
-            // setupCategoryQueryScrollSync(); — 신용카드·카테고리조회 테이블 연동 사용 안 함 (cash_after는 bank+card 병합)
+            // setupCategoryQueryScrollSync(); — 신용카드·업종분류조회 테이블 연동 사용 안 함 (cash_after는 bank+card 병합)
         }
         
         function isAllCategoryQueryFiltersDefault() {
@@ -3498,7 +3516,7 @@
             return true;
         }
         
-        // 신용카드(card_after)와 카테고리조회(cash_after) 스크롤 연동 제거됨 (cash_after는 bank+card 병합이라 행 대응 의미 없음)
+        // 신용카드(card_after)와 업종분류조회(cash_after) 스크롤 연동 제거됨 (cash_after는 bank+card 병합이라 행 대응 의미 없음)
         let _scrollSyncInProgress = false;
         function syncScrollRightFromCategory() { /* 연동 사용 안 함 */ }
         function syncScrollCategoryFromRight() { /* 연동 사용 안 함 */ }
@@ -3509,7 +3527,7 @@
             rightContent._categorySyncHandler = null;
         }
         
-        // 카테고리 조회 테이블 필터링
+        // 업종분류 조회 테이블 필터링
         function filterCategoryQueryTable() {
             const table = document.getElementById('category-query-table');
             if (!table) return;
@@ -3646,7 +3664,7 @@
             updateCategoryChartFromQuery();
         }
         
-        // 카테고리 그래프 업데이트 (카테고리 조회 테이블 기반)
+        // 금융정보(업종분류) 그래프 업데이트 (업종분류 조회 테이블 기반)
         function updateCategoryChartFromQuery() {
             const container = document.getElementById('category-query-content');
             const rows = document.querySelectorAll('.category-query-row');

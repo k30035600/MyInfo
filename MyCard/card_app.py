@@ -1,4 +1,19 @@
 # -*- coding: utf-8 -*-
+"""
+MyCard (신용카드) Flask 앱 (card_app.py)
+
+목적:
+  - 신용카드 전처리 페이지(/): 전처리전(card_before)·전처리후(card_after)·카테고리 조회·카테고리 그래프.
+  - 카테고리 페이지(/category): category_table(분류/키워드/카테고리) + card_after(카테고리 적용후) 테이블·필터·출력.
+  - card_after 생성: "전처리후 다시 실행" 또는 API POST 시 process_card_data 연동 후 _create_card_after().
+
+주요 데이터:
+  - card_before.json, card_after.json: MyCard 폴더. category_table.json은 MyInfo/.source 공통.
+  - 신용카드 전처리후 화면: card_before.json 사용 (은행의 bank_before와 동일한 역할. card_after는 카테고리 적용후).
+  - 원본: MyInfo/.source/Card 의 .xls, .xlsx.
+
+유지보수: process_card_data는 importlib로 동적 로드. ensure_working_directory로 API 시 cwd를 MyCard로 고정.
+"""
 from flask import Flask, render_template, jsonify, request
 import traceback
 import pandas as pd
@@ -7,11 +22,9 @@ from pathlib import Path
 import sys
 import io
 import os
-import shutil
-from functools import wraps
 from datetime import datetime
 
-# UTF-8 인코딩 설정 (Windows 콘솔용)
+# ----- 인코딩 (Windows 콘솔) -----
 if sys.platform == 'win32':
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -25,10 +38,10 @@ app = Flask(__name__)
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
 
-# 스크립트 디렉토리 = MyCard 폴더
+# ----- 경로·상수 -----
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-# category: MyInfo/.source/category_table.json 하나만 사용 (category_table_io 모듈로 읽기/쓰기)
+# category_table: MyInfo/.source (category_table_io로 읽기/쓰기)
 CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 try:
     from category_table_io import (
@@ -79,7 +92,7 @@ def _ensure_card_category_file():
 
 
 def _call_integrate_card():
-    """card_before.xlsx 생성 (MyCard 폴더). 카테고리는 card_after에서만 적용."""
+    """card_before.xlsx 생성 (MyCard 폴더). 카테고리는 card_after에서만 적용. 반환: 생성된 DataFrame(재생성 시 after에 넘길 때 사용)."""
     mod = _load_process_card_data_module()
     card_before_path = Path(CARD_BEFORE_PATH)
     df = mod.integrate_card_excel(skip_write=True)
@@ -112,19 +125,9 @@ def _call_integrate_card():
                 mod.safe_write_excel(df, str(card_before_path))
         except Exception as e:
             print(f"card_before 저장 실패: {e}")
+    return df
 
-def ensure_working_directory(func):
-    """데코레이터: API 엔드포인트에서 작업 디렉토리를 스크립트 위치로 보장"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(SCRIPT_DIR)
-            return func(*args, **kwargs)
-        finally:
-            os.chdir(original_cwd)
-    return wrapper
-
+# ensure_working_directory: 아래 공통 모듈 블록에서 생성
 def _apply_카드사_사업자번호_기본값(df):
     """신한카드/하나카드 이면서 사업자번호 없으면 기본값 저장 (card_before, card_after)."""
     if df.empty or '카드사' not in df.columns or '사업자번호' not in df.columns:
@@ -182,55 +185,15 @@ def _card_deposit_withdraw_from_이용금액(df):
     df.loc[출금, '출금액'] = amt[출금].abs()
 
 
-def _json_safe_val(v):
-    """단일 값만 JSON 가능 타입으로 변환 (재귀 없음)."""
-    if hasattr(v, 'item'):
-        return v.item()
-    if hasattr(v, 'isoformat'):
-        try:
-            return v.isoformat()
-        except Exception:
-            return str(v)
-    if isinstance(v, (np.integer, np.int64, np.int32)):
-        return int(v)
-    if isinstance(v, (np.floating, np.float64, np.float32)):
-        return None if pd.isna(v) else float(v)
-    if isinstance(v, float) and pd.isna(v):
-        return None
-    if pd.isna(v):
-        return None
-    return v
-
-
-def _json_safe_records(data):
-    """list of dict 한 번 순회로 치환 (대용량 응답 시 CPU 절감)."""
-    if not data or not isinstance(data, list):
-        return data
-    return [{k: _json_safe_val(v) for k, v in row.items()} for row in data]
-
-
-def _json_safe(obj):
-    """JSON 직렬화: NaN/NaT, numpy, datetime → Python 타입"""
-    if isinstance(obj, list) and obj and isinstance(obj[0], dict):
-        return _json_safe_records(obj)
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_json_safe(x) for x in obj]
-    if isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    if isinstance(obj, (np.floating, np.float64, np.float32)):
-        return None if pd.isna(obj) else float(obj)
-    if isinstance(obj, float) and pd.isna(obj):
-        return None
-    if pd.isna(obj):
-        return None
-    if hasattr(obj, 'isoformat'):
-        try:
-            return obj.isoformat()
-        except Exception:
-            return str(obj)
-    return obj
+# ----- 데코레이터·JSON 유틸 (공통 모듈 사용) -----
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+from shared_app_utils import (
+    make_ensure_working_directory,
+    json_safe as _json_safe,
+    format_bytes,
+)
+ensure_working_directory = make_ensure_working_directory(SCRIPT_DIR)
 
 def load_source_files():
     """MyInfo/.source/Card 의 원본 파일 목록 가져오기. .xls, .xlsx만 취급."""
@@ -286,6 +249,9 @@ def _normalize_구분_column(df):
         lambda v: '폐업' if v is not None and str(v).strip() == '폐업' else ''
     )
 
+
+# 전처리전 source 캐시: .source/Card를 한 번만 읽어 JSON 형태로 보관, 서버 종료 또는 전처리/후처리 재생성 시에만 무효화
+_source_card_cache = None
 
 # card_before / card_after 대용량 JSON 캐시 (재생성 버튼 시에만 무효화, 서버 종료까지 재사용)
 _card_before_cache = None
@@ -388,12 +354,28 @@ def _df_memory_bytes(df):
     except Exception:
         return 0
 
+
+def _source_cache_bytes(lst):
+    """전처리전 source 캐시(리스트)의 대략적 바이트 수 (JSON 직렬화 기준)."""
+    if not lst:
+        return 0
+    try:
+        import json as _json
+        return len(_json.dumps(lst, ensure_ascii=False).encode('utf-8'))
+    except Exception:
+        return 0
+
+
 @app.route('/api/cache-info')
 def get_cache_info():
-    """캐시 이름·크기·총메모리 (금융거래 통합정보 헤더 표시용)."""
+    """캐시 이름·크기·총메모리 (금융정보 통합정보 헤더 표시용)."""
     try:
         caches = []
         total = 0
+        if _source_card_cache is not None:
+            b = _source_cache_bytes(_source_card_cache)
+            total += b
+            caches.append({'name': 'card_source', 'size_bytes': b})
         if _card_before_cache is not None:
             b = _df_memory_bytes(_card_before_cache)
             total += b
@@ -402,19 +384,13 @@ def get_cache_info():
             b = _df_memory_bytes(_card_after_cache)
             total += b
             caches.append({'name': 'card_after', 'size_bytes': b})
-        def _human(b):
-            if b < 1024:
-                return f'{b} B'
-            if b < 1024 * 1024:
-                return f'{b / 1024:.1f} KB'
-            return f'{b / (1024 * 1024):.2f} MB'
         for c in caches:
-            c['size_human'] = _human(c['size_bytes'])
+            c['size_human'] = format_bytes(c['size_bytes'])
         return jsonify({
             'app': 'MyCard',
             'caches': caches,
             'total_bytes': total,
-            'total_human': _human(total),
+            'total_human': format_bytes(total),
         })
     except Exception as e:
         return jsonify({'app': 'MyCard', 'caches': [], 'total_bytes': 0, 'total_human': '0 B', 'error': str(e)})
@@ -510,7 +486,8 @@ def run_card_preprocess():
 
 def _remove_card_before_after_and_bak():
     """통합·전처리 다시 실행 전에 card_before/card_after 데이터 파일 삭제. 캐시 무효화."""
-    global _card_before_cache, _card_before_cache_mtime, _card_after_cache, _card_after_cache_mtime
+    global _source_card_cache, _card_before_cache, _card_before_cache_mtime, _card_after_cache, _card_after_cache_mtime
+    _source_card_cache = None
     _card_before_cache = None
     _card_before_cache_mtime = None
     _card_after_cache = None
@@ -543,8 +520,11 @@ def regenerate_before_after():
     """card_before·card_after 삭제 후 source→전처리→before→카테고리분류→후처리→after 전체 재생성."""
     try:
         _remove_card_before_after_and_bak()
-        _call_integrate_card()
-        success, error, count = _create_card_after()
+        df_before = _call_integrate_card()
+        # before 메모리(df_before)로 after 생성. 파일 재읽기 생략.
+        success, error, count = _create_card_after(
+            input_df=df_before if df_before is not None and not df_before.empty else None
+        )
         if not success:
             return jsonify({'ok': False, 'error': error or 'card_after 생성 실패', 'count': 0}), 500
         return jsonify({'ok': True, 'message': f'전처리/후처리 재생성 완료: {count}건', 'count': count})
@@ -556,7 +536,7 @@ def regenerate_before_after():
 @app.route('/api/processed-data')
 @ensure_working_directory
 def get_processed_data():
-    """전처리후 테이블용: card_before.xlsx만 사용. 카테고리·키워드 컬럼은 사용하지 않음."""
+    """전처리후 테이블용: card_before.json만 사용 (신용카드 전처리후 = card_before. 카테고리·키워드 컬럼은 사용하지 않음)."""
     try:
         output_path = Path(CARD_BEFORE_PATH)
         if not output_path.exists() or output_path.stat().st_size == 0:
@@ -818,11 +798,63 @@ def get_category_applied_data():
             'file_exists': Path(CARD_AFTER_PATH).exists()
         }), 500
 
+def _build_source_card_cache():
+    """MyInfo/.source/Card 의 .xls/.xlsx를 읽어 전처리전 source 캐시(리스트)를 채운다. 실패 시 None."""
+    global _source_card_cache
+    source_dir = Path(SOURCE_CARD_DIR)
+    if not source_dir.exists():
+        return None
+    excel_files = sorted(
+        list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx')),
+        key=lambda p: (p.name, str(p))
+    )
+    if not excel_files:
+        return None
+    all_data = []
+    for file_path in excel_files:
+        filename = file_path.name
+        card_name = None
+        if '국민' in filename:
+            card_name = '국민카드'
+        elif '신한' in filename:
+            card_name = '신한카드'
+        elif '하나' in filename:
+            card_name = '하나카드'
+        elif '현대' in filename:
+            card_name = '현대카드'
+        elif '농협' in filename:
+            card_name = '농협카드'
+        try:
+            suf = file_path.suffix.lower()
+            engine = 'xlrd' if suf == '.xls' else 'openpyxl'
+            xls = pd.ExcelFile(file_path, engine=engine)
+            for sheet_name in xls.sheet_names:
+                try:
+                    df = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine=engine)
+                    df = df.where(pd.notna(df), None)
+                    data_dict = df.to_dict('records')
+                    data_dict = _json_safe(data_dict)
+                    sheet_data = {
+                        'filename': filename,
+                        'sheet_name': sheet_name,
+                        'card': card_name,
+                        'data': data_dict
+                    }
+                    all_data.append(sheet_data)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    _source_card_cache = all_data
+    return _source_card_cache
+
+
 @app.route('/api/source-data')
 @ensure_working_directory
 def get_source_data():
-    """전처리전 테이블용: MyInfo/.source/Card 의 .xls/.xlsx를 직접 읽어 원본 데이터를 JSON으로 반환."""
+    """전처리전 테이블용: .source/Card 원본을 한 번만 읽어 캐시 후 재활용. 재생성 버튼 시 캐시 무효화."""
     try:
+        global _source_card_cache
         source_dir = Path(SOURCE_CARD_DIR)
         current_dir = os.getcwd()
         if not source_dir.exists():
@@ -833,55 +865,22 @@ def get_source_data():
             }), 404
 
         card_filter = request.args.get('card', '')
-        all_data = []
-        count = 0
-        excel_files = sorted(
-            list(source_dir.glob('*.xls')) + list(source_dir.glob('*.xlsx')),
-            key=lambda p: (p.name, str(p))
-        )
-        for file_path in excel_files:
-            filename = file_path.name
-            card_name = None
-            if '국민' in filename:
-                card_name = '국민카드'
-            elif '신한' in filename:
-                card_name = '신한카드'
-            elif '하나' in filename:
-                card_name = '하나카드'
-            elif '현대' in filename:
-                card_name = '현대카드'
-            elif '농협' in filename:
-                card_name = '농협카드'
 
-            if card_filter and card_name != card_filter:
-                continue
+        if _source_card_cache is None:
+            _build_source_card_cache()
+        if _source_card_cache is None:
+            return jsonify({
+                'error': f'.source/Card 폴더에 .xls, .xlsx 파일이 없습니다.\n현재 작업 디렉토리: {current_dir}\n.source/Card 경로: {source_dir}',
+                'count': 0,
+                'files': []
+            }), 404
 
-            try:
-                suf = file_path.suffix.lower()
-                engine = 'xlrd' if suf == '.xls' else 'openpyxl'
-                xls = pd.ExcelFile(file_path, engine=engine)
-                for sheet_name in xls.sheet_names:
-                    try:
-                        df = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine=engine)
-                        df = df.where(pd.notna(df), None)
-                        data_dict = df.to_dict('records')
-                        data_dict = _json_safe(data_dict)
-                        sheet_data = {
-                            'filename': filename,
-                            'sheet_name': sheet_name,
-                            'card': card_name,
-                            'data': data_dict
-                        }
-                        all_data.append(sheet_data)
-                        count += len(data_dict)
-                    except Exception:
-                        continue
-            except Exception:
-                continue
+        filtered = [s for s in _source_card_cache if not card_filter or s.get('card') == card_filter]
+        count = sum(len(s['data']) for s in filtered)
 
         response = jsonify({
             'count': count,
-            'files': all_data
+            'files': filtered
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response
@@ -1723,22 +1722,28 @@ def get_date_range():
         return jsonify({'error': str(e), 'min_date': None, 'max_date': None}), 500
 
 
-def _create_card_after():
+def _create_card_after(input_df=None):
     """card_before → card_after 생성. 은행거래 ensure_all_bank_files와 동일하게 전처리 화면에서 자동 생성 시 사용.
+    input_df가 주어지면 파일 읽기 생략(재생성 시 before 메모리 재활용).
     Returns: (success: bool, error: Optional[str], count: int)"""
     try:
         mod = _load_process_card_data_module()
         card_before_path = Path(CARD_BEFORE_PATH)
-        if not card_before_path.exists() or card_before_path.stat().st_size == 0:
-            return (False, 'card_after를 만들 수 없습니다. card_before가 없거나 비어 있습니다. '
-                    'MyInfo/.source/Card에 .xls/.xlsx 파일을 넣은 뒤 전처리를 먼저 실행하세요.', 0)
 
-        if safe_read_data_json and str(card_before_path).endswith('.json'):
-            df_card = safe_read_data_json(str(card_before_path), default_empty=True)
+        if input_df is not None:
+            df_card = input_df.copy() if not input_df.empty else pd.DataFrame()
         else:
-            df_card = pd.read_excel(card_before_path, engine='openpyxl')
-        if df_card is None:
-            df_card = pd.DataFrame()
+            if not card_before_path.exists() or card_before_path.stat().st_size == 0:
+                return (False, 'card_after를 만들 수 없습니다. card_before가 없거나 비어 있습니다. '
+                        'MyInfo/.source/Card에 .xls/.xlsx 파일을 넣은 뒤 전처리를 먼저 실행하세요.', 0)
+
+            if safe_read_data_json and str(card_before_path).endswith('.json'):
+                df_card = safe_read_data_json(str(card_before_path), default_empty=True)
+            else:
+                df_card = pd.read_excel(card_before_path, engine='openpyxl')
+            if df_card is None:
+                df_card = pd.DataFrame()
+
         df_card.columns = [str(c).strip() for c in df_card.columns]
         if not df_card.empty and '할부' in df_card.columns and '구분' not in df_card.columns:
             df_card = df_card.rename(columns={'할부': '구분'})

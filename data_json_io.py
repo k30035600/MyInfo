@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """before/after 데이터 파일 JSON 읽기·쓰기. (bank_before, bank_after, card_before, card_after, cash_after)"""
 import os
+import sys
+import tempfile
 import time
 import json
 from pathlib import Path
@@ -13,23 +15,24 @@ try:
 except ImportError:
     orjson = None
 
-
-def _json_serializable(value):
-    """JSON 직렬화 가능한 값으로 변환 (numpy, datetime, NaN)."""
-    if hasattr(value, 'item'):  # numpy scalar
-        return value.item()
-    if hasattr(value, 'isoformat'):
-        try:
-            return value.isoformat()
-        except Exception:
-            return str(value)
-    if isinstance(value, (np.integer, np.int64, np.int32)):
-        return int(value)
-    if isinstance(value, (np.floating, np.float64, np.float32)):
-        return None if pd.isna(value) else float(value)
-    if pd.isna(value):
-        return None
-    return value
+try:
+    from shared_app_utils import json_safe_val as _json_serializable
+except ImportError:
+    def _json_serializable(value):
+        if hasattr(value, 'item'):
+            return value.item()
+        if hasattr(value, 'isoformat'):
+            try:
+                return value.isoformat()
+            except Exception:
+                return str(value)
+        if isinstance(value, (np.integer, np.int64, np.int32)):
+            return int(value)
+        if isinstance(value, (np.floating, np.float64, np.float32)):
+            return None if pd.isna(value) else float(value)
+        if pd.isna(value):
+            return None
+        return value
 
 
 def safe_read_data_json(path, default_empty=True):
@@ -54,38 +57,63 @@ def safe_read_data_json(path, default_empty=True):
         return pd.DataFrame() if default_empty else None
 
 
-def safe_write_data_json(path, df, max_retries=3):
-    """DataFrame을 JSON(orient=records)으로 저장. 권한 오류 시 재시도. .bak 생성하지 않음."""
+def safe_write_data_json(path, df, max_retries=5):
+    """DataFrame을 JSON(orient=records)으로 저장. 임시 파일에 쓴 뒤 os.replace로 교체해
+    잠긴 파일(unlink 불가) 상황을 피함. 권한/잠금 오류 시 재시도."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    dirpath = path.parent
+    rec = df.to_dict('records')
+    for row in rec:
+        for k in list(row.keys()):
+            row[k] = _json_serializable(row[k])
+    tmp = None
     for attempt in range(max_retries):
         try:
-            if path.exists():
+            fd, tmp = tempfile.mkstemp(suffix='.json', prefix='.data_', dir=str(dirpath))
+            try:
+                if orjson is not None:
+                    opt = orjson.OPT_INDENT_2 if len(rec) <= 5000 else 0
+                    with os.fdopen(fd, 'wb') as f:
+                        f.write(orjson.dumps(rec, option=opt))
+                else:
+                    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                        json.dump(rec, f, ensure_ascii=False, indent=2)
+            except Exception:
+                if tmp and os.path.exists(tmp):
+                    try:
+                        os.remove(tmp)
+                    except OSError:
+                        pass
+                raise
+            # Windows/OneDrive 등이 대상 파일을 잠그는 경우 대비: 첫 replace 전 짧은 대기, replace 재시도·대기 강화
+            replace_retries = 10
+            if sys.platform == 'win32':
+                time.sleep(0.5)
+            for replace_attempt in range(replace_retries):
                 try:
-                    path.unlink()
-                    time.sleep(0.1)
-                except PermissionError:
-                    if attempt < max_retries - 1:
-                        time.sleep(0.5)
+                    os.replace(tmp, str(path))
+                    tmp = None
+                    return True
+                except (OSError, PermissionError):
+                    if replace_attempt < replace_retries - 1:
+                        time.sleep(1.0 * (replace_attempt + 1))
                         continue
                     raise
-            # NaN/NaT/numpy → JSON 가능 타입
-            rec = df.to_dict('records')
-            for row in rec:
-                for k in list(row.keys()):
-                    row[k] = _json_serializable(row[k])
-            if orjson is not None:
-                with open(path, 'wb') as f:
-                    # 대용량(5000행 초과)은 indent 없이 저장 → 쓰기·파일 크기·읽기 소폭 개선
-                    opt = orjson.OPT_INDENT_2 if len(rec) <= 5000 else 0
-                    f.write(orjson.dumps(rec, option=opt))
-            else:
-                with open(path, 'w', encoding='utf-8') as f:
-                    json.dump(rec, f, ensure_ascii=False, indent=2)
-            return True
-        except PermissionError:
+        except (OSError, PermissionError):
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
             if attempt < max_retries - 1:
-                time.sleep(0.5)
+                time.sleep(0.5 * (attempt + 1))
                 continue
             raise
-    return False
+        finally:
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+    # 루프는 항상 return True 또는 raise로 종료됨 (도달 불가 코드 제거)

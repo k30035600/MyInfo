@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-cash_after 생성 후 적용하는 위험도 지표 1~8호.
+cash_after 생성 후 적용하는 위험도 지표 1~8호. 1차분류(1호·2호)와 2차분류(3호~8호)로 구분.
 
 - 모든 행의 위험도는 최소 0.1.
-- 1호부터 8호까지 순차 적용. 1호 제외하고 2~8호는 (카테고리+키워드)+기타거래로 매칭.
-- 매칭 시 해당 행의 위험도키워드(매칭된 키워드 또는 지표명)·위험도분류·위험도를 설정(나중 호수가 덮어씀).
-- 매칭된 키워드/위험도분류/위험도는 cash_after의 위험도키워드/위험도분류/위험도에 저장.
+- 1차분류: 1호 적용 후 2호도 진행(2호 조건 만족 시 2호로 덮어씀). cash_after를 키워드→거래일 올림차순 정렬, 출금액 기준 적용. 1차분류 해당 행(1호 또는 2호)은 2차분류에서 skip.
+- 2차분류: 3호~8호. cash_after를 카테고리 → 키워드 → 거래일 올림차순 정렬 후,
+  (카테고리+키워드+기타거래) 텍스트 매칭으로 위험도 적용.
+- 2호 비정형지표: 특정인=키워드 기준(동일 키워드 출금만 100만원 이상 3회 이상).
+- 3호~5호: 출금만 조건(입금 없이 출금만 50만원 이상).
+- 매칭 시 위험도키워드·위험도분류·위험도를 설정. 결과는 cash_after에 저장.
 """
 from __future__ import annotations
 
@@ -82,10 +85,11 @@ def _matched_keyword(text: str, keywords: List[str]) -> str:
 
 def apply_risk_indicators(df: pd.DataFrame) -> None:
     """
-    cash_after DataFrame에 대해 1~8호 위험도 지표를 순서대로 적용. in-place 수정.
-    - 먼저 모든 행 위험도를 0.1로 초기화.
-    - 1호 → 8호 순으로 매칭 시 위험도키워드(매칭키워드)·위험도분류·위험도 설정(나중 호수가 덮어씀).
-    - 키워드/기타거래(및 5호는 카테고리)로 매칭. 매칭 결과는 cash_after 위험도키워드/위험도분류/위험도에 저장.
+    cash_after DataFrame에 대해 1~8호 위험도 지표 적용. in-place 수정.
+    - 모든 행 위험도 0.1로 초기화.
+    - 1차분류: 키워드→거래일 올림차순 정렬 후 1호 적용, 이어서 2호 적용(2호 조건 만족 시 2호로 덮어씀). 1차분류 해당 행은 2차분류 skip.
+    - 2차분류: 카테고리→키워드→거래일 올림차순 정렬 후 3호~8호((카테고리+키워드+기타거래) 텍스트 매칭) 적용.
+    - 결과는 위험도키워드/위험도분류/위험도에 저장.
     """
     if df is None or df.empty:
         return
@@ -120,18 +124,15 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
         df['카테고리'] = ''
     kw_series = df['키워드'].fillna('').astype(str).str.strip()
 
-    # 위험도분류 적용 전: 카테고리·키워드·거래일 올림차순 정렬
-    sort_cols = [c for c in ['카테고리', '키워드', '거래일'] if c in df.columns]
-    if sort_cols:
-        df.sort_values(by=sort_cols, ascending=True, inplace=True, na_position='last')
+    # ---------- 1차분류: 1호·2호 (키워드 → 거래일 올림차순, 출금액 기준 적용) ----------
+    sort_1 = [c for c in ['키워드', '거래일'] if c in df.columns]
+    if sort_1:
+        df.sort_values(by=sort_1, ascending=True, inplace=True, na_position='last')
 
-    # 2~8호 매칭용 검색 텍스트: (카테고리+키워드)+기타거래, 동일단어(공백 기준 토큰) 제거
-    SEARCH_COLS_2_8 = ['카테고리', '키워드', '기타거래']
-
-    # 1호: 자료소명지표 1.0 — 출금 1000만원 이상, 해당 행의 키워드를 위험도키워드로 저장
-    out_10m = df['출금액'].apply(_num) >= 10_000_000
+    # 1호: 자료소명지표 1.0 — 출금 500만원 이상, 해당 행의 키워드를 위험도키워드로 저장
+    out_5m = df['출금액'].apply(_num) >= 5_000_000
     for i in df.index:
-        if out_10m[i]:
+        if out_5m[i]:
             kw_val = _str(df.at[i, '키워드']) or _str(df.at[i, '기타거래']) if '기타거래' in df.columns else _str(df.at[i, '키워드'])
             df.at[i, '위험도키워드'] = kw_val
             if has_업종:
@@ -139,12 +140,12 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
             if has_위험도:
                 df.at[i, '위험도'] = 1.0
 
-    # 2호: 비정형지표 1.5 — 출금만존재, 100만원 이상, 5회 이상 (특정인=키워드 기준), 해당 키워드를 위험도키워드로 저장
+    # 2호: 비정형지표 1.5 — 출금만존재, 100만원 이상, 3회 이상 (특정인=키워드 기준), 해당 키워드를 위험도키워드로 저장 (1호 분류 후 2호도 진행, 2호 조건 만족 시 2호로 덮어씀)
     out_only_1m = (df['출금액'].apply(_num) >= 1_000_000) & (df['입금액'].apply(_num) <= 0)
     df['_kw'] = kw_series
     count_per_kw = df.loc[out_only_1m].groupby('_kw').size()
-    kw_5_or_more = set(count_per_kw[count_per_kw >= 5].index)
-    df['_2호대상'] = df['_kw'].isin(kw_5_or_more) & out_only_1m
+    kw_3_or_more = set(count_per_kw[count_per_kw >= 3].index)
+    df['_2호대상'] = df['_kw'].isin(kw_3_or_more) & out_only_1m
     for i in df.index:
         if df.at[i, '_2호대상']:
             kw_val = _str(df.at[i, '키워드']) or _str(df.at[i, '기타거래']) if '기타거래' in df.columns else _str(df.at[i, '키워드'])
@@ -154,14 +155,27 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
             if has_위험도:
                 df.at[i, '위험도'] = 1.5
 
-    # 3호: 투기성지표 2.0 — 입출금 50만원 이상, 키워드: 증권/선물/자산운용/위탁/증권입금 (하나증권금융센터 제외)
+    # 1차분류(1호 또는 2호) 해당 행은 2차분류(3~8호)에서 skip
+    is_1차분류 = out_5m | df['_2호대상']
+
+    # ---------- 2차분류: 3호~8호 (카테고리 → 키워드 → 거래일 올림차순, (카테고리+키워드+기타거래) 텍스트 매칭) ----------
+    sort_2 = [c for c in ['카테고리', '키워드', '거래일'] if c in df.columns]
+    if sort_2:
+        df.sort_values(by=sort_2, ascending=True, inplace=True, na_position='last')
+
+    # 2차분류 매칭용 검색 텍스트: (카테고리+키워드)+기타거래, 동일단어(공백 기준 토큰) 제거
+    SEARCH_COLS_2_8 = ['카테고리', '키워드', '기타거래']
+
+    # 3호: 투기성지표 2.0 — 출금만 50만원 이상, 키워드: 증권/선물/자산운용/위탁/증권입금 (하나증권금융센터 제외, 1차분류 행 skip)
     kw3 = ['증권', '선물', '자산운용', '위탁', '증권입금']
     exclude3 = '하나증권금융센터'  # 증권에서 제외(카드사 금융센터 명칭)
     for i in df.index:
+        if is_1차분류[i]:
+            continue  # 1차분류(1호·2호) 해당 행은 2차분류 skip
         row = df.loc[i]
         inp, out = _num(row.get('입금액')), _num(row.get('출금액'))
         text = _search_text_dedup(row, SEARCH_COLS_2_8)
-        if (inp >= 500_000 or out >= 500_000) and _keyword_match(text, kw3):
+        if out >= 500_000 and inp <= 0 and _keyword_match(text, kw3):
             matched = _matched_keyword(text, kw3)
             if matched == '증권' and exclude3 in text:
                 continue  # 하나증권금융센터는 증권(3호)에서 제외
@@ -171,13 +185,15 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
             if has_위험도:
                 df.at[i, '위험도'] = 2.0
 
-    # 4호: 사기파산지표 2.5 — 입출금 50만원 이상, 키워드: 대부/P2P/카드깡/원리금 상환
+    # 4호: 사기파산지표 2.5 — 출금만 50만원 이상, 키워드: 대부/P2P/카드깡/원리금 상환 (1차분류 행 skip)
     kw4 = ['대부', 'P2P', '카드깡', '원리금']
     for i in df.index:
+        if is_1차분류[i]:
+            continue  # 1차분류(1호·2호) 해당 행은 2차분류 skip
         row = df.loc[i]
         inp, out = _num(row.get('입금액')), _num(row.get('출금액'))
         text = _search_text_dedup(row, SEARCH_COLS_2_8)
-        if (inp >= 500_000 or out >= 500_000) and _keyword_match(text, kw4):
+        if out >= 500_000 and inp <= 0 and _keyword_match(text, kw4):
             matched = _matched_keyword(text, kw4)
             df.at[i, '위험도키워드'] = matched
             if has_업종:
@@ -185,12 +201,14 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
             if has_위험도:
                 df.at[i, '위험도'] = 2.5
 
-    # 5호: 가상자산지표 3.0 — 입출금 50만원 이상, 카테고리 가상자산 또는 키워드: 업비트/빗썸/코인원/코빗 등
+    # 5호: 가상자산지표 3.0 — 출금만 50만원 이상, 카테고리 가상자산 또는 키워드: 업비트/빗썸/코인원/코빗 등 (1차분류 행 skip)
     kw5 = ['업비트', '빗썸', '코인원', '코빗', '가상자산', 'VASP', '거래소', '코인', '비트코인', '암호화폐']
     for i in df.index:
+        if is_1차분류[i]:
+            continue  # 1차분류(1호·2호) 해당 행은 2차분류 skip
         row = df.loc[i]
         inp, out = _num(row.get('입금액')), _num(row.get('출금액'))
-        if inp >= 500_000 or out >= 500_000:
+        if out >= 500_000 and inp <= 0:
             cat = _str(row.get('카테고리', ''))
             text = _search_text_dedup(row, SEARCH_COLS_2_8)
             if '가상자산' in cat:
@@ -207,9 +225,11 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
                 if has_위험도:
                     df.at[i, '위험도'] = 3.0
 
-    # 6호: 자산은닉지표 3.5 — 출금만 50만원 이상, 키워드: 해외송금/Wise/SWIFT 등
+    # 6호: 자산은닉지표 3.5 — 출금만 50만원 이상, 키워드: 해외송금/Wise/SWIFT 등 (1차분류 행 skip)
     kw6 = ['해외송금', '고액현금인출', '외화송금', '영문성명', 'Wise', 'TransferWise', 'SWIFT']
     for i in df.index:
+        if is_1차분류[i]:
+            continue  # 1차분류(1호·2호) 해당 행은 2차분류 skip
         row = df.loc[i]
         inp, out = _num(row.get('입금액')), _num(row.get('출금액'))
         text = _search_text_dedup(row, SEARCH_COLS_2_8)
@@ -221,9 +241,11 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
             if has_위험도:
                 df.at[i, '위험도'] = 3.5
 
-    # 7호: 과소비지표 4.0 — 출금만 30만원 이상, 키워드: 백화점/명품/귀금속/유흥/고가가전/고가가구/유흥주점/무도장/콜라텍/댄스홀
+    # 7호: 과소비지표 4.0 — 출금만 30만원 이상, 키워드: 백화점/명품/귀금속/유흥/고가가전/고가가구/유흥주점/무도장/콜라텍/댄스홀 (1차분류 행 skip)
     kw7 = ['백화점', '명품', '귀금속', '유흥', '고가가전', '고가가구', '유흥주점', '무도장', '콜라텍', '댄스홀']
     for i in df.index:
+        if is_1차분류[i]:
+            continue  # 1차분류(1호·2호) 해당 행은 2차분류 skip
         row = df.loc[i]
         inp, out = _num(row.get('입금액')), _num(row.get('출금액'))
         text = _search_text_dedup(row, SEARCH_COLS_2_8)
@@ -235,9 +257,11 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
             if has_위험도:
                 df.at[i, '위험도'] = 4.0
 
-    # 8호: 사행성지표 5.0 — 출금만 10만원 이상, 키워드: 경마/복권/사설도박/도박기계/사행성게임기/오락기구/휴게텔/키스방/대화방/안마/마사지
+    # 8호: 사행성지표 5.0 — 출금만 10만원 이상, 키워드: 경마/복권/사설도박/도박기계/사행성게임기/오락기구/휴게텔/키스방/대화방/안마/마사지 (1차분류 행 skip)
     kw8 = ['경마', '복권', '사설도박', '도박기계', '사행성게임기', '오락기구', '휴게텔', '키스방', '대화방', '안마', '마사지', '사행성', '도박']
     for i in df.index:
+        if is_1차분류[i]:
+            continue  # 1차분류(1호·2호) 해당 행은 2차분류 skip
         row = df.loc[i]
         inp, out = _num(row.get('입금액')), _num(row.get('출금액'))
         text = _search_text_dedup(row, SEARCH_COLS_2_8)
@@ -258,13 +282,13 @@ def apply_risk_indicators(df: pd.DataFrame) -> None:
 
 
 def get_risk_indicators_document() -> str:
-    """위험도 지표 1~8호 요약 문서용 텍스트 반환."""
+    """위험도 지표 1~8호 요약 문서용 텍스트 반환. 2호 특정인=키워드 기준, 3~5호 출금만 조건."""
     lines = [
-        "1호. 자료소명지표: 출금 1000만원 이상, 해당 행 키워드를 위험도키워드로 저장, 위험도 1.0",
-        "2호. 비정형지표: 출금만존재, 100만원 이상, 5회 이상 (특정인=키워드 기준), 해당 키워드를 위험도키워드로 저장, 위험도 1.5",
-        "3호. 투기성지표: 입출금 50만원 이상, 위험도 2.0 (증권/선물/자산운용/위탁/증권입금)",
-        "4호. 사기파산지표: 입출금 50만원 이상, 위험도 2.5 (대부/P2P/카드깡/원리금 상환)",
-        "5호. 가상자산지표: 입출금 50만원 이상, 위험도 3.0 (카테고리 가상자산, 업비트/빗썸/코인원/코빗 등)",
+        "1호. 자료소명지표: 출금 500만원 이상, 해당 행 키워드를 위험도키워드로 저장, 위험도 1.0",
+        "2호. 비정형지표: 출금만 100만원 이상, 동일 키워드(특정인=키워드 기준) 3회 이상, 해당 키워드를 위험도키워드로 저장, 위험도 1.5",
+        "3호. 투기성지표: 출금만 50만원 이상, 위험도 2.0 (증권/선물/자산운용/위탁/증권입금)",
+        "4호. 사기파산지표: 출금만 50만원 이상, 위험도 2.5 (대부/P2P/카드깡/원리금)",
+        "5호. 가상자산지표: 출금만 50만원 이상, 위험도 3.0 (카테고리 가상자산, 업비트/빗썸/코인원/코빗 등)",
         "6호. 자산은닉지표: 출금만 50만원 이상, 위험도 3.5 (해외송금/Wise/SWIFT 등)",
         "7호. 과소비지표: 출금만 30만원 이상, 위험도 4.0 (백화점/명품/귀금속/유흥/고가가전/고가가구/유흥주점/무도장/콜라텍/댄스홀)",
         "8호. 사행성지표: 출금만 10만원 이상, 위험도 5.0 (경마/복권/사설도박/도박기계/사행성게임기/오락기구/휴게텔/키스방/대화방/안마/마사지)",

@@ -1,5 +1,21 @@
 # -*- coding: utf-8 -*-
-"""MyInfo 통합 서버: MyBank·MyCard·MyCash. 루트 템플릿 templates/."""
+"""
+MyInfo 통합 서버 (app.py)
+
+목적:
+  - MyBank(은행거래), MyCard(신용카드), MyCash(금융정보) 서브앱을 하나의 Flask 앱으로 제공.
+  - 템플릿은 프로젝트 루트의 templates/ 사용 (index.html, help.html, 404.html 등).
+
+실행 흐름 (유지보수 시 참고):
+  1. 환경 변수·UTF-8 설정 → Flask 앱 생성 → after_request( charset, gzip )
+  2. SUBAPP_CONFIG 기준으로 MyBank, MyCard, MyCash 순서로 load_subapp_routes() 호출
+     → 각 서브앱 소스 읽기 → UTF-8 블록 패치 → 메모리에서 모듈 로드 → 라우트를 prefix 붙여 등록
+  3. /, /help, /bank, /card, /cash, /shutdown, /health 등 메인 라우트 등록
+  4. __main__ 시: waitress 서버 기동
+
+서브앱 라우트 예: /bank/ → bank_app, /card/ → card_app, /cash/ → cash_app.
+각 요청 시 create_proxy_view()가 해당 앱의 작업 디렉토리로 chdir 후 뷰 실행.
+"""
 import os
 import sys
 import io
@@ -9,7 +25,7 @@ import subprocess
 import importlib.util
 import warnings
 
-# 한글/UTF-8 (Railway·로컬 공통)
+# ----- 1. 환경·인코딩 (Railway·로컬 공통) -----
 os.environ.setdefault("LANG", "en_US.UTF-8")
 os.environ.setdefault("LC_ALL", "en_US.UTF-8")
 os.environ.setdefault("PYTHONUTF8", "1")
@@ -41,6 +57,7 @@ def _get_version():
     return '26/02/05'
 
 
+# ----- 2. 서브앱 설정 (폴더명, URL prefix, 진입 스크립트, 표시명) -----
 SUBAPP_CONFIG = (
     ('MyBank', '/bank', 'bank_app.py', '은행거래 통합정보'),
     ('MyCard', '/card', 'card_app.py', '신용카드 통합정보'),
@@ -62,10 +79,11 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT.*')
 warnings.filterwarnings('ignore', message='.*Cannot parse header or footer.*')
 
+# ----- 3. Flask 앱 초기화 -----
 app = Flask(__name__)
 SERVER_START_TIME = datetime.now()
 
-# Flask 2.2+: orjson으로 응답 직렬화 가속 (선택)
+# Flask 2.2+: orjson으로 JSON 응답 직렬화 가속 (선택)
 try:
     from flask.json.provider import DefaultJSONProvider
     import orjson as _orjson
@@ -85,6 +103,7 @@ app.config['JSON_AS_ASCII'] = False
 _root = os.path.dirname(os.path.abspath(__file__))
 CATEGORY_TABLE_PATH = os.path.join(_root, '.source', 'category_table.json')
 os.environ['MYINFO_ROOT'] = _root
+# 필수 디렉터리 생성 (.source, .source/Bank, .source/Card, .source/Cash)
 try:
     for _d in (os.path.join(_root, '.source'), os.path.join(_root, '.source', 'Bank'), os.path.join(_root, '.source', 'Card'), os.path.join(_root, '.source', 'Cash')):
         os.makedirs(_d, exist_ok=True)
@@ -92,6 +111,7 @@ except Exception:
     pass
 
 
+# ----- 4. 기동 시 캐시·임시파일 정리 (다음 실행 시 깨끗한 상태) -----
 def _clear_startup_caches():
     """기동 시 모듈 캐시·임시파일 초기화."""
     for _mod_name in list(sys.modules):
@@ -136,18 +156,8 @@ def _cleanup_and_exit():
         sys.exit(0)
 
 
-def _ensure_category_table_file():
-    """category_table.json 없으면 빈 파일 생성."""
-    if os.path.isfile(CATEGORY_TABLE_PATH):
-        return
-    try:
-        from category_table_io import create_empty_category_table
-        create_empty_category_table(CATEGORY_TABLE_PATH)
-    except Exception:
-        pass
-
-
 _GZIP_MIN_SIZE = 1024  # 이 크기 이상일 때만 gzip 적용
+_SUBAPP_READ_TIMEOUT = 30  # 서브앱 소스 읽기 서브프로세스 타임아웃(초)
 
 @app.after_request
 def _ensure_utf8_charset(response):
@@ -184,6 +194,7 @@ def _compress_response(response):
     return response
 
 
+# ----- 5. 서브앱 소스 로드 시 UTF-8 블록 비활성화 (통합 서버에서 중복 설정 방지) -----
 def _patch_utf8_in_source(code):
     """서브앱 소스 내 win32 UTF-8 블록 주석 처리(통합 서버에서 중복 방지)."""
     lines = code.split('\n')
@@ -235,6 +246,7 @@ def _read_app_file(app_file):
         except Exception:
             pass
         # 3) 서브프로세스에서 읽고 임시 파일로 출력 (OneDrive 클라우드 전용 파일 대응)
+        # 인자: argv[1]=읽을 파일명(base_name), argv[2]=임시 출력 경로. cwd=subapp_dir 이므로 subapp_dir/base_name 경로로 열림.
         tmp_dir = tempfile.gettempdir()
         tmp_out = os.path.join(tmp_dir, 'myinfo_subapp_%s_%s.txt' % (os.getpid(), base_name))
         try:
@@ -248,7 +260,7 @@ def _read_app_file(app_file):
                 [sys.executable, '-c', script, base_name, tmp_out],
                 cwd=subapp_dir,
                 capture_output=True,
-                timeout=30,
+                timeout=_SUBAPP_READ_TIMEOUT,
                 creationflags=creationflags,
             )
             if r.returncode != 0:
@@ -280,8 +292,9 @@ class _SubappLoader:
         exec(code, module.__dict__)
 
 
+# ----- 6. 서브앱 라우트 등록 (소스 읽기 → 패치 → 메모리 로드 → prefix 붙여 등록) -----
 def load_subapp_routes(subapp_path, url_prefix, app_filename):
-    """서브 앱의 라우트를 메인 앱에 등록"""
+    """서브 앱의 라우트를 메인 앱에 등록. 실패 시 _subapp_errors에 저장 후 폴백 뷰 등록."""
     base_dir = os.path.dirname(__file__)
     # 폴더명 변경 호환: MyBank/MyCard 없으면 MYBCBANK/MYBCCARD 사용 (MyCash는 fallback 없이 오류)
     legacy_folders = {'MyBank': 'MYBCBANK', 'MyCard': 'MYBCCARD'}
@@ -416,7 +429,7 @@ for _path, _prefix, _app_file, _name in SUBAPP_CONFIG:
         _subapp_errors.pop(_prefix, None)
     except Exception as e:
         err_msg = str(e)
-        print(f"[ERROR] {_name} 라우트 등록 실패: {err_msg}", flush=True)
+        print(f"[ERROR] {_name} ({_prefix}, {_path}/{_app_file}) 라우트 등록 실패: {err_msg}", flush=True)
         traceback.print_exc()
         _subapp_errors[_prefix] = (_name, err_msg)
         # 실패한 prefix에 대한 폴백 라우트 등록 (404 대신 오류 안내 표시)
@@ -431,6 +444,7 @@ for _path, _prefix, _app_file, _name in SUBAPP_CONFIG:
 # 서버 기동 시 캐시·임시파일 초기화 (이전 실행 상태 제거)
 _clear_startup_caches()
 
+# ----- 7. 메인 라우트 (리다이렉트, 홈, 도움말, 종료, 헬스, 404) -----
 @app.route('/bank')
 def redirect_bank():
     """은행거래 전처리: 끝 슬래시 없이 접속 시 /bank/ 로 리다이렉트"""
@@ -478,7 +492,10 @@ def help_page():
 
 @app.route('/shutdown')
 def shutdown():
-    """서버 종료 요청. 캐시·임시파일 초기화 후 프로세스를 종료한다. 다음 기동 시 처음부터 시작."""
+    """서버 종료 요청. 로컬호스트에서만 허용. 캐시·임시파일 초기화 후 프로세스를 종료한다."""
+    remote = request.remote_addr or ''
+    if remote not in ('127.0.0.1', '::1', 'localhost'):
+        return 'Forbidden', 403, {'Content-Type': 'text/plain; charset=utf-8'}
     import threading
     def _do_shutdown():
         import time
@@ -516,126 +533,10 @@ def page_not_found(e):
     return render_template('404.html'), 404
 
 
-def _run_bank_before_after(bank_dir):
-    """MyBank before/after 생성. chdir 사용 안 함(sys.path + 절대경로만 사용) → 스레드 병렬 실행 가능."""
-    path_added = False
-    try:
-        if bank_dir not in sys.path:
-            sys.path.insert(0, bank_dir)
-            path_added = True
-        import process_bank_data as _pbd
-        _pbd.ensure_bank_before_and_category()
-        _pbd.classify_and_save()
-        print('[백그라운드] MyBank bank_before/bank_after 생성 완료', flush=True)
-    except Exception as e:
-        print(f'[백그라운드] MyBank 생성 건너뜀: {e}', flush=True)
-    finally:
-        if path_added and bank_dir in sys.path:
-            sys.path.remove(bank_dir)
-
-
-def _run_card_before_after(card_dir):
-    """MyCard before/after 생성. chdir 사용 안 함 → 스레드 병렬 실행 가능."""
-    path_added = False
-    try:
-        if card_dir not in sys.path:
-            sys.path.insert(0, card_dir)
-            path_added = True
-        import process_card_data as _pcd
-        _pcd.integrate_card_excel()
-        import card_app as _ca
-        _ca._create_card_after()
-        print('[백그라운드] MyCard card_before/card_after 생성 완료', flush=True)
-    except Exception as e:
-        print(f'[백그라운드] MyCard 생성 건너뜀: {e}', flush=True)
-    finally:
-        if path_added and card_dir in sys.path:
-            sys.path.remove(card_dir)
-
-
-def _run_cash_after(cash_dir):
-    """MyCash cash_after 병합. bank_after + card_after 완료 후 호출."""
-    path_added = False
-    try:
-        if cash_dir not in sys.path:
-            sys.path.insert(0, cash_dir)
-            path_added = True
-        import cash_app as _cash
-        ok, _ = _cash.merge_bank_card_to_cash_after()
-        if ok:
-            print('[백그라운드] MyCash cash_after 병합 완료', flush=True)
-    except Exception as e:
-        print(f'[백그라운드] MyCash 병합 건너뜀: {e}', flush=True)
-    finally:
-        if path_added and cash_dir in sys.path:
-            sys.path.remove(cash_dir)
-
-
-def _background_before_after_job():
-    """서버 기동 후 백그라운드에서 before/after JSON 선행 생성.
-    Bank·Card는 병렬 스레드로 동시 실행, 완료 후 Cash 병합 → 캐시 프리웜.
-
-    로딩 속도 비교:
-    - 앱 진입 시 JSON 생성: 첫 진입 시 ensure + classify/merge 등 전부 실행 → 수십 초~수 분(데이터 규모에 따라).
-    - 서버 시작 시 백그라운드 생성: 기동 시 미리 생성해 두면, 앱 진입 시 파일만 읽어 캐시 채움 → 수 초 이내.
-    - 캐시 프리웜: 백그라운드 완료 후 각 앱 API를 한 번 호출해 메모리 캐시까지 채우면, 첫 요청 시 파일 I/O 없이 즉시 응답.
-    """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    legacy_folders = {'MyBank': 'MYBCBANK', 'MyCard': 'MYBCCARD'}
-    def _app_dir(name):
-        if os.path.isdir(os.path.join(base_dir, name)):
-            return os.path.join(base_dir, name)
-        if name in legacy_folders and os.path.isdir(os.path.join(base_dir, legacy_folders[name])):
-            return os.path.join(base_dir, legacy_folders[name])
-        return os.path.join(base_dir, name)
-
-    try:
-        bank_dir = _app_dir('MyBank')
-        card_dir = _app_dir('MyCard')
-        cash_dir = _app_dir('MyCash')
-
-        # Bank·Card 병렬 실행 (chdir 미사용으로 cwd 경쟁 없음)
-        import threading
-        threads = []
-        if os.path.isdir(bank_dir):
-            t_bank = threading.Thread(target=_run_bank_before_after, args=(bank_dir,), name='BgBank')
-            t_bank.start()
-            threads.append(('MyBank', t_bank))
-        if os.path.isdir(card_dir):
-            t_card = threading.Thread(target=_run_card_before_after, args=(card_dir,), name='BgCard')
-            t_card.start()
-            threads.append(('MyCard', t_card))
-        for _name, t in threads:
-            t.join()
-
-        # Cash: bank_after + card_after 병합 (순차)
-        if os.path.isdir(cash_dir):
-            _run_cash_after(cash_dir)
-
-        # 캐시 프리웜: 생성된 JSON을 각 앱의 메모리 캐시에 적재해 첫 요청 시 파일 읽기 생략
-        try:
-            with app.test_client() as client:
-                for _prefix in ('/bank', '/card', '/cash'):
-                    try:
-                        r = client.get(f'{_prefix}/api/category-applied-data', timeout=60)
-                        if r.status_code == 200:
-                            print(f'[백그라운드] {_prefix} 캐시 프리웜 완료', flush=True)
-                    except Exception as e:
-                        print(f'[백그라운드] {_prefix} 캐시 프리웜 건너뜀: {e}', flush=True)
-        except Exception as e:
-            print(f'[백그라운드] 캐시 프리웜 오류: {e}', flush=True)
-    except Exception as e:
-        print(f'[백그라운드] before/after 작업 오류: {e}', flush=True)
-        traceback.print_exc()
-
-
+# ----- 8. 진입점: 작업 디렉터리 설정 → waitress 서버 기동 -----
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
-    # 서버 기동과 동시에 백그라운드에서 before/after JSON 선행 생성 (bank→card→cash)
-    import threading
-    _bg = threading.Thread(target=_background_before_after_job, name='BeforeAfterInit', daemon=True)
-    _bg.start()
     # Railway/Heroku 등에서는 PORT가 주입되며 0.0.0.0으로 바인딩 필요
     port = int(os.environ.get('PORT', 8080))
     host = '0.0.0.0' if os.environ.get('PORT') else '127.0.0.1'

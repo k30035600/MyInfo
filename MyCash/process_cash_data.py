@@ -39,6 +39,10 @@ CASH_CATEGORY_LABEL = '금융정보'
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 try:
+    from excel_io import safe_write_excel
+except ImportError:
+    safe_write_excel = None
+try:
     from category_table_defaults import get_default_rules
 except ImportError:
     get_default_rules = None
@@ -123,32 +127,29 @@ def clean_amount(value):
     except (ValueError, TypeError):
         return 0
 
-def safe_write_excel(df, filepath, max_retries=3):
-    """파일 쓰기 시 권한 오류 방지를 위한 안전한 쓰기 함수"""
-    for attempt in range(max_retries):
-        try:
-            if os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                    time.sleep(0.1)
-                except PermissionError:
-                    if attempt < max_retries - 1:
-                        time.sleep(0.5)
-                        continue
-                    else:
+if safe_write_excel is None:
+    def safe_write_excel(df, filepath, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                if os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                        time.sleep(0.1)
+                    except PermissionError:
+                        if attempt < max_retries - 1:
+                            time.sleep(0.5)
+                            continue
                         raise PermissionError(f"파일을 삭제할 수 없습니다: {filepath}")
-            
-            df.to_excel(filepath, index=False, engine='openpyxl')
-            return True
-        except PermissionError as e:
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-                continue
-            else:
+                df.to_excel(filepath, index=False, engine='openpyxl')
+                return True
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    continue
                 raise e
-        except Exception as e:
-            raise e
-    return False
+            except Exception as e:
+                raise e
+        return False
 
 def create_before_text(row):
     """before_text 생성"""

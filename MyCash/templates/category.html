@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>금융정보 카테고리</title>
+    <title>금융정보 업종분류</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -65,6 +65,13 @@
             gap: 10px;
             flex-wrap: wrap;
             margin-left: auto;
+        }
+
+        /* 폴더/파일명 텍스트 통일 */
+        .path-filename-text {
+            font-size: 12px !important;
+            color: #666 !important;
+            font-family: inherit;
         }
 
         /* 통합 네비게이터 스타일 */
@@ -163,7 +170,7 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
-        /* 카테고리 적용후 드롭다운: 전체가 아닐 경우 배경 회색 */
+        /* 업종분류 적용후 드롭다운: 전체가 아닐 경우 배경 회색 */
         #category-applied-content select.filter-default {
             background-color: white !important;
         }
@@ -216,7 +223,7 @@
         #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 15%; }
         #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 60%; }
 
-        /* 카테고리 테이블: 카테고리조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
+        /* 카테고리 테이블: 업종분류조회와 동일한 폰트 크기, 헤더·행 높이 최소화 */
         #category-definition-table,
         #category-definition-table th,
         #category-definition-table td,
@@ -321,7 +328,7 @@
         /* 테이블 헤더 및 행 폰트 크기 (전역) */
         table th, table td { font-size: 11px !important; }
         
-        /* 카테고리 적용후 테이블: 컬럼이 모자라면 말줄임 (min-width: 0으로 비율 유지하며 말줄임) */
+        /* 업종분류 적용후 테이블: 컬럼이 모자라면 말줄임 (min-width: 0으로 비율 유지하며 말줄임) */
         #category-applied-table th,
         #category-applied-table td,
         #category-applied-table-index th,
@@ -524,7 +531,7 @@
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                <h1>금융정보 카테고리</h1>
+                <h1>금융정보 업종분류</h1>
                 <span class="page-filename" style="font-size: 12px; color: #666; font-weight: normal;">MyCash/templates/category.html</span>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
@@ -542,16 +549,18 @@
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
             <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-            <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
             <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
             <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
         </nav>
     </div>
 
-    <!-- 카테고리 적용후 -->
+    <!-- 업종분류 적용후 -->
     <div class="chart-card" style="margin-top: 0; margin-bottom: 10px; display: flex; flex-direction: column;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-            <h2 style="margin: 0;">금융정보(위험도분류) 적용후</h2>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap;">
+            <h2 style="margin: 0;">금융정보(업종분류) 적용후</h2>
+            <div class="path-filename-text" style="opacity: 0.6;">cash_after.json</div>
+            <span id="cash-applied-summary" style="margin-left: auto; font-size: 12px; color: #666;">은행출금: 0건, 출금: 0원, 신용출금: 0건, 출금: 0원, 출금합계: 0건, 출금: 0원</span>
         </div>
         <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -638,7 +647,7 @@
             }
         }
 
-        // 카테고리 적용후 드롭다운 배경색: 전체가 아닐 경우 회색
+        // 업종분류 적용후 드롭다운 배경색: 전체가 아닐 경우 회색
         function updateFilterBackgroundCategory(selectEl) {
             if (!selectEl) return;
             const v = (selectEl.value || '').toString().trim();
@@ -759,7 +768,7 @@
             
             try {
                 const ctrl = new AbortController();
-                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+                const timeoutId = setTimeout(() => ctrl.abort(), 120000);
                 const response = await fetch(`${API_BASE}/api/generate-category`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1132,11 +1141,12 @@
         }
 
 
-        // 카테고리 적용후 원본 데이터 저장 (전처리 페이지에서 이동)
+        // 업종분류 적용후 원본 데이터 저장 (전처리 페이지에서 이동)
         let categoryAppliedDataOriginalForIndex = [];
         
-        // 카테고리 적용후 데이터 로드 (1차, 정상 출력)
-        async function loadCategoryAppliedDataForIndex() {
+        // 업종분류 적용후 데이터 로드 (1차, 정상 출력)
+        // skipAutoCreate: true면 데이터 없을 때 자동 생성 호출 안 함(생성 직후 재조회에서 빈 값 나와도 루프 방지)
+        async function loadCategoryAppliedDataForIndex(skipAutoCreate) {
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
@@ -1150,11 +1160,10 @@
             const clearSafety = () => { if (safetyTimeoutId) clearTimeout(safetyTimeoutId); safetyTimeoutId = 0; };
             
             const btn = document.getElementById('generate-category-btn');
-            const CATEGORY_APPLIED_PAGE_SIZE = 1000;
             try {
                 const ctrl = new AbortController();
-                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
-                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=${CATEGORY_APPLIED_PAGE_SIZE}&offset=0`, { signal: ctrl.signal });
+                const timeoutId = setTimeout(() => ctrl.abort(), 120000);
+                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=500&offset=0`, { signal: ctrl.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) {
                     const errText = await response.text();
@@ -1164,44 +1173,57 @@
                 
                 if (data.data && data.data.length > 0) {
                     clearSafety();
-                    let merged = data.data;
                     const total = data.total || 0;
-                    if (total > CATEGORY_APPLIED_PAGE_SIZE) {
+                    if (total > 500) {
                         try {
-                            const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=${CATEGORY_APPLIED_PAGE_SIZE}`);
-                            const restData = await restRes.json();
-                            if (restData.data && restData.data.length > 0) merged = merged.concat(restData.data);
-                        } catch (e) { console.warn('나머지 데이터 로드 건너뜀:', e); }
+                            const restRes = await fetch(`${API_BASE}/api/category-applied-data?limit=500&offset=500`);
+                            const restJson = await restRes.json();
+                            if (restJson.data && restJson.data.length > 0) data.data = data.data.concat(restJson.data);
+                        } catch (e) { console.warn('적용후 인덱스 나머지 데이터 로드 건너뜀:', e); }
                     }
-                    const sortedForIndex = sortCategoryAppliedByRiskAndDate(merged);
+                    const sortedForIndex = sortCategoryAppliedByRiskAndDate(data.data);
                     categoryAppliedDataOriginalForIndex = sortedForIndex;
                     syncCategoryBankFilterFromData(data.data);
                     renderCategoryAppliedTableForIndex(sortedForIndex);
-                    loadMonthlyTrend();
+                    setTimeout(() => loadMonthlyTrend(), 0);
                 } else {
-                    // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
-                    contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...</div>';
-                    let createOk = false;
-                    try {
-                        const ctrl2 = new AbortController();
-                        const timeoutId2 = setTimeout(() => ctrl2.abort(), 60000);
-                        const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
-                        clearTimeout(timeoutId2);
-                        const createJson = await createRes.json().catch(() => ({}));
-                        if (createRes.ok && createJson.success) {
-                            clearSafety();
-                            createOk = true;
-                            await loadCategoryAppliedDataForIndex();
-                            return;
+                    if (skipAutoCreate) {
+                        clearSafety();
+                        contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">생성되었습니다. 새로고침(F5) 해 주세요.</div>';
+                    } else {
+                        // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
+                        contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...<br><small style="color:#888;margin-top:8px;display:block;">MyCash/cash_after_progress.log 파일을 열어 단계별 진행 상황을 확인할 수 있습니다. (서버를 터미널에서 직접 실행한 경우 터미널에도 출력됩니다.) 데이터가 많으면 2분까지 걸릴 수 있습니다.</small></div>';
+                        let createOk = false;
+                        try {
+                            const ctrl2 = new AbortController();
+                            const timeoutId2 = setTimeout(() => ctrl2.abort(), 120000);
+                            const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
+                            clearTimeout(timeoutId2);
+                            const createJson = await createRes.json().catch(() => ({}));
+                            if (createRes.ok && createJson.success) {
+                                clearSafety();
+                                createOk = true;
+                                await loadCategoryAppliedDataForIndex(true);
+                                return;
+                            }
+                            const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
+                            const safeErr = (errMsg || '데이터가 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #333;">'
+                                + '<p style="margin: 0 0 12px 0; font-weight: bold; color: #F44336;">' + safeErr + '</p>'
+                                + '<p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">cash_after를 생성하지 못하는 흔한 이유:</p>'
+                                + '<ul style="text-align: left; margin: 0 auto 12px auto; padding-left: 24px; max-width: 420px; font-size: 12px; color: #555;">'
+                                + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>전처리후 다시 실행</strong> 후 재시도</li>'
+                                + '<li>쓰기 권한·한글 경로·디스크 부족 → 한글 없는 경로(C:\\CursorWorkspace 등)에서 실행</li>'
+                                + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도</li>'
+                                + '</ul><a href="' + API_BASE + '/help#trouble" style="font-size: 12px;">자세한 문제 해결 (도움말)</a>'
+                                + '</div>';
+                        } catch (createErr) {
+                            console.error('cash_after 자동 생성 실패:', createErr);
+                            const msg = (createErr && createErr.name === 'AbortError') ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
+                            contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                         }
-                        const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
-                        contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다.') + '</div>';
-                    } catch (createErr) {
-                        console.error('cash_after 자동 생성 실패:', createErr);
-                        const msg = (createErr && createErr.name === 'AbortError') ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
-                        contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+                        if (!createOk) contentDiv.innerHTML = contentDiv.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                     }
-                    if (!createOk) contentDiv.innerHTML = contentDiv.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 }
                 clearSafety();
                 if (btn) {
@@ -1240,17 +1262,27 @@
             return sorted;
         }
         
-        // 카테고리 적용후 테이블 렌더링 (전처리 페이지에서 이동)
+        // 업종분류 적용후 테이블 렌더링 (전처리 페이지에서 이동)
         function renderCategoryAppliedTableForIndex(data) {
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                const summaryEl = document.getElementById('cash-applied-summary');
+                if (summaryEl) summaryEl.textContent = '은행출금: 0건, 출금: 0원, 신용출금: 0건, 출금: 0원, 출금합계: 0건, 출금: 0원';
                 return;
             }
             data = sortCategoryAppliedByRiskAndDate(data);
-            
+            // 적용후 테이블 우측 요약: 은행출금 ?건/출금 ?원, 신용출금 ?건/출금 ?원, 출금합계 ?건/출금 ?원 (출처 우선, 구분 폴백)
+            const bankRows = data.filter(r => String(r['출처'] || r['구분'] || '').trim() === '은행거래');
+            const cardRows = data.filter(r => String(r['출처'] || r['구분'] || '').trim() === '신용카드');
+            const bankWithdrawSum = bankRows.reduce((s, r) => s + (parseFloat(r['출금액']) || 0), 0);
+            const cardWithdrawSum = cardRows.reduce((s, r) => s + (parseFloat(r['출금액']) || 0), 0);
+            const totalWithdrawSum = data.reduce((s, r) => s + (parseFloat(r['출금액']) || 0), 0);
+            const cashSummaryEl = document.getElementById('cash-applied-summary');
+            if (cashSummaryEl) cashSummaryEl.textContent = '은행출금: ' + formatNumber(bankRows.length) + '건, 출금: ' + formatNumber(Math.round(bankWithdrawSum)) + '원, 신용출금: ' + formatNumber(cardRows.length) + '건, 출금: ' + formatNumber(Math.round(cardWithdrawSum)) + '원, 출금합계: ' + formatNumber(data.length) + '건, 출금: ' + formatNumber(Math.round(totalWithdrawSum)) + '원';
+
             // 위험도키워드·위험도분류·위험도 좌측 배치
             const columns = [
                 '위험도키워드', '위험도분류', '위험도', '금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분'
@@ -1406,6 +1438,8 @@
             html += '</tbody></table>';
             contentDiv.innerHTML = html;
             
+            const tableElIndex = document.getElementById('category-applied-table-index');
+            
             // 필터 이벤트 리스너 추가
             availableColumns.forEach(col => {
                 const filterSelect = document.getElementById(`filter-category-applied-index-${col}`);
@@ -1423,7 +1457,7 @@
             });
         }
         
-        // 카테고리 적용후 테이블 필터링
+        // 업종분류 적용후 테이블 필터링
         function filterCategoryAppliedTableForIndex() {
             const tbody = document.getElementById('category-applied-tbody-index');
             if (!tbody) return;
@@ -1766,7 +1800,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 toggleInputFields(false);
             }
             
-            // 카테고리 적용 테이블은 loadCategoryAppliedDataForIndex()에서 이미 로드됨 (1차가 정상)
+            // 업종분류 적용 테이블은 loadCategoryAppliedDataForIndex()에서 이미 로드됨 (1차가 정상)
             // 은행명 목록 로드
             loadCategoryBankFilterList();
             // 헤더 은행명 변경 시 테이블 필터 연동
@@ -1780,7 +1814,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     if (bankSelIndex) { bankSelIndex.value = val; updateFilterBackgroundCategory(bankSelIndex); filterCategoryAppliedTableForIndex(); }
                 });
             }
-            // 카테고리 적용후 출력 버튼 (헤더 우측)
+            // 업종분류 적용후 출력 버튼 (헤더 우측)
             const exportAppliedBtn = document.getElementById('export-category-applied-btn');
             if (exportAppliedBtn) {
                 exportAppliedBtn.addEventListener('click', exportCategoryAppliedTable);
@@ -1822,10 +1856,10 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             return timeStr;
         }
         
-        // 카테고리 적용 테이블 데이터 저장
+        // 업종분류 적용 테이블 데이터 저장
         let categoryAppliedDataOriginal = [];
         
-        // 카테고리 적용후 테이블 한 행 HTML (백그라운드 추가 로드용)
+        // 업종분류 적용후 테이블 한 행 HTML (백그라운드 추가 로드용)
         function buildCategoryAppliedRowCashCategory(row, availableColumns, columnAlign, rowIndex) {
             const isEvenRow = rowIndex % 2 === 1;
             const columnBgColors = {};
@@ -1850,9 +1884,9 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             html += '</tr>';
             return html;
         }
-        // 카테고리 적용후: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시)
-        // 카테고리 적용 테이블 로드
-        async function loadCategoryAppliedTable() {
+        // 업종분류 적용후: 누적 합계 (매 30건 반영 후 맨 마지막 행에 표시)
+        // 업종분류 적용 테이블 로드 (skipAutoCreate: 생성 직후 재조회에서 자동 생성 루프 방지)
+        async function loadCategoryAppliedTable(skipAutoCreate) {
             const btn = document.getElementById('generate-category-btn');
             const appliedContent = document.getElementById('category-applied-content');
             if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
@@ -1865,8 +1899,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const clearSafety = () => { if (safetyTimeoutId) clearTimeout(safetyTimeoutId); safetyTimeoutId = 0; };
             try {
                 const ctrl = new AbortController();
-                const timeoutId = setTimeout(() => ctrl.abort(), 60000);
-                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=1000&offset=0`, { signal: ctrl.signal });
+                const timeoutId = setTimeout(() => ctrl.abort(), 120000);
+                const response = await fetch(`${API_BASE}/api/category-applied-data?limit=500&offset=0`, { signal: ctrl.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -1875,51 +1909,62 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 }
                 const data = await response.json();
                 
-                // 파일 존재 여부 확인 (file_exists 속성 사용)
-                const fileExists = data.file_exists === true;
+                const total = data.total != null ? data.total : (data.data ? data.data.length : 0);
                 
                 if (data.data && data.data.length > 0) {
                     clearSafety();
-                    let merged = data.data;
-                    const total = data.total || 0;
-                    if (total > 1000) {
+                    if (total > 500) {
                         try {
-                            const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=1000`);
-                            const restData = await restRes.json();
-                            if (restData.data && restData.data.length > 0) merged = merged.concat(restData.data);
-                        } catch (e) { console.warn('나머지 데이터 로드 건너뜀:', e); }
+                            const restRes = await fetch(`${API_BASE}/api/category-applied-data?limit=500&offset=500`);
+                            const restJson = await restRes.json();
+                            if (restJson.data && restJson.data.length > 0) data.data = data.data.concat(restJson.data);
+                        } catch (e) { console.warn('적용후 테이블 나머지 데이터 로드 건너뜀:', e); }
                     }
-                    const sortedApplied = sortCategoryAppliedByRiskAndDate(merged);
+                    const sortedApplied = sortCategoryAppliedByRiskAndDate(data.data);
                     categoryAppliedDataOriginal = sortedApplied;
-                    syncCategoryBankFilterFromData(merged);
+                    syncCategoryBankFilterFromData(data.data);
                     const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
                     renderCategoryAppliedTable(sortedApplied, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
-                    loadMonthlyTrend();
+                    setTimeout(() => loadMonthlyTrend(), 0);
                 } else {
-                    // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
-                    if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...</div>';
-                    let createOk = false;
-                    try {
-                        const ctrl2 = new AbortController();
-                        const timeoutId2 = setTimeout(() => ctrl2.abort(), 60000);
-                        const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
-                        clearTimeout(timeoutId2);
-                        const createJson = await createRes.json().catch(() => ({}));
-                        if (createRes.ok && createJson.success) {
-                            clearSafety();
-                            createOk = true;
-                            await loadCategoryAppliedTable();
-                            return;
+                    if (skipAutoCreate) {
+                        clearSafety();
+                        if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">생성되었습니다. 새로고침(F5) 해 주세요.</div>';
+                    } else {
+                        // 데이터 없음 → cash_after 생성 시도 (파일 없음/비어 있음 모두)
+                        if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">cash_after 생성 중...<br><small style="color:#888;margin-top:8px;display:block;">MyCash/cash_after_progress.log 파일을 열어 단계별 진행 상황을 확인할 수 있습니다. (서버를 터미널에서 직접 실행한 경우 터미널에도 출력됩니다.) 데이터가 많으면 2분까지 걸릴 수 있습니다.</small></div>';
+                        let createOk = false;
+                        try {
+                            const ctrl2 = new AbortController();
+                            const timeoutId2 = setTimeout(() => ctrl2.abort(), 120000);
+                            const createRes = await fetch(`${API_BASE}/api/generate-category`, { method: 'POST', signal: ctrl2.signal });
+                            clearTimeout(timeoutId2);
+                            const createJson = await createRes.json().catch(() => ({}));
+                            if (createRes.ok && createJson.success) {
+                                clearSafety();
+                                createOk = true;
+                                await loadCategoryAppliedTable(true);
+                                return;
+                            }
+                            const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
+                            const safeErr = (errMsg || '데이터가 없습니다.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #333;">'
+                                + '<p style="margin: 0 0 12px 0; font-weight: bold; color: #F44336;">' + safeErr + '</p>'
+                                + '<p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">cash_after를 생성하지 못하는 흔한 이유:</p>'
+                                + '<ul style="text-align: left; margin: 0 auto 12px auto; padding-left: 24px; max-width: 420px; font-size: 12px; color: #555;">'
+                                + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>전처리후 다시 실행</strong> 후 재시도</li>'
+                                + '<li>쓰기 권한·한글 경로·디스크 부족 → 한글 없는 경로(C:\\CursorWorkspace 등)에서 실행</li>'
+                                + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도</li>'
+                                + '</ul><a href="' + API_BASE + '/help#trouble" style="font-size: 12px;">자세한 문제 해결 (도움말)</a>'
+                                + '</div>';
+                        } catch (createErr) {
+                            console.error('cash_after 자동 생성 실패:', createErr);
+                            const msg = (createErr && createErr.name === 'AbortError') ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
+                            if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                         }
-                        const errMsg = createJson.error || (createRes.ok ? '' : '생성 실패');
-                        if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + (errMsg ? errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '데이터가 없습니다.') + '</div>';
-                    } catch (createErr) {
-                        console.error('cash_after 자동 생성 실패:', createErr);
-                        const msg = (createErr && createErr.name === 'AbortError') ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
-                        if (appliedContent) appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+                        if (!createOk && appliedContent) appliedContent.innerHTML = appliedContent.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                     }
-                    if (!createOk && appliedContent) appliedContent.innerHTML = appliedContent.innerHTML || '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
                 }
                 clearSafety();
                 if (btn) {
@@ -1940,7 +1985,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             }
         }
         
-        // 카테고리 적용 테이블 렌더링 (지정된 컬럼만 표시)
+        // 업종분류 적용 테이블 렌더링 (지정된 컬럼만 표시)
         function renderCategoryAppliedTable(data, options) {
             const contentDiv = document.getElementById('category-applied-content');
             
@@ -2150,7 +2195,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             updateChartFromTable();
             
             // 스크롤 이벤트 리스너 추가 (기본분석 페이지와 동일한 방식)
-            // 카테고리 조회 테이블의 스크롤 컨테이너 찾기
+            // 업종분류 조회 테이블의 스크롤 컨테이너 찾기
             const categoryAppliedContent = document.getElementById('category-applied-content');
             const scrollContainer = categoryAppliedContent || document.querySelector('.bank_category-container');
             if (scrollContainer) {
@@ -2166,7 +2211,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             }
         }
         
-        // 카테고리 적용 테이블 필터링
+        // 업종분류 적용 테이블 필터링
         function filterCategoryAppliedTable() {
             const table = document.getElementById('category-applied-table');
             if (!table) return;
@@ -2301,7 +2346,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             loadMonthlyTrend();
         }
         
-        // 카테고리 적용후 출력용 데이터 (필터 반영)
+        // 업종분류 적용후 출력용 데이터 (필터 반영)
         function getCategoryAppliedDataForExport() {
             const table = document.getElementById('category-applied-table');
             const tableIndex = document.getElementById('category-applied-table-index');
@@ -2362,22 +2407,22 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             return filtered;
         }
         
-        // 카테고리 적용후 테이블 출력 (프린트용 새 창). 위험도 1.0 이하는 생략.
+        // 업종분류 적용후 테이블 출력 (프린트용 새 창). 위험도 0.9 미만은 생략.
         function exportCategoryAppliedTable() {
             let data = getCategoryAppliedDataForExport();
             if (!data || data.length === 0) {
                 alert('출력할 데이터가 없습니다.');
                 return;
             }
-            // 위험도 1.0 이하는 생략
+            // 위험도 0.9 이상인 행만 출력
             data = data.filter(row => {
                 const v = row['위험도'];
                 if (v === null || v === undefined || v === '') return false;
                 const num = parseFloat(String(v).replace(/,/g, ''));
-                return !isNaN(num) && num > 1.0;
+                return !isNaN(num) && num >= 0.9;
             });
             if (!data || data.length === 0) {
-                alert('위험도 1.0 초과인 데이터가 없습니다. 출력할 데이터가 없습니다.');
+                alert('위험도 0.9 이상인 데이터가 없습니다. 출력할 데이터가 없습니다.');
                 return;
             }
             const columns = [
@@ -2429,14 +2474,21 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     return '<td style="border:1px solid #333;padding:4px;text-align:' + align + ';font-weight:bold;background:' + bgStyle + ';"' + cls + '>' + (val.replace(/</g,'&lt;').replace(/>/g,'&gt;')) + '</td>';
                 }).join('') + '</tr>';
             };
-            // 정렬: 위험도분류 → 위험도키워드 순으로 그룹 구분
+            // 정렬: 위험도(내림) → 위험도키워드(올림) → 거래일(내림) → 거래시간(내림)
+            const num = (v) => { const n = parseFloat(String(v || '').replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+            const dateStr = (v) => String(v != null ? v : '').trim().replace(/[\s\-/.]/g, '');
             const sortedData = data.slice().sort((a, b) => {
-                const 분류A = String(a['위험도분류'] != null ? a['위험도분류'] : '').trim();
-                const 분류B = String(b['위험도분류'] != null ? b['위험도분류'] : '').trim();
-                if (분류A !== 분류B) return 분류A.localeCompare(분류B);
+                const riskA = num(a['위험도']); const riskB = num(b['위험도']);
+                if (riskB !== riskA) return riskB - riskA; // 위험도 내림
                 const kwA = String(a['위험도키워드'] != null ? a['위험도키워드'] : '').trim();
                 const kwB = String(b['위험도키워드'] != null ? b['위험도키워드'] : '').trim();
-                return kwA.localeCompare(kwB);
+                const kwCmp = kwA.localeCompare(kwB);
+                if (kwCmp !== 0) return kwCmp; // 위험도키워드 올림
+                const dateA = dateStr(a['거래일']); const dateB = dateStr(b['거래일']);
+                if (dateB !== dateA) return dateB.localeCompare(dateA); // 거래일 내림
+                const timeA = String(a['거래시간'] != null ? a['거래시간'] : '').trim();
+                const timeB = String(b['거래시간'] != null ? b['거래시간'] : '').trim();
+                return timeB.localeCompare(timeA); // 거래시간 내림
             });
             let tableRows = '';
             let total입금액 = 0, total출금액 = 0;
@@ -2479,7 +2531,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const printWindow = window.open('', '_blank');
             const printDate = new Date().toLocaleString('ko-KR');
             printWindow.document.write('<!DOCTYPE html><html><head>' +
-                '<title>금융정보 카테고리 적용후 출력</title>' +
+                '<title>금융정보 업종분류 적용후 출력</title>' +
                 '<meta charset="UTF-8">' +
                 '<style>' +
                 '@page { size: A4 landscape; margin: 5mm; }' +
@@ -2493,8 +2545,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 '.header-info { margin-bottom: 8px; font-size: 10px; color: #666; }' +
                 '.col-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }' +
                 '</style></head><body>' +
-                '<h2>금융정보(위험도분류) 적용후 (cash_after)</h2>' +
-                '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건</div>' +
+                '<h2>금융정보(위험도분류) 적용후 (cash_after.json)</h2>' +
+                '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건 &nbsp;|&nbsp; 정렬: 위험도(내림) → 위험도키워드(올림) → 거래일(내림) → 거래시간(내림)</div>' +
                 '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tableRows + totalRow + '</tbody></table>' +
                 '<script>window.onload = function() { window.print(); };<\/script>' +
                 '</body></html>');
@@ -2506,7 +2558,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         // 월별 추이 차트 변수
         let categoryMonthlyTrendChart = null;
         
-        // 카테고리 적용후 테이블의 카테고리 드롭다운 값 반환
+        // 업종분류 적용후 테이블의 카테고리 드롭다운 값 반환
         function getCategoryFilterFromAppliedTable() {
             const idx = document.getElementById('filter-category-applied-index-카테고리');
             if (idx && idx.value && idx.value !== '' && idx.value !== '전체') {
@@ -2529,26 +2581,33 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             }
             return '';
         }
-        // 월별 입출금 추이 그래프 로드 (필터링된 테이블 데이터 기반)
-        function loadMonthlyTrend() {
+        // 월별 입출금 추이 그래프 로드. x축은 cash_after 전체의 시작일~종료일.
+        async function loadMonthlyTrend() {
             try {
                 const catFilter = getCategoryFilterFromAppliedTable();
-                // 필터링된 테이블에서 데이터 가져오기
                 const table = document.getElementById('category-applied-table');
-                if (table) {
-                    loadMonthlyTrendFromTable(table, categoryAppliedDataOriginal, catFilter);
-                    return;
-                }
-                
-                // 테이블이 없으면 category-applied-table-index 사용
                 const tableIndex = document.getElementById('category-applied-table-index');
-                if (tableIndex) {
-                    loadMonthlyTrendFromTable(tableIndex, categoryAppliedDataOriginalForIndex, catFilter);
+                const targetTable = table || tableIndex;
+                const dataSource = table ? categoryAppliedDataOriginal : (tableIndex ? categoryAppliedDataOriginalForIndex : null);
+
+                if (!targetTable || !dataSource) {
+                    console.warn('월별 추이 그래프: 테이블을 찾을 수 없습니다.');
                     return;
                 }
-                
-                // 테이블이 없으면 빈 그래프 표시
-                console.warn('월별 추이 그래프: 테이블을 찾을 수 없습니다.');
+
+                // cash_after 전체의 시작일·종료일로 x축 범위 고정
+                let dateRange = { min_date: null, max_date: null };
+                try {
+                    const res = await fetch('/cash/api/analysis/cash-after-date-range');
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && (data.min_date || data.max_date)) {
+                            dateRange = { min_date: data.min_date || null, max_date: data.max_date || null };
+                        }
+                    }
+                } catch (_) {}
+
+                loadMonthlyTrendFromTable(targetTable, dataSource, catFilter, dateRange);
             } catch (error) {
                 console.error('Error loading monthly trend:', error);
             }
@@ -2596,49 +2655,54 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             return monthKey;
         }
         
-        // 테이블에서 월별 데이터 추출 및 그래프 생성 (categoryFilter: ''=전체, 또는 카테고리명)
-        function loadMonthlyTrendFromTable(table, dataSource, categoryFilter) {
+        // 테이블에서 월별 데이터 추출 및 그래프 생성. dateRange 있으면 x축을 cash_after 시작일~종료일로 고정.
+        function loadMonthlyTrendFromTable(table, dataSource, categoryFilter, dateRange) {
             if (!dataSource || dataSource.length === 0) {
                 console.warn('월별 추이 그래프: 데이터가 없습니다.');
                 renderEmptyChart();
                 return;
             }
-            
-            // cash_after.xlsx 전체 데이터에서 시작일과 종료일 찾기
-            const allMonthsSet = new Set();
-            dataSource.forEach(rowData => {
-                const 거래일 = rowData['거래일'];
-                if (거래일) {
-                    const monthKey = extractMonthKey(거래일);
-                    if (monthKey) {
-                        allMonthsSet.add(monthKey);
+
+            let startYear, startMonthNum, endYear, endMonthNum;
+
+            if (dateRange && dateRange.min_date && dateRange.max_date) {
+                // x축: cash_after 전체의 시작일~종료일
+                const minStr = String(dateRange.min_date).substring(0, 7); // 'YYYY-MM'
+                const maxStr = String(dateRange.max_date).substring(0, 7);
+                const [sy, sm] = minStr.split('-').map(Number);
+                const [ey, em] = maxStr.split('-').map(Number);
+                startYear = sy;
+                startMonthNum = sm || 1;
+                endYear = ey;
+                endMonthNum = em || 12;
+            } else {
+                // fallback: dataSource에서 월 집합으로 범위 계산
+                const allMonthsSet = new Set();
+                dataSource.forEach(rowData => {
+                    const 거래일 = rowData['거래일'];
+                    if (거래일) {
+                        const monthKey = extractMonthKey(거래일);
+                        if (monthKey) allMonthsSet.add(monthKey);
                     }
+                });
+                if (allMonthsSet.size === 0) {
+                    console.warn('월별 추이 그래프: 월별 데이터가 없습니다.');
+                    renderEmptyChart();
+                    return;
                 }
-            });
-            
-            if (allMonthsSet.size === 0) {
-                console.warn('월별 추이 그래프: 월별 데이터가 없습니다.');
-                renderEmptyChart();
-                return;
+                const allMonthsArray = Array.from(allMonthsSet).sort();
+                const startMonth = allMonthsArray[0];
+                const endMonth = allMonthsArray[allMonthsArray.length - 1];
+                [startYear, startMonthNum] = startMonth.split('-').map(Number);
+                [endYear, endMonthNum] = endMonth.split('-').map(Number);
             }
-            
-            // 전체 데이터의 시작일과 종료일 찾기
-            const allMonthsArray = Array.from(allMonthsSet).sort();
-            const startMonth = allMonthsArray[0];
-            const endMonth = allMonthsArray[allMonthsArray.length - 1];
-            
-            // 시작일부터 종료일까지의 모든 월 생성
+
+            // 시작일부터 종료일까지의 모든 월 생성 (x축)
             const allMonths = [];
-            const [startYear, startMonthNum] = startMonth.split('-').map(Number);
-            const [endYear, endMonthNum] = endMonth.split('-').map(Number);
-            
             let currentYear = startYear;
             let currentMonth = startMonthNum;
-            
             while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonthNum)) {
-                const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-                allMonths.push(monthKey);
-                
+                allMonths.push(`${currentYear}-${String(currentMonth).padStart(2, '0')}`);
                 currentMonth++;
                 if (currentMonth > 12) {
                     currentMonth = 1;
@@ -2712,7 +2776,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 return a.localeCompare(b, 'ko');
             });
             
-            // 제목 업데이트 (카테고리 적용후 드롭다운 선택값 표시)
+            // 제목 업데이트 (업종분류 적용후 드롭다운 선택값 표시)
             const catLabelEl = document.getElementById('monthly-trend-category-label');
             if (catLabelEl) {
                 const selCat = categoryFilter || '';
@@ -2822,6 +2886,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                             x: {
                                 stacked: true,
                                 offset: false,
+                                min: 0,
+                                max: Math.max(0, formattedMonths.length - 1),
                                 ticks: {
                                     font: { size: 10 },
                                     maxRotation: 45,

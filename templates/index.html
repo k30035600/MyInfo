@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>금융거래 통합정보 (MyInfo)</title>
+    <title>금융정보 통합정보 (MyInfo)</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
@@ -13,10 +13,13 @@
         .header-left { flex: 1; min-width: 0; }
         .header h1 { font-size: 2.5em; color: #333; margin-bottom: 4px; font-weight: bold; }
         .header p { font-size: 1.2em; color: #666; margin-top: 4px; }
-        .header-cache { flex: 0 0 auto; text-align: right; font-size: 0.85em; color: #555; background: #f5f5f5; padding: 10px 14px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .header-cache { flex: 0 0 auto; text-align: left; font-size: 0.85em; color: #555; background: #f5f5f5; padding: 10px 14px; border-radius: 8px; border: 1px solid #e0e0e0; font-variant-numeric: tabular-nums; }
         .header-cache .cache-title { font-weight: bold; margin-bottom: 6px; color: #333; }
-        .header-cache .cache-app { margin-bottom: 4px; }
+        .header-cache .cache-line { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px; line-height: 1.3; }
+        .header-cache .cache-label { flex: 0 0 auto; min-width: 13ch; }
+        .header-cache .cache-size { flex: 0 0 auto; text-align: right; min-width: 9ch; }
         .header-cache .cache-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd; font-weight: bold; }
+        .header-cache .cache-total .cache-label { min-width: 15ch; }
         .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
         .service-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; padding: 40px; text-decoration: none; color: white; transition: transform 0.3s ease, box-shadow 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
         .service-card:hover { transform: translateY(-10px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
@@ -44,7 +47,7 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1>💰 금융거래 통합정보</h1>
+                <h1>💰 금융정보 통합정보</h1>
                 <p>MyInfo - Financial Information System Ver. {{ version }}{% if server_start_time %} (기동 {{ server_start_time }}){% endif %}</p>
                 <p style="font-size: 0.9em; color: #999; margin-top: 5px;">은행/신용카드 거래 통합관리 및 종합분석</p>
             </div>
@@ -97,31 +100,28 @@
                 if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
                 return (b / (1024 * 1024)).toFixed(2) + ' MB';
             }
+            var cacheOrder = ['bank_before', 'bank_after', 'card_before', 'card_after', 'cash_after'];
             function render() {
                 if (results.length === 0) {
                     contentEl.textContent = '캐시 없음';
                     if (totalEl) totalEl.textContent = '';
                     return;
                 }
-                var html = '';
+                var byName = {};
                 results.forEach(function(r) {
-                    if (r.error) {
-                        html += '<div class="cache-app">' + r.app + ': 오류</div>';
-                        return;
-                    }
-                    html += '<div class="cache-app"><strong>' + r.app + '</strong>';
-                    if (r.caches && r.caches.length) {
-                        r.caches.forEach(function(c) {
-                            html += ' · ' + c.name + ' ' + c.size_human;
-                        });
-                    } else {
-                        html += ' (비어 있음)';
-                    }
-                    html += '</div>';
+                    if (r.error || !r.caches) return;
+                    r.caches.forEach(function(c) {
+                        byName[c.name] = c.size_human || '0 B';
+                    });
+                });
+                var html = '';
+                cacheOrder.forEach(function(name) {
+                    var size = byName[name] !== undefined ? byName[name] : '0 B';
+                    html += '<div class="cache-line"><span class="cache-label">' + name + ': </span><span class="cache-size">' + size + '</span></div>';
                 });
                 contentEl.innerHTML = html;
                 if (totalEl && totalBytes >= 0) {
-                    totalEl.textContent = '총 메모리: ' + human(totalBytes);
+                    totalEl.innerHTML = '<div class="cache-line"><span class="cache-label">총 캐시메모리: </span><span class="cache-size">' + human(totalBytes) + '</span></div>';
                 }
             }
             var pending = urls.length;

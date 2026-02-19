@@ -67,6 +67,13 @@
             margin-left: auto;
         }
 
+        /* 폴더/파일명 텍스트 통일 */
+        .path-filename-text {
+            font-size: 12px !important;
+            color: #666 !important;
+            font-family: inherit;
+        }
+
         /* 통합 네비게이터 스타일 */
         .main-nav {
             display: flex;
@@ -565,8 +572,10 @@
 
     <!-- 카테고리 적용후 -->
     <div class="chart-card" style="margin-top: 0; margin-bottom: 10px; display: flex; flex-direction: column;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
             <h2 style="margin: 0;">은행거래(카테고리) 적용후</h2>
+            <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">bank_after.json</span>
+            <span id="bank-applied-summary" style="margin-left: auto; font-size: 12px; color: #666;">총 0건, 입금: 0원 (0건), 출금: 0원 (0건)</span>
         </div>
         <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -1217,25 +1226,24 @@
                     return;
                 }
                 if (data.data && data.data.length > 0) {
-                    categoryAppliedDataOriginalForIndex = data.data;
                     const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
-                    renderCategoryAppliedTableForIndex(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
-                    loadMonthlyTrend();
                     const total = data.total || 0;
                     if (total > CATEGORY_APPLIED_PAGE_SIZE) {
-                        const sumRow = contentDiv.querySelector('#category-applied-tbody-index tr.sum-row');
-                        if (sumRow) sumRow.insertAdjacentHTML('beforebegin',
-                            '<tr id="category-applied-load-more-row"><td colspan="20" style="text-align:center;padding:8px;background:#f0f0f0;">나머지 ' + (total - CATEGORY_APPLIED_PAGE_SIZE) + '건 로딩 중...</td></tr>');
+                        // 1000건+전체 2번 그리기 방지: 나머지 받은 뒤 테이블·그래프 한 번만 그림
+                        contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">전체 데이터 로딩 중... (' + total + '건)</div>';
                         const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=${CATEGORY_APPLIED_PAGE_SIZE}`);
                         const restData = await restRes.json();
-                        document.getElementById('category-applied-load-more-row')?.remove();
                         if (restData.data && restData.data.length > 0) {
-                            categoryAppliedDataOriginalForIndex = categoryAppliedDataOriginalForIndex.concat(restData.data);
-                            renderCategoryAppliedTableForIndex(categoryAppliedDataOriginalForIndex, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
-                            loadMonthlyTrend();
+                            categoryAppliedDataOriginalForIndex = data.data.concat(restData.data);
+                        } else {
+                            categoryAppliedDataOriginalForIndex = data.data;
                         }
+                    } else {
+                        categoryAppliedDataOriginalForIndex = data.data;
                     }
+                    renderCategoryAppliedTableForIndex(categoryAppliedDataOriginalForIndex, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
+                    loadMonthlyTrend();
                 } else {
                     contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다. 은행 전처리 후 카테고리 생성을 실행하면 여기에 표시됩니다.</div>';
                 }
@@ -1252,6 +1260,8 @@
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                const summaryEl = document.getElementById('bank-applied-summary');
+                if (summaryEl) summaryEl.textContent = '총 0건, 입금: 0원 (0건), 출금: 0원 (0건)';
                 return;
             }
             const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
@@ -1284,6 +1294,14 @@
                 categoryAppliedCumulativeBalanceForIndex.push(runningBalance);
             });
             
+            // 적용후 테이블 우측 요약: 총 ?건, 입금: ?원 (?건), 출금: ?원 (?건)
+            const depositCount = data.filter(r => (parseFloat(r['입금액']) || 0) > 0).length;
+            const withdrawCount = data.filter(r => (parseFloat(r['출금액']) || 0) > 0).length;
+            const depositSum = data.reduce((s, r) => s + (parseFloat(r['입금액']) || 0), 0);
+            const withdrawSum = data.reduce((s, r) => s + (parseFloat(r['출금액']) || 0), 0);
+            const summaryEl = document.getElementById('bank-applied-summary');
+            if (summaryEl) summaryEl.textContent = '총 ' + formatNumber(data.length) + '건, 입금: ' + formatNumber(Math.round(depositSum)) + '원 (' + formatNumber(depositCount) + '건), 출금: ' + formatNumber(Math.round(withdrawSum)) + '원 (' + formatNumber(withdrawCount) + '건)';
+
             // 필터용 고유값 추출
             const uniqueValues = {};
             availableColumns.forEach(col => {
@@ -1956,8 +1974,16 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 const isLastPage = (p === totalPages - 1);
                 const tbodyContent = pageRows + (isLastPage ? sumRow : '');
                 const pageHeader = '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건 &nbsp; &nbsp; ' + (p + 1) + ' / ' + totalPages + ' 페이지</div>';
-                pagesHtml += '<div class="print-page"><h2>은행거래 카테고리 적용후 (bank_after.xlsx)</h2>' + pageHeader +
+                pagesHtml += '<div class="print-page"><h2>은행거래 카테고리 적용후 (bank_after.json)</h2>' + pageHeader +
                     '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tbodyContent + '</tbody></table></div>';
+            }
+            // 은행거래(월별 입출금) 추이 그래프 (전체) — 캔버스를 이미지로 넣어 첫 페이지에 출력
+            let chartHtml = '';
+            const trendCanvas = document.getElementById('category-monthly-trend-chart');
+            if (trendCanvas && trendCanvas.width > 0 && trendCanvas.height > 0) {
+                try {
+                    chartHtml = '<div class="print-page" style="page-break-after:always;"><h2>은행거래(월별 입출금) 추이 그래프 (전체)</h2><div class="header-info">출력 일시: ' + printDate + '</div><div style="text-align:center; margin:10px 0;"><img src="' + trendCanvas.toDataURL('image/png') + '" style="max-width:100%; height:auto;" alt="월별 입출금 추이" /></div></div>';
+                } catch (e) {}
             }
             const printWindow = window.open('', '_blank');
             printWindow.document.write('<!DOCTYPE html><html><head>' +
@@ -1975,7 +2001,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 '.header-info { margin-bottom: 8px; font-size: 10px; color: #666; }' +
                 '.col-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; }' +
                 'table td.col-ellipsis, table th.col-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }' +
-                '</style></head><body>' + pagesHtml +
+                '</style></head><body>' + chartHtml + pagesHtml +
                 '<script>window.onload = function() { window.print(); };<\/script>' +
                 '</body></html>');
             printWindow.document.close();

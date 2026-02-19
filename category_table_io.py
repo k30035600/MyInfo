@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""category_table.json 읽기/쓰기. load/get, apply_action, safe_write, normalize_category_df."""
+"""category_table.json 읽기/쓰기. load/get, apply_action, safe_write, normalize_category_df.
+
+캐시 미적용: 코드에서 table은 캐시를 사용하지 않는다. category_table, linkage_table 모두 매 요청 시 파일에서 읽음.
+"""
 import json
 import os
 import re
@@ -48,7 +51,8 @@ def load_category_table(path, default_empty=True):
     if not path:
         return pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS) if default_empty else None
     xlsx_path = _xlsx_path_from_json(path)
-    if not os.path.exists(path) or (os.path.exists(path) and os.path.getsize(path) == 0):
+    path_exists = os.path.exists(path)
+    if not path_exists or (path_exists and os.path.getsize(path) == 0):
         if xlsx_path and os.path.exists(xlsx_path) and os.path.getsize(xlsx_path) > 0:
             try:
                 df_old = pd.read_excel(xlsx_path, engine='openpyxl')
@@ -58,7 +62,7 @@ def load_category_table(path, default_empty=True):
                     return df_old
             except Exception:
                 pass
-        if not os.path.exists(path) or os.path.getsize(path) == 0:
+        if not path_exists or os.path.getsize(path) == 0:
             return pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS) if default_empty else None
     try:
         with open(path, 'r', encoding='utf-8') as f:
@@ -308,7 +312,7 @@ def safe_write_category_table(path, df):
                         pass
                 raise
             last_err = None
-            for attempt in range(3):
+            for attempt in range(5):
                 try:
                     os.replace(tmp, path)
                     tmp = None
@@ -316,8 +320,8 @@ def safe_write_category_table(path, df):
                 except (OSError, PermissionError) as e:
                     last_err = e
                     if getattr(e, 'winerror', None) == 5 or (hasattr(e, 'errno') and e.errno == 5):
-                        if attempt < 2:
-                            time.sleep(0.5 * (attempt + 1))
+                        if attempt < 4:
+                            time.sleep(1.0 * (attempt + 1))
                             continue
                         raise PermissionError(
                             "category_table.json 저장 실패(파일이 사용 중일 수 있음). "

@@ -16,7 +16,6 @@
 import pandas as pd
 import os
 import re
-import shutil
 import sys
 import time
 import unicodedata
@@ -37,6 +36,16 @@ _PROJECT_ROOT = os.environ.get('MYINFO_ROOT') or os.path.normpath(os.path.join(_
 CATEGORY_TABLE_FILE = str((Path(_PROJECT_ROOT) / '.source' / 'category_table.json').resolve()) if _PROJECT_ROOT else None
 if _PROJECT_ROOT and _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
+try:
+    from shared_app_utils import is_bad_zip_error as _is_bad_zip_error
+except ImportError:
+    def _is_bad_zip_error(e):
+        msg = str(e).lower()
+        return isinstance(e, zipfile.BadZipFile) or 'not a zip file' in msg or 'bad zip' in msg
+try:
+    from excel_io import safe_write_excel
+except ImportError:
+    safe_write_excel = None
 try:
     from category_table_defaults import get_default_rules
 except ImportError:
@@ -91,9 +100,13 @@ INPUT_FILE = os.path.join(_SCRIPT_DIR, 'bank_before.json')
 OUTPUT_FILE = os.path.join(_SCRIPT_DIR, 'bank_after.json')
 
 
-def _is_bad_zip_error(e):
-    msg = str(e).lower()
-    return isinstance(e, zipfile.BadZipFile) or 'not a zip file' in msg or 'bad zip' in msg
+def _safe_print(*args, **kwargs):
+    """통합 서버(Waitress) 요청 스레드에서 stdout이 닫혀 있을 때 print()가 I/O operation on closed file 을 내지 않도록 처리."""
+    try:
+        print(*args, **kwargs)
+    except (ValueError, OSError) as e:
+        if 'closed file' not in str(e).lower():
+            raise
 
 
 def _safe_read_data_file(path, default_empty=True):
@@ -152,7 +165,7 @@ def _ensure_bank_before_and_category_only(bank_before_path=None):
             else:
                 create_empty_category_table(CATEGORY_TABLE_FILE)
         except Exception as e:
-            print(f"오류: category_table 생성 실패 - {e}")
+            _safe_print(f"오류: category_table 생성 실패 - {e}")
         return
 
     full = load_category_table(CATEGORY_TABLE_FILE, default_empty=True)
@@ -165,13 +178,13 @@ def _ensure_bank_before_and_category_only(bank_before_path=None):
             df = _safe_read_data_file(read_before_path, default_empty=True)
             create_category_table(df if df is not None and not df.empty else pd.DataFrame())
         except Exception as e:
-            print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
+            _safe_print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
     elif full is not None and not full.empty:
         try:
             migrate_bank_category_file(CATEGORY_TABLE_FILE)
         except Exception as e:
             if not _is_bad_zip_error(e):
-                print(f"오류: category_table 마이그레이션 실패 - {e}")
+                _safe_print(f"오류: category_table 마이그레이션 실패 - {e}")
 
 
 def ensure_all_bank_files():
@@ -181,7 +194,7 @@ def ensure_all_bank_files():
         try:
             classify_and_save()
         except Exception as e:
-            print(f"오류: bank_after.xlsx 생성 실패 - {e}")
+            _safe_print(f"오류: bank_after.xlsx 생성 실패 - {e}")
 
 
 def ensure_bank_before_and_category(bank_before_path=None):
@@ -226,32 +239,29 @@ def clean_amount(value):
     except (ValueError, TypeError):
         return 0
 
-def safe_write_excel(df, filepath, max_retries=3):
-    """파일 쓰기 시 권한 오류 방지를 위한 안전한 쓰기 함수"""
-    for attempt in range(max_retries):
-        try:
-            if os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                    time.sleep(0.1)
-                except PermissionError:
-                    if attempt < max_retries - 1:
-                        time.sleep(0.5)
-                        continue
-                    else:
+if safe_write_excel is None:
+    def safe_write_excel(df, filepath, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                if os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                        time.sleep(0.1)
+                    except PermissionError:
+                        if attempt < max_retries - 1:
+                            time.sleep(0.5)
+                            continue
                         raise PermissionError(f"파일을 삭제할 수 없습니다: {filepath}")
-            
-            df.to_excel(filepath, index=False, engine='openpyxl')
-            return True
-        except PermissionError as e:
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-                continue
-            else:
+                df.to_excel(filepath, index=False, engine='openpyxl')
+                return True
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    continue
                 raise e
-        except Exception as e:
-            raise e
-    return False
+            except Exception as e:
+                raise e
+        return False
 
 LAST_INTEGRATE_ERROR = None
 LAST_CLASSIFY_ERROR = None
@@ -262,12 +272,13 @@ def _excel_engine(path):
     return 'xlrd' if suf == '.xls' else 'openpyxl'
 
 def read_kb_file_excel(file_path):
-    """국민은행 Excel(.xlsx) 파일 읽기."""
+    """국민은행 Excel(.xlsx) 파일 읽기. 시트별로 경로만 넘겨 read_excel 호출해 매번 열고 닫아 I/O closed file 방지."""
     path = Path(file_path)
     engine = _excel_engine(path)
-    xls = pd.ExcelFile(file_path, engine=engine)
     all_data = []
-    for sheet_name in xls.sheet_names:
+    with pd.ExcelFile(file_path, engine=engine) as xls:
+        sheet_names = list(xls.sheet_names)
+    for sheet_name in sheet_names:
         df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine=engine)
         header_row = None
         for idx in range(min(15, len(df_raw))):
@@ -344,27 +355,27 @@ def read_kb_file_excel(file_path):
     return None
 
 def read_sh_file(file_path):
-    """신한은행 파일 읽기 (.xls, .xlsx). .xls는 xlrd 필요."""
+    """신한은행 파일 읽기 (.xls, .xlsx). 시트별로 경로만 넘겨 read_excel 호출해 I/O closed file 방지."""
     path = Path(file_path)
     engine = _excel_engine(path)
-    xls = pd.ExcelFile(file_path, engine=engine)
     all_data = []
-    
-    for sheet_name in xls.sheet_names:
+    with pd.ExcelFile(file_path, engine=engine) as xls:
+        sheet_names = list(xls.sheet_names)
+    for sheet_name in sheet_names:
         df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine=engine)
         header_row = None
         for idx in range(min(15, len(df_raw))):
             if pd.notna(df_raw.iloc[idx, 0]) and '거래일자' in str(df_raw.iloc[idx, 0]):
                 header_row = idx
                 break
-        
+
         if header_row is None:
             continue
-        
+
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row, engine=engine)
         df = df[df['거래일자'].notna()].copy()
         df = df[df['거래일자'] != ''].copy()
-        
+
         account_number = None
         df_info = pd.read_excel(file_path, sheet_name=sheet_name, header=None, nrows=5, engine=engine)
         for idx in range(len(df_info)):
@@ -377,14 +388,14 @@ def read_sh_file(file_path):
                     break
             if account_number:
                 break
-        
+
         if not account_number:
             match = re.search(r'(\d{3}-\d{3}-\d{6})', str(file_path))
             if match:
                 account_number = match.group(1)
-        
+
         bank_name = '신한은행'
-        
+
         result_df = pd.DataFrame(index=df.index)
         result_df['거래일'] = df['거래일자'] if '거래일자' in df.columns else ''
         result_df['거래시간'] = df['거래시간'].fillna('') if '거래시간' in df.columns else ''
@@ -394,7 +405,7 @@ def read_sh_file(file_path):
         result_df['잔액'] = df['잔액(원)'] if '잔액(원)' in df.columns else (df['잔액'] if '잔액' in df.columns else 0)
         result_df['거래점'] = df['거래점'] if '거래점' in df.columns else ''
         result_df['취소'] = ''
-        
+
         if '내용' in df.columns:
             result_df['내용'] = df['내용'].fillna('')
         else:
@@ -405,49 +416,49 @@ def read_sh_file(file_path):
                     result_df['내용'] = df[col].fillna('')
                     content_found = True
                     break
-            
+
             if not content_found and len(df.columns) > 5:
                 result_df['내용'] = df[df.columns[5]].fillna('')
             elif not content_found and len(df.columns) > 4:
                 result_df['내용'] = df[df.columns[4]].fillna('')
             else:
                 result_df['내용'] = ''
-        
+
         result_df['송금메모'] = ''
         result_df['메모'] = df['메모'].fillna('') if '메모' in df.columns else ''
         result_df['은행명'] = bank_name
         result_df['계좌번호'] = account_number
-        
+
         result_df = result_df[result_df['거래일'].notna()].copy()
         result_df = result_df[result_df['거래일'] != ''].copy()
-        
+
         all_data.append(result_df)
-    
+
     if all_data:
         return pd.concat(all_data, ignore_index=True)
     return None
 
 def read_hana_file(file_path):
-    """하나은행 파일 읽기 (.xls, .xlsx). .xls는 xlrd 필요."""
+    """하나은행 파일 읽기 (.xls, .xlsx). 시트별로 경로만 넘겨 read_excel 호출해 I/O closed file 방지."""
     path = Path(file_path)
     engine = _excel_engine(path)
-    xls = pd.ExcelFile(file_path, engine=engine)
     all_data = []
-    
-    for sheet_name in xls.sheet_names:
+    with pd.ExcelFile(file_path, engine=engine) as xls:
+        sheet_names = list(xls.sheet_names)
+    for sheet_name in sheet_names:
         df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine=engine)
         header_row = None
         for idx in range(min(15, len(df_raw))):
             if pd.notna(df_raw.iloc[idx, 0]) and ('거래일시' in str(df_raw.iloc[idx, 0]) or '거래일' in str(df_raw.iloc[idx, 0])):
                 header_row = idx
                 break
-        
+
         if header_row is None:
             continue
-        
+
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row, engine=engine)
         df = df[df['거래일시'].notna()].copy()
-        
+
         account_number = None
         df_info = pd.read_excel(file_path, sheet_name=sheet_name, header=None, nrows=5, engine=engine)
         for idx in range(len(df_info)):
@@ -460,21 +471,21 @@ def read_hana_file(file_path):
                     break
             if account_number:
                 break
-        
+
         if not account_number:
             match = re.search(r'(\d{3}-\d{6}-\d{5})', str(file_path))
             if match:
                 account_number = match.group(1)
-        
+
         bank_name = '하나은행'
-        
+
         df['거래일'] = df['거래일시'].astype(str).str.split(' ').str[0]
         df['거래시간'] = df['거래일시'].astype(str).str.split(' ').str[1]
         df['거래시간'] = df['거래시간'].fillna('')
-        
+
         df = df[df['거래일'].notna()].copy()
         df = df[df['거래일'] != ''].copy()
-        
+
         result_df = pd.DataFrame()
         result_df['거래일'] = df['거래일']
         result_df['거래시간'] = df['거래시간']
@@ -489,9 +500,9 @@ def read_hana_file(file_path):
         result_df['메모'] = ''
         result_df['은행명'] = bank_name
         result_df['계좌번호'] = account_number
-        
+
         all_data.append(result_df)
-    
+
     if all_data:
         return pd.concat(all_data, ignore_index=True)
     return None
@@ -520,7 +531,7 @@ def integrate_bank_transactions(output_file=None):
         try:
             source_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            print(f"오류: .source/Bank 폴더 생성 실패 - {source_dir}: {e}", flush=True)
+            _safe_print(f"오류: .source/Bank 폴더 생성 실패 - {source_dir}: {e}", flush=True)
     global LAST_INTEGRATE_ERROR
     LAST_INTEGRATE_ERROR = None
     all_data = []
@@ -533,7 +544,7 @@ def integrate_bank_transactions(output_file=None):
                 '파일명에 국민은행, 신한은행, 하나은행 중 하나가 포함되어야 합니다. '
                 f'(현재 .source/Bank에 .xls/.xlsx {len(all_xls_xlsx)}개 있으나 해당하는 파일 없음)'
             )
-        print(f"경고: 은행 파일 없음 - {source_dir}", flush=True)
+        _safe_print(f"경고: 은행 파일 없음 - {source_dir}", flush=True)
 
     for file_path in bank_files:
         name = file_path.name
@@ -557,9 +568,12 @@ def integrate_bank_transactions(output_file=None):
             if 'xlrd' in err_str or 'No module' in err_str:
                 err_str = err_str + ' ( .xls 파일은 pip install xlrd 필요 )'
             read_errors.append(f"{name}: {err_str}")
-            print(f"오류: {name} 처리 실패 - {e}", flush=True)
-            import traceback
-            traceback.print_exc()
+            _safe_print(f"오류: {name} 처리 실패 - {e}", flush=True)
+            try:
+                import traceback
+                traceback.print_exc()
+            except (ValueError, OSError):
+                pass
     if bank_files and not all_data and read_errors:
         LAST_INTEGRATE_ERROR = ' | '.join(read_errors[:5])
         if len(read_errors) > 5:
@@ -571,7 +585,7 @@ def integrate_bank_transactions(output_file=None):
             '국민은행은 .xlsx만 지원(.xls 미지원). '
             '또는 파일을 읽었지만 데이터 행이 없거나 시트 구조가 맞지 않습니다.'
         )
-        print("경고: 통합 데이터 없음.", flush=True)
+        _safe_print("경고: 통합 데이터 없음.", flush=True)
 
     if not all_data:
         combined_df = pd.DataFrame(columns=['거래일', '거래시간', '은행명', '계좌번호', '입금액', '출금액', '잔액',
@@ -628,7 +642,7 @@ def integrate_bank_transactions(output_file=None):
     try:
         combined_df = _apply_전처리_only(combined_df)
     except Exception as e:
-        print(f"경고: 전처리 오류(무시) - {e}", flush=True)
+        _safe_print(f"경고: 전처리 오류(무시) - {e}", flush=True)
 
     # 적요/내용/송금메모가 모두 비어있으면 거래점을 송금메모에 저장
     if all(c in combined_df.columns for c in ['적요', '내용', '송금메모', '거래점']):
@@ -686,10 +700,10 @@ def create_category_table(df):
         if not os.path.exists(CATEGORY_TABLE_FILE):
             raise FileNotFoundError(f"오류: 파일 생성 후에도 {CATEGORY_TABLE_FILE} 파일이 존재하지 않습니다.")
     except PermissionError as e:
-        print(f"오류: 파일 쓰기 권한이 없습니다 - {CATEGORY_TABLE_FILE}")
+        _safe_print(f"오류: 파일 쓰기 권한이 없습니다 - {CATEGORY_TABLE_FILE}")
         raise
     except Exception as e:
-        print(f"오류: category_table 생성 실패 - {e}")
+        _safe_print(f"오류: category_table 생성 실패 - {e}")
         raise
 
     return category_df
@@ -720,7 +734,7 @@ def migrate_bank_category_file(category_filepath=None):
     try:
         safe_write_category_table(path, migrated_df)
     except Exception as e:
-        print(f"오류: category_table 마이그레이션 저장 실패 - {e}")
+        _safe_print(f"오류: category_table 마이그레이션 저장 실패 - {e}")
         raise
 
 
@@ -1009,46 +1023,53 @@ def get_category_tables():
 
     return category_tables
 
-def classify_and_save(input_file=None, output_file=None):
-    """bank_before → bank_after 생성. 전처리는 이미 before 저장 시 적용됨. before_text(취소+적요·내용·송금메모·거래점)만으로 계정과목 분류, 후처리(치환) 적용."""
+def classify_and_save(input_file=None, output_file=None, input_df=None):
+    """bank_before → bank_after 생성. 전처리는 이미 before 저장 시 적용됨. before_text(취소+적요·내용·송금메모·거래점)만으로 계정과목 분류, 후처리(치환) 적용.
+    input_df가 주어지면 파일 읽기 생략(재생성 시 before 메모리 재활용)."""
     global LAST_CLASSIFY_ERROR
     LAST_CLASSIFY_ERROR = None
     if input_file is None:
         input_file = INPUT_FILE
     if output_file is None:
         output_file = OUTPUT_FILE
-    # 구분 1: 파일 없음 → 경고, 콘솔 메시지, before 생성 수행
-    if not os.path.exists(input_file):
-        print("경고: bank_before 없음, 통합 수행.", flush=True)
-        integrate_bank_transactions(output_file=input_file)
-        if not os.path.exists(input_file) or os.path.getsize(input_file) == 0:
-            LAST_CLASSIFY_ERROR = "bank_before.xlsx 생성 실패. .source/Bank 폴더와 원본 파일을 확인하세요."
-            print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-            return False
-    elif os.path.getsize(input_file) == 0:
-        print("경고: bank_before 비어 있음, 통합 수행.", flush=True)
-        integrate_bank_transactions(output_file=input_file)
-        if os.path.getsize(input_file) == 0:
-            LAST_CLASSIFY_ERROR = "bank_before.xlsx 생성 후에도 비어 있습니다. .source/Bank 원본을 확인하세요."
-            print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-            return False
 
-    # 여기서 파일은 존재하고 크기 > 0
-    df = _safe_read_data_file(input_file, default_empty=True)
-    if df is None or df.empty:
-        # 구분 2: 파일 손상 → 삭제 후 before 재생성. .bak 생성하지 않음.
-        print("오류: bank_before 손상, 재생성.", flush=True)
-        try:
-            if os.path.exists(input_file):
-                os.unlink(input_file)
-        except OSError:
-            pass
-        integrate_bank_transactions(output_file=input_file)
+    if input_df is not None:
+        # 재생성 등: 이미 메모리에 있는 before DataFrame 사용. 파일 읽기 생략.
+        df = input_df.copy() if not input_df.empty else pd.DataFrame()
+    else:
+        # 구분 1: 파일 없음 → 경고, 콘솔 메시지, before 생성 수행
+        if not os.path.exists(input_file):
+            _safe_print("경고: bank_before 없음, 통합 수행.", flush=True)
+            integrate_bank_transactions(output_file=input_file)
+            if not os.path.exists(input_file) or os.path.getsize(input_file) == 0:
+                LAST_CLASSIFY_ERROR = "bank_before.xlsx 생성 실패. .source/Bank 폴더와 원본 파일을 확인하세요."
+                _safe_print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
+                return False
+        elif os.path.getsize(input_file) == 0:
+            _safe_print("경고: bank_before 비어 있음, 통합 수행.", flush=True)
+            integrate_bank_transactions(output_file=input_file)
+            if os.path.getsize(input_file) == 0:
+                LAST_CLASSIFY_ERROR = "bank_before.xlsx 생성 후에도 비어 있습니다. .source/Bank 원본을 확인하세요."
+                _safe_print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
+                return False
+
+        # 여기서 파일은 존재하고 크기 > 0
         df = _safe_read_data_file(input_file, default_empty=True)
         if df is None or df.empty:
-            LAST_CLASSIFY_ERROR = "bank_before.xlsx 재생성 후에도 읽기 실패. .source/Bank 원본을 확인하세요."
-            print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-            return False
+            # 구분 2: 파일 손상 → 삭제 후 before 재생성. .bak 생성하지 않음.
+            _safe_print("오류: bank_before 손상, 재생성.", flush=True)
+            try:
+                if os.path.exists(input_file):
+                    os.unlink(input_file)
+            except OSError:
+                pass
+            integrate_bank_transactions(output_file=input_file)
+            df = _safe_read_data_file(input_file, default_empty=True)
+            if df is None or df.empty:
+                LAST_CLASSIFY_ERROR = "bank_before.xlsx 재생성 후에도 읽기 실패. .source/Bank 원본을 확인하세요."
+                _safe_print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
+                return False
+
     # 컬럼명 앞뒤 공백 제거 (취소·적요·내용·송금메모·거래점 매칭 보장)
     df.columns = [str(c).strip() for c in df.columns]
     # 기존 파일 호환: 구분 → 취소
@@ -1063,7 +1084,7 @@ def classify_and_save(input_file=None, output_file=None):
                 create_empty_category_table(CATEGORY_TABLE_FILE)
         except Exception as e:
             LAST_CLASSIFY_ERROR = f"category_table 생성 실패: {e}"
-            print(f"오류: {LAST_CLASSIFY_ERROR}")
+            _safe_print(f"오류: {LAST_CLASSIFY_ERROR}")
             return False
 
     category_tables = get_category_tables()
@@ -1078,19 +1099,22 @@ def classify_and_save(input_file=None, output_file=None):
                 create_category_table(df if not df.empty else pd.DataFrame())
                 category_tables = get_category_tables()
             except Exception as e:
-                print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
+                _safe_print(f"오류: category_table 손상 복구 실패 - {e}", flush=True)
         if category_tables is None:
             LAST_CLASSIFY_ERROR = f"{CATEGORY_TABLE_FILE} 로드 실패(파일 없음 또는 비어 있음)"
-            print(f"오류: {LAST_CLASSIFY_ERROR}")
+            _safe_print(f"오류: {LAST_CLASSIFY_ERROR}")
             return False
 
     try:
         df["before_text"] = df.apply(create_before_text, axis=1)
     except Exception as e:
         LAST_CLASSIFY_ERROR = f"before_text 생성 실패: {e}"
-        print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-        import traceback
-        traceback.print_exc()
+        _safe_print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
+        try:
+            import traceback
+            traceback.print_exc()
+        except (ValueError, OSError):
+            pass
         return False
 
     # 후처리 매칭 전에 적요·내용·송금메모를 주식회사→(주) 등으로 정규화 (전처리는 before 저장 시 이미 적용됨)
@@ -1118,9 +1142,12 @@ def classify_and_save(input_file=None, output_file=None):
             df = apply_category_from_bank(df, category_tables['계정과목'])
         except Exception as e:
             LAST_CLASSIFY_ERROR = f"계정과목(카테고리) 적용 실패: {e}"
-            print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-            import traceback
-            traceback.print_exc()
+            _safe_print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
+            try:
+                import traceback
+                traceback.print_exc()
+            except (ValueError, OSError):
+                pass
             return False
     else:
         if '카테고리' not in df.columns:
@@ -1133,9 +1160,12 @@ def classify_and_save(input_file=None, output_file=None):
         df = apply_후처리_bank(df, category_tables)
     except Exception as e:
         LAST_CLASSIFY_ERROR = f"후처리 적용 실패: {e}"
-        print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
-        import traceback
-        traceback.print_exc()
+        _safe_print(f"오류: {LAST_CLASSIFY_ERROR}", flush=True)
+        try:
+            import traceback
+            traceback.print_exc()
+        except (ValueError, OSError):
+            pass
         return False
 
     # 기타거래: 저장 전 컬럼 확보 및 빈 값 제거(절대 비우지 않음)
@@ -1244,26 +1274,32 @@ def classify_and_save(input_file=None, output_file=None):
             try:
                 os.makedirs(out_dir, exist_ok=True)
             except Exception as ex:
-                print(f"오류: 출력 폴더 생성 실패 - {out_dir}: {ex}")
+                _safe_print(f"오류: 출력 폴더 생성 실패 - {out_dir}: {ex}")
         try:
             from data_json_io import safe_write_data_json
             safe_write_data_json(output_file, result_df)
         except ImportError:
             if not safe_write_excel(result_df, output_file):
                 LAST_CLASSIFY_ERROR = f"파일 저장 실패: {output_file} (쓰기 권한 또는 파일 사용 중 확인)"
-                print(f"오류: {LAST_CLASSIFY_ERROR}")
+                _safe_print(f"오류: {LAST_CLASSIFY_ERROR}")
                 return False
     except PermissionError as e:
         LAST_CLASSIFY_ERROR = f"bank_after 저장 권한 없음(파일을 닫아주세요): {e}"
-        print(f"오류: {LAST_CLASSIFY_ERROR}")
-        import traceback
-        traceback.print_exc()
+        _safe_print(f"오류: {LAST_CLASSIFY_ERROR}")
+        try:
+            import traceback
+            traceback.print_exc()
+        except (ValueError, OSError):
+            pass
         return False
     except Exception as e:
         LAST_CLASSIFY_ERROR = f"파일 저장 중 예외: {e}"
-        print(f"오류: {LAST_CLASSIFY_ERROR}")
-        import traceback
-        traceback.print_exc()
+        _safe_print(f"오류: {LAST_CLASSIFY_ERROR}")
+        try:
+            import traceback
+            traceback.print_exc()
+        except (ValueError, OSError):
+            pass
         return False
 
     return True
@@ -1279,7 +1315,7 @@ def main():
         elif command == 'classify':
             success = classify_and_save()
             if not success:
-                print("카테고리 분류 중 오류가 발생했습니다.")
+                _safe_print("카테고리 분류 중 오류가 발생했습니다.")
             return
 
     if not os.path.exists(INPUT_FILE) or os.path.getsize(INPUT_FILE) == 0:

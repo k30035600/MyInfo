@@ -74,6 +74,10 @@ HEADER_TO_STANDARD = {
 AMOUNT_COLUMN_KEYWORDS = ('금액', '입금', '출금', '잔액')
 
 try:
+    from excel_io import safe_write_excel
+except ImportError:
+    safe_write_excel = None
+try:
     from category_table_io import normalize_주식회사_for_match
 except ImportError:
     def normalize_주식회사_for_match(text):
@@ -120,32 +124,30 @@ def clean_amount(value):
     except (ValueError, TypeError):
         return 0
 
-def safe_write_excel(df, filepath, max_retries=3):
-    """파일 쓰기 시 권한 오류 방지를 위한 안전한 쓰기 함수"""
-    for attempt in range(max_retries):
-        try:
-            if os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                    time.sleep(0.1)
-                except PermissionError:
-                    if attempt < max_retries - 1:
-                        time.sleep(0.5)
-                        continue
-                    else:
+if safe_write_excel is None:
+    def safe_write_excel(df, filepath, max_retries=3):
+        import time as _t
+        for attempt in range(max_retries):
+            try:
+                if os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                        _t.sleep(0.1)
+                    except PermissionError:
+                        if attempt < max_retries - 1:
+                            _t.sleep(0.5)
+                            continue
                         raise PermissionError(f"파일을 삭제할 수 없습니다: {filepath}")
-            
-            df.to_excel(filepath, index=False, engine='openpyxl')
-            return True
-        except PermissionError as e:
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-                continue
-            else:
+                df.to_excel(filepath, index=False, engine='openpyxl')
+                return True
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    _t.sleep(0.5)
+                    continue
                 raise e
-        except Exception as e:
-            raise e
-    return False
+            except Exception as e:
+                raise e
+        return False
 
 
 def normalize_brackets(text):

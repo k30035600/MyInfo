@@ -45,14 +45,6 @@ def _업종코드_문자_소수점없음(v):
         return s
 
 
-def _업종코드_문자6자(v):
-    """(호환) 업종코드 문자·소수점 제거. 숫자면 6자리 문자열로."""
-    out = _업종코드_문자_소수점없음(v)
-    if out and out.isdigit() and len(out) <= 6:
-        return out.zfill(6)
-    return out
-
-
 def ensure_linkage_table_json():
     """MyInfo/.source/linkage_table.json이 없으면 linkage_table.xlsx를 읽어 JSON 생성."""
     if os.path.exists(LINKAGE_JSON) and os.path.getsize(LINKAGE_JSON) > 0:

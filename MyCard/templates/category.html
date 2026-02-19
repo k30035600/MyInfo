@@ -67,6 +67,13 @@
             margin-left: auto;
         }
 
+        /* 폴더/파일명 텍스트 통일 */
+        .path-filename-text {
+            font-size: 12px !important;
+            color: #666 !important;
+            font-family: inherit;
+        }
+
         /* 통합 네비게이터 스타일 */
         .main-nav {
             display: flex;
@@ -591,8 +598,10 @@
 
     <!-- 카테고리 적용후 -->
     <div class="chart-card" style="margin-top: 0; margin-bottom: 10px; display: flex; flex-direction: column;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
             <h2 style="margin: 0;">신용카드(카테고리) 적용후</h2>
+            <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">card_after.json</span>
+            <span id="card-applied-summary" style="margin-left: auto; font-size: 12px; color: #666;">총 0건, 입금: 0원 (0건), 출금: 0원 (0건)</span>
         </div>
         <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
@@ -1204,9 +1213,18 @@
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                const summaryEl = document.getElementById('card-applied-summary');
+                if (summaryEl) summaryEl.textContent = '총 0건, 입금: 0원 (0건), 출금: 0원 (0건)';
                 return;
             }
-            
+            // 적용후 테이블 우측 요약: 총 ?건, 입금: ?원 (?건), 출금: ?원 (?건)
+            const depositCount = data.filter(r => (parseFloat(r['입금액']) || 0) > 0).length;
+            const withdrawCount = data.filter(r => (parseFloat(r['출금액']) || 0) > 0).length;
+            const depositSum = data.reduce((s, r) => s + (parseFloat(r['입금액']) || 0), 0);
+            const withdrawSum = data.reduce((s, r) => s + (parseFloat(r['출금액']) || 0), 0);
+            const summaryEl = document.getElementById('card-applied-summary');
+            if (summaryEl) summaryEl.textContent = '총 ' + formatNumber(data.length) + '건, 입금: ' + formatNumber(Math.round(depositSum)) + '원 (' + formatNumber(depositCount) + '건), 출금: ' + formatNumber(Math.round(withdrawSum)) + '원 (' + formatNumber(withdrawCount) + '건)';
+
             // 컬럼 순서: 전처리후 + 카테고리작업후
             const columns = [
                 '거래일', '거래시간', '카드사', '계좌번호', '입금액', '출금액', '잔액', '구분',
@@ -1554,7 +1572,6 @@
                     tbody.insertAdjacentHTML('beforeend', sumRowHtml);
                 }
             }
-            loadMonthlyTrend();
         }
 
         // 페이지 로드 시 데이터 로드 (신용카드 카테고리: loadCategoryAppliedTable만 사용, loadCategoryAppliedDataForIndex는 은행 스타일이라 사용 안 함)
@@ -1873,7 +1890,6 @@
                     const depositAmount = data.deposit_amount != null ? data.deposit_amount : 0;
                     const withdrawAmount = data.withdraw_amount != null ? data.withdraw_amount : 0;
                     renderCategoryAppliedTable(data.data, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
-                    loadMonthlyTrend();
                     const total = data.total || 0;
                     if (total > CATEGORY_APPLIED_PAGE_SIZE) {
                         const restRes = await fetch(`${API_BASE}/api/category-applied-data?offset=${CATEGORY_APPLIED_PAGE_SIZE}`);
@@ -1881,15 +1897,18 @@
                         if (restData.data && restData.data.length > 0) {
                             categoryAppliedDataOriginal = categoryAppliedDataOriginal.concat(restData.data);
                             renderCategoryAppliedTable(categoryAppliedDataOriginal, { totalDeposit: depositAmount, totalWithdraw: withdrawAmount });
-                            loadMonthlyTrend();
                         }
                     }
+                    // 신용카드(월별 입출금) 추이 그래프는 테이블 로드가 모두 끝난 뒤 마지막 한 번만 호출
+                    loadMonthlyTrend();
                 } else {
                     const noFileMsg = !fileExists
                         ? 'card_after가 없습니다.'
                         : '데이터 로딩 중...';
                     document.getElementById('category-applied-content').innerHTML =
                         '<div class="loading" style="padding: 20px; text-align: center; color: #666;">' + noFileMsg + '</div>';
+                    const summaryEl = document.getElementById('card-applied-summary');
+                    if (summaryEl) summaryEl.textContent = '총 0건, 입금: 0원 (0건), 출금: 0원 (0건)';
                 }
             } catch (error) {
                 console.error('Error loading category applied data:', error);
@@ -2011,7 +2030,7 @@
                 const isLastPage = (p === totalPages - 1);
                 const tbodyContent = pageRows + (isLastPage ? sumRow : '');
                 const pageHeader = '<div class="header-info">출력 일시: ' + printDate + ' &nbsp;|&nbsp; 총 ' + data.length + '건 &nbsp; &nbsp; ' + (p + 1) + ' / ' + totalPages + ' 페이지</div>';
-                pagesHtml += '<div class="print-page"><h2>신용카드 카테고리 적용후 (card_after)</h2>' + pageHeader +
+                pagesHtml += '<div class="print-page"><h2>신용카드 카테고리 적용후 (card_after.json)</h2>' + pageHeader +
                     '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tbodyContent + '</tbody></table></div>';
             }
             const printWindow = window.open('', '_blank');
@@ -2041,8 +2060,18 @@
             
             if (!data || data.length === 0) {
                 contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</div>';
+                const summaryEl = document.getElementById('card-applied-summary');
+                if (summaryEl) summaryEl.textContent = '총 0건, 입금: 0원 (0건), 출금: 0원 (0건)';
                 return;
             }
+            // 적용후 테이블 우측 요약: 총 ?건, 입금: ?원 (?건), 출금: ?원 (?건)
+            const depositCount = data.filter(r => (parseFloat(r['입금액']) || 0) > 0).length;
+            const withdrawCount = data.filter(r => (parseFloat(r['출금액']) || 0) > 0).length;
+            const depositSum = data.reduce((s, r) => s + (parseFloat(r['입금액']) || 0), 0);
+            const withdrawSum = data.reduce((s, r) => s + (parseFloat(r['출금액']) || 0), 0);
+            const summaryEl = document.getElementById('card-applied-summary');
+            if (summaryEl) summaryEl.textContent = '총 ' + formatNumber(data.length) + '건, 입금: ' + formatNumber(Math.round(depositSum)) + '원 (' + formatNumber(depositCount) + '건), 출금: ' + formatNumber(Math.round(withdrawSum)) + '원 (' + formatNumber(withdrawCount) + '건)';
+
             const fullTotalDeposit = options && options.totalDeposit != null ? options.totalDeposit : null;
             const fullTotalWithdraw = options && options.totalWithdraw != null ? options.totalWithdraw : null;
             
@@ -2446,9 +2475,8 @@
                 }
             }
             
-            // 필터링 후 그래프 업데이트 (스크롤 기반)
+            // 필터링 후 그래프 업데이트 (스크롤 기반). 월별 입출금 추이는 초기 로드 시 1회만 출력
             updateChartFromTable();
-            loadMonthlyTrend();
         }
         
         // bank_after 파일 생성 함수
@@ -2896,10 +2924,8 @@
             }
         }
         
-        // 테이블 필터링 후 그래프 업데이트
+        // 테이블 필터링 후 그래프 업데이트 (카테고리 원그래프 등만 갱신, 월별 입출금 추이는 초기 로드 시 1회만 출력)
         function updateChartFromTable() {
-            // 월별 추이 그래프 업데이트
-            loadMonthlyTrend();
         }
     </script>
     

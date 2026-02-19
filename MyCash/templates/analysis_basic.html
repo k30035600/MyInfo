@@ -302,7 +302,7 @@
             opacity: 1;
         }
         .row-tooltip-selected { background-color: #bbb !important; }
-        /* 금융거래위험도내역 행 클릭 시 세부내역 조회 중 선택 행 회색 표시, 끝나면 원위치 */
+        /* 금융정보위험도내역 행 클릭 시 세부내역 조회 중 선택 행 회색 표시, 끝나면 원위치 */
         #risk-detail-table tbody tr.row-tooltip-selected,
         #risk-detail-table tbody tr.row-tooltip-selected td { background-color: #bbb !important; }
         .risk-table-container,
@@ -661,7 +661,7 @@
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
                 <h1>금융정보 기본분석</h1>
-                <div style="font-size: 14px; opacity: 0.5;">cash_after.xlsx</div>
+                <div style="font-size: 14px; opacity: 0.5;">cash_after.json</div>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
                 <div class="filter-group">
@@ -680,7 +680,7 @@
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
             <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-            <a href="/cash/category" class="nav-item">🏷️ 금융정보 카테고리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
             <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
             <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
         </nav>
@@ -727,10 +727,10 @@
         </div>
     </div>
 
-    <!-- 금융거래 위험도 1.0 이상: 위험도 내역 / 세부내역 / 원그래프 -->
+    <!-- 금융정보 위험도 1.0 이상: 위험도 내역 / 세부내역 / 원그래프 -->
     <div class="charts-grid three-columns">
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융거래 위험도 내역 (위험도분류 기준)</h2>
+            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보 위험도 내역 (위험도분류 기준)</h2>
             <div class="risk-table-container">
                 <div class="risk-table-scroll">
                     <table id="risk-classification-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
@@ -755,7 +755,7 @@
             </div>
         </div>
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 id="risk-detail-section-title" style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융거래 위험도 세부내역 (선택한 위험도분류)</h2>
+            <h2 id="risk-detail-section-title" style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보 위험도 세부내역 (선택한 위험도분류)</h2>
             <div class="risk-detail-table-container" style="min-width: 0;">
                 <table id="risk-detail-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                     <thead>
@@ -785,7 +785,7 @@
             </div>
         </div>
         <div class="chart-card" style="display: flex; flex-direction: column; padding: 10px; min-width: 0;">
-            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융거래 위험도 원그래프 (위험도분류 기준)</h2>
+            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보 위험도 원그래프 (위험도분류 기준)</h2>
             <div class="risk-pie-row" style="display: flex; flex-direction: row; align-items: stretch; flex: 1; min-height: 0; gap: 12px;">
                 <div class="chart-container" style="flex: 1; min-width: 0; min-height: 0; height: auto; max-height: none;">
                     <canvas id="risk-combined-chart"></canvas>
@@ -874,7 +874,7 @@
         // API 기본 경로 설정 (현재 페이지 경로 기반)
         const API_BASE = window.location.pathname.startsWith('/cash') ? '/cash' : '';
         
-        // 금융거래 위험도 섹션 (위험도 1.0 이상, 위험도분류 기준)
+        // 금융정보 위험도 섹션 (위험도 1.0 이상, 위험도분류 기준)
         let riskCombinedChart = null;
         let riskSectionData = [];      // 위험도 1.0 이상 원본 행 배열
         let riskGroupedByClassification = []; // 위험도분류별 집계 { classification, deposit, withdraw }
@@ -1038,7 +1038,7 @@
             const footer = document.getElementById('risk-classification-footer');
             tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td></tr>';
             footer.style.display = 'none';
-            document.getElementById('risk-detail-section-title').textContent = '금융거래 위험도 세부내역 (선택한 위험도분류)';
+            document.getElementById('risk-detail-section-title').textContent = '금융정보 위험도 세부내역 (선택한 위험도분류)';
             document.getElementById('risk-detail-table-body').innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">위험도 내역에서 위험도분류를 선택하면 거래 내역이 표시됩니다.</td></tr>';
             document.getElementById('risk-detail-total-deposit').textContent = '0';
             document.getElementById('risk-detail-total-withdraw').textContent = '0';
@@ -1105,7 +1105,7 @@
             const titleEl = document.getElementById('risk-detail-section-title');
             if (!classification) {
                 riskDetailRowsData = [];
-                titleEl.textContent = '금융거래 위험도 세부내역 (선택한 위험도분류)';
+                titleEl.textContent = '금융정보 위험도 세부내역 (선택한 위험도분류)';
                 tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">위험도 내역에서 위험도분류를 선택하면 거래 내역이 표시됩니다.</td></tr>';
                 document.getElementById('risk-detail-total-deposit').textContent = '0';
                 document.getElementById('risk-detail-total-withdraw').textContent = '0';
@@ -1117,7 +1117,7 @@
                 const c = (v != null && v !== '') ? String(v) : '(빈값)';
                 return (key === '' && (v == null || v === '')) || c === classification;
             });
-            titleEl.textContent = '금융거래 위험도 세부내역 (' + classification + ')';
+            titleEl.textContent = '금융정보 위험도 세부내역 (' + classification + ')';
             riskDetailRowsData = rows;
             let depSum = 0, withSum = 0;
             let html = '';

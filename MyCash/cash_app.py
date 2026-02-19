@@ -1,4 +1,21 @@
 # -*- coding: utf-8 -*-
+"""
+MyCash (금융정보) Flask 앱 (cash_app.py)
+
+목적:
+  - 금융정보 전처리 페이지(/): 전처리전(은행)·전처리후(신용카드)·업종분류 조회·금융정보(업종분류) 그래프.
+  - 금융정보 업종분류 페이지(/category): linkage_table(업종분류) + cash_after(적용후) 테이블·필터·출력.
+  - cash_after 생성: bank_after + card_after 병합 후 linkage_table·위험도(1~8호) 적용. 전처리 페이지 "전처리후 다시 실행" 또는 API POST /api/generate-category.
+
+주요 데이터:
+  - cash_after.json: MyCash 폴더. 병합 결과만 저장(전처리/후처리는 은행·카드에서 완료).
+  - linkage_table.json: MyInfo/.source. 업종분류 매칭용.
+  - category_table.json: 금융정보에서는 카테고리 정의 테이블(입력/수정/삭제)용으로만 사용.
+
+유지보수 시 참고:
+  - ensure_working_directory: API 호출 시 cwd를 MyCash로 고정(통합 서버에서 다른 앱과 경로 충돌 방지).
+  - 캐시: _cash_after_cache만. table(category_table, linkage_table)은 캐시 사용하지 않음.
+"""
 from flask import Flask, render_template, jsonify, request, make_response, redirect
 import traceback
 import pandas as pd
@@ -7,12 +24,10 @@ from pathlib import Path
 import sys
 import io
 import os
-import shutil
-from functools import wraps
 from datetime import datetime
 import json
 
-# UTF-8 인코딩 설정 (Windows 콘솔용)
+# ----- UTF-8 인코딩 (Windows 콘솔용) -----
 if sys.platform == 'win32':
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -26,10 +41,10 @@ app = Flask(__name__)
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
 
-# 스크립트 디렉토리 (모듈 로드 시 한 번만 계산)
+# ----- 경로·출력 컬럼 상수 (모듈 로드 시 한 번 계산) -----
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
-# category: MyInfo/.source/category_table.json (금융정보에서는 사용 안 함, linkage_table만 사용)
+# category_table: MyInfo/.source (금융정보에서는 카테고리 정의 테이블용만, 업종 매칭은 linkage_table)
 CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 # 금융정보 업종분류: MyInfo/.source/linkage_table.json만 사용 (xlsx 없으면 xlsx에서 json 생성)
 LINKAGE_TABLE_JSON = str(Path(PROJECT_ROOT) / '.source' / 'linkage_table.json')
@@ -41,6 +56,7 @@ MYCASH_ONLY_NO_BANK_CARD_LINK = False
 # 금융정보 전처리전/전처리후: 은행거래·신용카드 after 파일 (MYCASH_ONLY_NO_BANK_CARD_LINK 시 미사용)
 BANK_AFTER_PATH = Path(PROJECT_ROOT) / 'MyBank' / 'bank_after.json'
 CARD_AFTER_PATH = Path(PROJECT_ROOT) / 'MyCard' / 'card_after.json'
+
 try:
     from data_json_io import safe_read_data_json, safe_write_data_json
 except ImportError:
@@ -51,12 +67,12 @@ except ImportError:
 BANK_AFTER_DISPLAY_COLUMNS = ['은행명', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '카테고리']
 # 전처리후(신용카드) 출력 컬럼 · 카드번호 1.0, 가맹점명 2.0 (index.html RIGHT_WIDTHS) — card_after의 가맹점명 출력
 CARD_AFTER_DISPLAY_COLUMNS = ['카드사', '카드번호', '이용일', '이용시간', '입금액', '출금액', '취소', '가맹점명', '카테고리']
-# 카테고리조회(cash_after) 테이블 출력 11컬럼 · 계좌번호 1.0, 기타거래 2.0 (index.html QUERY_WIDTHS)
+# 업종분류조회(cash_after) 테이블 출력 11컬럼 · 계좌번호 1.0, 기타거래 2.0 (index.html QUERY_WIDTHS)
 CATEGORY_QUERY_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호']
-# 카테고리 적용후(cash_after) 테이블 출력 15컬럼 · 사업자번호 뒤 구분(폐업만), 위험도키워드, 위험도분류, 위험도
-CATEGORY_APPLIED_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '위험도키워드', '위험도분류', '위험도']
-# cash_after 생성 시 저장 컬럼. 구분 = '폐업' 또는 ''
-CASH_AFTER_CREATION_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '위험도키워드', '위험도분류', '위험도']
+# 업종분류 적용후(cash_after) 테이블 출력 15컬럼 · 사업자번호 뒤 구분(폐업만), 위험도키워드, 위험도분류, 위험도
+CATEGORY_APPLIED_DISPLAY_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '출처', '위험도키워드', '위험도분류', '위험도']
+# cash_after 생성 시 저장 컬럼. 구분 = '폐업' 또는 ''. 출처 = '은행거래'|'신용카드'(요약용)
+CASH_AFTER_CREATION_COLUMNS = ['금융사', '계좌번호', '거래일', '거래시간', '입금액', '출금액', '취소', '기타거래', '키워드', '카테고리', '사업자번호', '구분', '출처', '위험도키워드', '위험도분류', '위험도']
 # category_table.json 단일 테이블(구분 없음, category_table_io로 읽기/쓰기)
 try:
     from category_table_io import (
@@ -79,68 +95,17 @@ BANK_FILTER_ALIASES = {
     '하나은행': ['하나은행', '하나'],
 }
 
-def ensure_working_directory(func):
-    """데코레이터: API 엔드포인트에서 작업 디렉토리를 스크립트 위치로 보장"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(SCRIPT_DIR)
-            return func(*args, **kwargs)
-        finally:
-            os.chdir(original_cwd)
-    return wrapper
+# ----- 데코레이터·JSON/데이터 유틸 (공통 모듈 사용) -----
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+from shared_app_utils import (
+    make_ensure_working_directory,
+    json_safe as _json_safe,
+    format_bytes,
+)
+ensure_working_directory = make_ensure_working_directory(SCRIPT_DIR)
 
-def _json_safe_val(v):
-    """단일 값만 JSON 가능 타입으로 변환 (재귀 없음)."""
-    if hasattr(v, 'item'):
-        return v.item()
-    if hasattr(v, 'isoformat'):
-        try:
-            return v.isoformat()
-        except Exception:
-            return str(v)
-    if isinstance(v, (np.integer, np.int64, np.int32)):
-        return int(v)
-    if isinstance(v, (np.floating, np.float64, np.float32)):
-        return None if pd.isna(v) else float(v)
-    if isinstance(v, float) and pd.isna(v):
-        return None
-    if pd.isna(v):
-        return None
-    return v
-
-
-def _json_safe_records(data):
-    """list of dict 한 번 순회로 치환 (대용량 응답 시 CPU 절감)."""
-    if not data or not isinstance(data, list):
-        return data
-    return [{k: _json_safe_val(v) for k, v in row.items()} for row in data]
-
-
-def _json_safe(obj):
-    """JSON 직렬화: NaN/NaT, numpy, datetime → Python 타입"""
-    if isinstance(obj, list) and obj and isinstance(obj[0], dict):
-        return _json_safe_records(obj)
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_json_safe(x) for x in obj]
-    if isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    if isinstance(obj, (np.floating, np.float64, np.float32)):
-        return None if pd.isna(obj) else float(obj)
-    if isinstance(obj, float) and pd.isna(obj):
-        return None
-    if pd.isna(obj):
-        return None
-    if hasattr(obj, 'isoformat'):
-        try:
-            return obj.isoformat()
-        except Exception:
-            return str(obj)
-    return obj
-
+# ----- 파일·캐시 로드 (원본 목록, 전처리후, cash_after, bank_after, card_after) -----
 def load_source_files():
     """MyInfo/.source/Cash 의 원본 파일 목록 가져오기. .xls, .xlsx만 취급."""
     source_dir = Path(SOURCE_CASH_DIR)
@@ -184,7 +149,7 @@ _cash_after_cache = None
 _cash_after_cache_mtime = None
 
 def load_category_file():
-    """카테고리 적용 파일 로드 (MyCash/cash_after.json). 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
+    """업종분류 적용 파일 로드 (MyCash/cash_after.json). 캐시 있으면 재사용, 재생성 시에만 파일 재읽기."""
     global _cash_after_cache, _cash_after_cache_mtime
     try:
         category_file = Path(CASH_AFTER_PATH)
@@ -334,6 +299,7 @@ def _safe_사업자번호(val):
     return s
 
 
+# ----- cash_after 병합: DataFrame 변환·업종분류·위험도 적용·저장 -----
 def _dataframe_to_cash_after_creation(df_bank, df_card):
     """은행거래(bank_after) + 신용카드(card_after)를 통합하여 cash_after 생성용 DataFrame 반환. 키워드는 bank/card에서 반드시 복사."""
     rows = []
@@ -358,6 +324,7 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
                 '카테고리': r.get('카테고리', '') or '',
                 '사업자번호': '',
                 '구분': '',  # 구분은 폐업만 저장, 은행은 해당 없음
+                '출처': '은행거래',
                 '위험도키워드': _str_strip(r.get(col_code) or r.get('업종코드') or r.get('업종키워드')) if has_위험도키워드 else '',
                 '위험도분류': '',
                 '위험도': '',
@@ -383,6 +350,7 @@ def _dataframe_to_cash_after_creation(df_bank, df_card):
                 '카테고리': r.get('카테고리', '') or '',
                 '사업자번호': _safe_사업자번호(r.get('사업자번호')),
                 '구분': _safe_구분(r.get('구분')),  # 폐업만 유지, 그 외 ''
+                '출처': '신용카드',
                 '위험도키워드': _str_strip(r.get(col_c) or r.get('업종코드') or r.get('업종키워드')) if has_code else '',
                 '위험도분류': '',
                 '위험도': '',
@@ -409,8 +377,13 @@ def _apply_업종분류_from_linkage(df):
     try:
         from linkage_table_io import get_linkage_map_for_apply
         code_to_업종분류, code_to_리스크 = get_linkage_map_for_apply()
+        n_keys = len(code_to_업종분류) if code_to_업종분류 else 0
+        _log_cash_after("linkage 맵 로드 완료 (%d개 키), 행별 매칭 시작 (%d행)" % (n_keys, len(df)))
         if not code_to_업종분류:
             return
+        # 위험도 컬럼이 병합 시 ''로 채워져 str dtype이면, 0/float 대입 시 오류 나므로 미리 float로 통일
+        if '위험도' in df.columns:
+            df['위험도'] = pd.to_numeric(df['위험도'], errors='coerce').fillna(0).astype(float)
         codes = df[code_col].fillna('').astype(str).str.strip()
         for i in df.index:
             c = codes.at[i] if i in codes.index else ''
@@ -425,7 +398,9 @@ def _apply_업종분류_from_linkage(df):
                 df.at[i, '위험도'] = 위험도_val
             else:
                 df.at[i, '위험도'] = 0
+        _log_cash_after("linkage 행별 매칭 완료")
     except Exception as e:
+        _log_cash_after("linkage 매칭 예외(무시): %s" % e)
         print(f"위험도분류(linkage) 매칭 적용 중 오류(무시): {e}", flush=True)
 
 
@@ -486,10 +461,47 @@ def _apply_risk_category_by_keywords(df):
         print(f"고위험 분류(가상자산/증권/금전대부) 매칭 적용 중 오류(무시): {e}", flush=True)
 
 
+# API 요청 중 로그 파일 경로 (ensure_working_directory로 cwd=MyCash일 때 사용, 같은 파일에 확실히 기록)
+_cash_after_log_path_request = None
+
+def _cash_after_log_path():
+    """cash_after_progress.log 경로. 요청 중이면 cwd 기준(MyCash), 아니면 cash_after.json 기준."""
+    if _cash_after_log_path_request:
+        return _cash_after_log_path_request
+    return os.path.join(os.path.dirname(os.path.abspath(CASH_AFTER_PATH)), "cash_after_progress.log")
+
+
+def _log_cash_after(msg):
+    """cash_after 생성 단계를 콘솔·파일 모두에 출력 (매 줄 즉시 flush로 저장)."""
+    ts = datetime.now().strftime('%H:%M:%S')
+    line = "[cash_after %s] %s\n" % (ts, msg)
+    print(line.rstrip(), flush=True)
+    log_path = _cash_after_log_path()
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line)
+            f.flush()
+    except Exception as e:
+        print("[cash_after] 로그 파일 쓰기 실패: %s (경로: %s)" % (e, log_path), flush=True)
+
+
+def _ensure_progress_log_file():
+    """진행 로그 파일이 없으면 생성 (생성 시도 전에도 파일이 있도록). 헤더에 경로 기록."""
+    try:
+        log_path = _cash_after_log_path()
+        if not os.path.isfile(log_path):
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write("[cash_after] 진행 로그 (cash_after 생성 시도 시 아래에 단계가 기록됩니다)\n")
+                f.write("[cash_after] 로그 경로: %s\n" % os.path.abspath(log_path))
+    except Exception as e:
+        print("[cash_after] 로그 파일 생성 실패: %s" % e, flush=True)
+
+
 def _load_bank_after_for_merge():
-    """cash_after 병합용: MyBank/bank_after 전체 컬럼 로드. 키워드 컬럼이 반드시 있도록 보장하고 NaN은 ''로 채움."""
+    """cash_after 병합용: MyBank/bank_after.json 전체 컬럼 로드. 키워드 컬럼이 반드시 있도록 보장하고 NaN은 ''로 채움."""
     try:
         if not BANK_AFTER_PATH.exists():
+            _log_cash_after("bank_after 파일 없음 (경로: %s)" % BANK_AFTER_PATH)
             return pd.DataFrame()
         if safe_read_data_json and str(BANK_AFTER_PATH).endswith('.json'):
             df = safe_read_data_json(str(BANK_AFTER_PATH), default_empty=True)
@@ -498,7 +510,9 @@ def _load_bank_after_for_merge():
         if df is None:
             df = pd.DataFrame()
         if df.empty:
+            _log_cash_after("bank_after 로드 완료: 0건")
             return df
+        _log_cash_after("bank_after 로드 완료: %d건" % len(df))
         if '구분' in df.columns and '취소' not in df.columns:
             df = df.rename(columns={'구분': '취소'})
         if '가맹점명' not in df.columns:
@@ -517,14 +531,21 @@ def _load_bank_after_for_merge():
         return pd.DataFrame()
 
 def merge_bank_card_to_cash_after():
-    """bank_after + card_after를 병합하여 cash_after.json 생성.
+    """bank_after + card_after를 병합하여 cash_after.json 생성. 둘 중 하나라도 있으면 생성 가능.
     금융정보(MyCash)에는 전처리·계정과목분류·후처리 없음. 은행/카드 after의 키워드·카테고리를 그대로 사용하고,
     업종분류(linkage_table)·위험도만 추가 적용. .bak 생성하지 않음. 성공 시 True.
-    재생성 시에만 기존 cash_after.json 삭제 후 새로 씀."""
+    임시 파일에 쓴 뒤 원자적 교체로, 조회 요청이 빈 파일을 보는 구간을 없앰."""
     try:
-        _delete_cash_after_on_enter()  # 재생성 시에만 삭제: 기존 파일·캐시 제거 후 병합
+        _log_cash_after("========== cash_after 생성 시작 ==========")
+        # 선삭제 제거: 삭제 시점에 다른 요청이 빈 데이터를 받아 "cash_after 생성 중..."이 반복되는 현상 방지
+        global _cash_after_cache, _cash_after_cache_mtime
+        _cash_after_cache = None
+        _cash_after_cache_mtime = None
+        _log_cash_after("캐시 초기화 완료")
+        _log_cash_after("(1/6) bank_after 로드 중: %s" % BANK_AFTER_PATH)
         df_bank = _load_bank_after_for_merge()
         df_card_raw = pd.DataFrame()
+        _log_cash_after("(2/6) card_after 로드 중: %s" % CARD_AFTER_PATH)
         if CARD_AFTER_PATH.exists():
             try:
                 if safe_read_data_json and str(CARD_AFTER_PATH).endswith('.json'):
@@ -551,25 +572,42 @@ def merge_bank_card_to_cash_after():
                         df_card_raw['사업자번호'] = ''
                 else:
                     df_card_raw['사업자번호'] = df_card_raw['사업자번호'].fillna('').astype(str).str.strip()
-            except Exception:
-                pass
+            except Exception as ex:
+                _log_cash_after("card_after 로드 예외: %s" % ex)
+        if not df_card_raw.empty:
+            _log_cash_after("card_after 로드 완료: %d건" % len(df_card_raw))
+        else:
+            _log_cash_after("card_after 없음 또는 0건")
+        # 둘 중 하나라도 있으면 cash_after 생성 (한쪽만 있어도 병합)
         if df_bank.empty and df_card_raw.empty:
-            return (False, 'bank_after와 card_after가 모두 없거나 비어 있어 병합할 수 없습니다. 은행·신용카드 전처리에서 각각 생성 후 시도하세요.')
+            _log_cash_after("실패: bank_after·card_after 모두 없음")
+            _log_cash_after("========== cash_after 생성 종료 (실패: 병합할 데이터 없음) ==========")
+            return (False, 'bank_after와 card_after가 모두 없거나 비어 있어 병합할 수 없습니다. 은행 또는 신용카드 전처리에서 전처리후 다시 실행 후 시도하세요.')
+        _log_cash_after("(3/6) bank+card DataFrame 병합 중")
         df = _dataframe_to_cash_after_creation(df_bank, df_card_raw if not df_card_raw.empty else None)
         if df.empty:
+            _log_cash_after("실패: 병합 결과 0건")
+            _log_cash_after("========== cash_after 생성 종료 (실패: 병합 0건) ==========")
             return (False, '병합 결과 데이터가 비어 있습니다.')
+        _log_cash_after("병합 완료: %d건" % len(df))
+        _log_cash_after("(4/6) linkage_table 업종분류·위험도 매칭 적용 중")
         _apply_업종분류_from_linkage(df)
+        _log_cash_after("linkage_table 매칭 완료")
+        _log_cash_after("(5/6) 위험도 지표 1~8호 적용 중")
         try:
             # 통합 서버(app.py)에서 호출 시 sys.path에 MyCash가 없어 import 실패할 수 있음 → 명시적으로 추가
             if SCRIPT_DIR not in sys.path:
                 sys.path.insert(0, SCRIPT_DIR)
             from risk_indicators import apply_risk_indicators
             apply_risk_indicators(df)
+            _log_cash_after("위험도 지표 1~8호 적용 완료")
         except Exception as e:
+            _log_cash_after("위험도 지표 적용 예외: %s" % e)
             print(f"위험도 지표(1~8호) 적용 중 오류: {e}", flush=True)
             traceback.print_exc()
         # 저장 전 위험도 최소 0.1 보장
         if '위험도' in df.columns:
+            _log_cash_after("위험도 최소 0.1 보정 적용 중 (%d행)" % len(df))
             def _min_risk(v):
                 if v is None or v == '' or (isinstance(v, float) and pd.isna(v)):
                     return 0.1
@@ -578,16 +616,27 @@ def merge_bank_card_to_cash_after():
                 except (TypeError, ValueError):
                     return 0.1
             df['위험도'] = df['위험도'].apply(_min_risk)
+            _log_cash_after("위험도 최소 0.1 보정 완료")
+        out_path = Path(CASH_AFTER_PATH)
+        _log_cash_after("(6/6) 파일 저장 중: %s" % out_path)
         if safe_write_data_json and CASH_AFTER_PATH.endswith('.json'):
-            safe_write_data_json(CASH_AFTER_PATH, df)
+            if not safe_write_data_json(CASH_AFTER_PATH, df):
+                _log_cash_after("실패: cash_after.json 쓰기 실패")
+                _log_cash_after("========== cash_after 생성 종료 (실패: 파일 쓰기) ==========")
+                return (False, 'cash_after 파일 쓰기 실패')
+            _log_cash_after("cash_after.json 저장 완료 (%d건)" % len(df))
         else:
+            _log_cash_after("Excel 저장 모드로 저장 중")
             df.to_excel(str(CASH_AFTER_PATH), index=False, engine='openpyxl')
-        # 캐시 무효화: 다음 로드 시 새 파일 읽기
-        global _cash_after_cache, _cash_after_cache_mtime
+        _log_cash_after("캐시 초기화 중 (_cash_after_cache 비우기)")
         _cash_after_cache = None
         _cash_after_cache_mtime = None
+        _log_cash_after("캐시 초기화 완료")
+        _log_cash_after("========== cash_after 생성 종료 (성공): %d건 ==========" % len(df))
         return (True, None)
     except Exception as e:
+        _log_cash_after("오류: 병합 생성 실패 - %s" % e)
+        _log_cash_after("========== cash_after 생성 종료 (예외) ==========")
         print(f"오류: cash_after 병합 생성 실패 - {e}", flush=True)
         traceback.print_exc()
         return (False, str(e))
@@ -604,9 +653,10 @@ def _delete_cash_after_on_enter():
     _cash_after_cache_mtime = None
 
 
+# ----- 페이지 라우트: 전처리(/)·업종분류(/category)·분석·도움말 -----
 @app.route('/')
 def index():
-    """금융거래 통합정보 홈에서 금융정보 선택 시 진입. cash_after.json은 진입 시 삭제하지 않음."""
+    """금융정보 전처리 페이지. 전처리전(은행)·전처리후(신용카드)·업종분류 조회·그래프. cash_after는 진입 시 삭제하지 않음."""
     workspace_path = str(SCRIPT_DIR)  # 전처리전 작업폴더(MyCash 경로)
     resp = make_response(render_template('index.html', workspace_path=workspace_path))
     # 전처리 페이지 캐시 방지: 네비게이션 갱신이 바로 반영되도록
@@ -619,10 +669,11 @@ def index():
 def favicon():
     return '', 204
 
+# ----- API: 원본·전처리·업종분류 데이터 (목록, bank_after, card_after, category-applied, linkage) -----
 @app.route('/api/source-files')
 @ensure_working_directory
 def get_source_files():
-    """원본 파일 목록 반환. MyInfo/.source/Cash 의 .xls, .xlsx만 취급."""
+    """원본 파일 목록. MyInfo/.source/Cash 의 .xls, .xlsx만."""
     try:
         current_dir = os.getcwd()
         source_dir = Path(SOURCE_CASH_DIR)
@@ -667,7 +718,7 @@ def _list_memory_bytes(data):
 
 @app.route('/api/cache-info')
 def get_cache_info():
-    """캐시 이름·크기·총메모리 (금융거래 통합정보 헤더 표시용)."""
+    """캐시 이름·크기·총메모리 (금융정보 통합정보 헤더 표시용)."""
     try:
         caches = []
         total = 0
@@ -675,23 +726,13 @@ def get_cache_info():
             b = _df_memory_bytes(_cash_after_cache)
             total += b
             caches.append({'name': 'cash_after', 'size_bytes': b})
-        if _linkage_table_cache is not None:
-            b = _list_memory_bytes(_linkage_table_cache)
-            total += b
-            caches.append({'name': 'linkage_table', 'size_bytes': b})
-        def _human(b):
-            if b < 1024:
-                return f'{b} B'
-            if b < 1024 * 1024:
-                return f'{b / 1024:.1f} KB'
-            return f'{b / (1024 * 1024):.2f} MB'
         for c in caches:
-            c['size_human'] = _human(c['size_bytes'])
+            c['size_human'] = format_bytes(c['size_bytes'])
         return jsonify({
             'app': 'MyCash',
             'caches': caches,
             'total_bytes': total,
-            'total_human': _human(total),
+            'total_human': format_bytes(total),
         })
     except Exception as e:
         return jsonify({'app': 'MyCash', 'caches': [], 'total_bytes': 0, 'total_human': '0 B', 'error': str(e)})
@@ -815,7 +856,7 @@ def get_processed_data():
 @app.route('/api/category-applied-data')
 @ensure_working_directory
 def get_category_applied_data():
-    """카테고리 적용된 데이터 반환 (필터링 지원). cash_after.xlsx 존재하면 사용만, 없으면 생성하지 않음. 생성은 /api/generate-category(생성 필터)에서 백업 후 수행."""
+    """업종분류 적용된 데이터 반환 (필터링 지원). cash_after 존재하면 사용만, 없으면 생성하지 않음. 생성은 /api/generate-category(생성 필터)에서 백업 후 수행."""
     try:
         cash_after_path = Path(CASH_AFTER_PATH).resolve()
         category_file_exists = cash_after_path.exists() and cash_after_path.stat().st_size > 0
@@ -882,7 +923,7 @@ def get_category_applied_data():
             except Exception:
                 pass
         
-        # 위험도 최소값 필터 (금융거래 기본분석: 위험도 1.0 이상만)
+        # 위험도 최소값 필터 (금융정보 기본분석: 위험도 1.0 이상만)
         min_risk = request.args.get('min_risk', '')
         if min_risk != '' and '위험도' in df.columns:
             try:
@@ -891,33 +932,44 @@ def get_category_applied_data():
             except (TypeError, ValueError):
                 pass
         
-        # 행 정렬: 거래일 → 거래시간 → 금융사
-        sort_cols = [c for c in ['거래일', '거래시간', '금융사'] if c in df.columns]
-        if sort_cols:
-            try:
-                df = df.sort_values(by=sort_cols, na_position='last')
-            except Exception:
-                pass
-        # 카테고리 적용후 테이블 출력 15컬럼 (구분, 위험도키워드, 위험도분류, 위험도 포함)
+        # 행 정렬: 위험도(내림) → 거래일(내림) → 거래시간·금융사 (1호·출금 500만원 이상 등이 앞에 오도록, 페이지네이션 시 누락 방지)
+        try:
+            sort_by = []
+            ascending = []
+            if '위험도' in df.columns:
+                sort_by.append('위험도')
+                ascending.append(False)
+            for c in ['거래일', '거래시간', '금융사']:
+                if c in df.columns:
+                    sort_by.append(c)
+                    ascending.append(False if c == '거래일' else True)
+            if sort_by:
+                df = df.sort_values(by=sort_by, ascending=ascending, na_position='last')
+        except Exception:
+            pass
+        # 업종분류 적용후 테이블 출력 15컬럼 (구분, 위험도키워드, 위험도분류, 위험도 포함)
         for c in CATEGORY_APPLIED_DISPLAY_COLUMNS:
             if c not in df.columns:
                 df[c] = '' if c not in ('입금액', '출금액') else 0
         df = df[CATEGORY_APPLIED_DISPLAY_COLUMNS].copy()
-        
-        # 필수 컬럼 확인
+        # 집계는 컬럼 제한 전에 계산 (응답 total/deposit_amount/withdraw_amount용)
+        total = len(df)
+        deposit_amount = df['입금액'].sum() if not df.empty and '입금액' in df.columns else 0
+        withdraw_amount = df['출금액'].sum() if not df.empty and '출금액' in df.columns else 0
+        # 선택: columns 파라미터로 필요한 컬럼만 반환 (페이로드 축소로 로딩 단축)
+        cols_param = request.args.get('columns', '').strip()
+        if cols_param:
+            want = [c.strip() for c in cols_param.split(',') if c.strip() and c.strip() in df.columns]
+            if want:
+                df = df[want].copy()
+        # 필수 컬럼 확인 (data에 입금/출금 포함 시)
         required_columns = ['입금액', '출금액']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns and not df.empty:
             for col in missing_columns:
                 df[col] = 0
         
-        # 집계 계산
-        count = len(df)
-        deposit_amount = df['입금액'].sum() if not df.empty and '입금액' in df.columns else 0
-        withdraw_amount = df['출금액'].sum() if not df.empty and '출금액' in df.columns else 0
-        
         df = df.where(pd.notna(df), None)
-        total = len(df)
         # 페이지네이션: limit/offset (limit 생략 또는 0이면 전체 반환)
         limit = request.args.get('limit', type=int)
         offset = request.args.get('offset', type=int) or 0
@@ -1079,21 +1131,15 @@ def get_category_table():
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response, 500
 
-# linkage_table 조회 캐시 (서버 종료까지 재사용, 재생성 시 무효화는 linkage 전용 API가 있을 경우 적용)
-_linkage_table_cache = None
+# table은 캐시를 사용하지 않는다. category_table, linkage_table 모두 매 요청 시 파일에서 읽음.
 
 @app.route('/api/linkage-table')
 @ensure_working_directory
 def get_linkage_table():
-    """업종분류 조회용: linkage_table.json 반환. 캐시 있으면 재사용하여 로딩 시간 단축."""
-    global _linkage_table_cache
+    """업종분류 조회용: linkage_table.json 반환. 캐시 없이 매 요청 시 파일에서 읽음."""
     try:
-        if _linkage_table_cache is not None:
-            data = _linkage_table_cache
-        else:
-            from linkage_table_io import get_linkage_table_data
-            data = get_linkage_table_data()
-            _linkage_table_cache = data
+        from linkage_table_io import get_linkage_table_data
+        data = get_linkage_table_data()
         response = jsonify({
             'data': data,
             'columns': ['업종분류', '업종리스크', '업종코드_업종코드세세분류'],
@@ -1143,6 +1189,7 @@ def save_category_table():
         return response, 500
 
 # 분석 페이지 라우트
+# ----- 페이지: 금융정보 기본분석·인쇄 -----
 @app.route('/analysis/basic')
 def analysis_basic():
     """기본 기능 분석 페이지"""
@@ -1873,6 +1920,34 @@ def get_content_by_category():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/analysis/cash-after-date-range')
+@ensure_working_directory
+def get_cash_after_date_range():
+    """cash_after 전체의 최소/최대 거래일 반환. 월별 입출금 추이 그래프 x축(시작일~종료일)용."""
+    try:
+        df = load_category_file()
+        if df.empty:
+            return jsonify({'min_date': None, 'max_date': None})
+        if '거래일' not in df.columns:
+            return jsonify({'min_date': None, 'max_date': None})
+        df = df.copy()
+        df['거래일'] = pd.to_datetime(df['거래일'], errors='coerce')
+        df = df[df['거래일'].notna()]
+        if df.empty:
+            return jsonify({'min_date': None, 'max_date': None})
+        min_date = df['거래일'].min()
+        max_date = df['거래일'].max()
+        response = jsonify({
+            'min_date': min_date.strftime('%Y-%m-%d') if pd.notna(min_date) else None,
+            'max_date': max_date.strftime('%Y-%m-%d') if pd.notna(max_date) else None
+        })
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        return response
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'min_date': None, 'max_date': None}), 500
+
+
 @app.route('/api/analysis/date-range')
 @ensure_working_directory
 def get_date_range():
@@ -1906,11 +1981,17 @@ def get_date_range():
         traceback.print_exc()
         return jsonify({'error': str(e), 'min_date': None, 'max_date': None}), 500
 
+# ----- API: cash_after 생성 (병합) -----
 @app.route('/api/generate-category', methods=['POST'])
 @ensure_working_directory
 def generate_category():
-    """cash_after 생성: 은행(bank_after) + 신용카드(card_after) 병합. .bak 생성하지 않음."""
+    """cash_after 생성: bank_after + card_after 병합 후 linkage·위험도 적용. 임시 파일 쓰고 원자적 교체."""
+    global _cash_after_log_path_request
     try:
+        # 요청 처리 중에는 cwd=MyCash이므로 여기서 로그 경로 고정 (같은 파일에 확실히 기록)
+        _cash_after_log_path_request = os.path.join(os.getcwd(), "cash_after_progress.log")
+        _ensure_progress_log_file()
+        _log_cash_after("API /api/generate-category 호출됨")
         ok, err_msg = merge_bank_card_to_cash_after()
         if not ok:
             return jsonify({
@@ -1941,11 +2022,16 @@ def generate_category():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        _cash_after_log_path_request = None
 
 @app.route('/help')
 def help():
     """금융정보 도움말 페이지"""
     return render_template('help.html')
+
+# 서버 기동 시 로그 파일이 있도록 미리 생성 (경로: MyCash/cash_after_progress.log)
+_ensure_progress_log_file()
 
 if __name__ == '__main__':
     # 현재 디렉토리를 스크립트 위치로 변경
