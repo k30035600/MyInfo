@@ -3,9 +3,9 @@
 MyCash (금융정보) Flask 앱 (cash_app.py)
 
 목적:
-  - 금융정보 전처리 페이지(/): 전처리전(은행)·전처리후(신용카드)·업종분류 조회·금융정보(업종분류) 그래프.
+  - 금융정보 병합작업 페이지(/): 전처리전(은행)·전처리후(신용카드)·업종분류 조회·금융정보(은행+카드) 병합조회·그래프.
   - 금융정보 업종분류 페이지(/category): linkage_table(업종분류) + cash_after(적용후) 테이블·필터·출력.
-  - cash_after 생성: bank_after + card_after 병합 후 linkage_table·위험도(1~8호) 적용. 전처리 페이지 "전처리후 다시 실행" 또는 API POST /api/generate-category.
+  - cash_after 생성: bank_after + card_after 병합 후 linkage_table·위험도(1~10호) 적용. 병합작업 페이지 "병합작업 다시 실행" 또는 API POST /api/generate-category.
 
 주요 데이터:
   - cash_after.json: MyCash 폴더. 병합 결과만 저장(전처리/후처리는 은행·카드에서 완료).
@@ -53,7 +53,7 @@ SOURCE_CASH_DIR = os.path.join(PROJECT_ROOT, '.source', 'Cash')
 CASH_AFTER_PATH = os.path.join(SCRIPT_DIR, 'cash_after.json')
 # 금융정보(MyCash): card·cash 테이블 연동만 하지 않음. 은행/카드 데이터 불러와 병합(cash_after 생성)은 진행.
 MYCASH_ONLY_NO_BANK_CARD_LINK = False
-# 금융정보 전처리전/전처리후: 은행거래·신용카드 after 파일 (MYCASH_ONLY_NO_BANK_CARD_LINK 시 미사용)
+# 금융정보 병합작업전/전처리후: 은행거래·신용카드 after 파일 (MYCASH_ONLY_NO_BANK_CARD_LINK 시 미사용)
 BANK_AFTER_PATH = Path(PROJECT_ROOT) / 'MyBank' / 'bank_after.json'
 CARD_AFTER_PATH = Path(PROJECT_ROOT) / 'MyCard' / 'card_after.json'
 
@@ -301,7 +301,7 @@ def _safe_사업자번호(val):
 
 # ----- cash_after 병합: DataFrame 변환·업종분류·위험도 적용·저장 -----
 def _dataframe_to_cash_after_creation(df_bank, df_card):
-    """은행거래(bank_after) + 신용카드(card_after)를 통합하여 cash_after 생성용 DataFrame 반환. 키워드는 bank/card에서 반드시 복사."""
+    """은행거래(bank_after) + 신용카드(card_after)를 병합하여 cash_after 생성용 DataFrame 반환. 키워드는 bank/card에서 반드시 복사."""
     rows = []
     def add_bank():
         if df_bank is None or df_bank.empty:
@@ -404,7 +404,7 @@ def _apply_업종분류_from_linkage(df):
         print(f"위험도분류(linkage) 매칭 적용 중 오류(무시): {e}", flush=True)
 
 
-# 금융정보 고급분석: 가상자산·증권투자·금전대부 매칭 시 위험도 5.0
+# 금융정보 종합의견: 가상자산·증권투자·금전대부 매칭 시 위험도 5.0
 RISK_CATEGORY_CHASU = ('가상자산', '증권투자', '금전대부')
 
 
@@ -534,14 +534,20 @@ def merge_bank_card_to_cash_after():
     """bank_after + card_after를 병합하여 cash_after.json 생성. 둘 중 하나라도 있으면 생성 가능.
     금융정보(MyCash)에는 전처리·계정과목분류·후처리 없음. 은행/카드 after의 키워드·카테고리를 그대로 사용하고,
     업종분류(linkage_table)·위험도만 추가 적용. .bak 생성하지 않음. 성공 시 True.
-    임시 파일에 쓴 뒤 원자적 교체로, 조회 요청이 빈 파일을 보는 구간을 없앰."""
+    병합 시작 시 금융정보(은행+카드) 병합조회 테이블(cash_after.json)을 초기화한 뒤 병합작업을 진행한다."""
     try:
         _log_cash_after("========== cash_after 생성 시작 ==========")
-        # 선삭제 제거: 삭제 시점에 다른 요청이 빈 데이터를 받아 "cash_after 생성 중..."이 반복되는 현상 방지
         global _cash_after_cache, _cash_after_cache_mtime
         _cash_after_cache = None
         _cash_after_cache_mtime = None
         _log_cash_after("캐시 초기화 완료")
+        # 금융정보(은행+카드) 병합조회 테이블(cash_after.json) 초기화 후 병합 시작
+        if safe_write_data_json and CASH_AFTER_PATH.endswith('.json'):
+            try:
+                safe_write_data_json(CASH_AFTER_PATH, pd.DataFrame())
+                _log_cash_after("cash_after.json 초기화 완료(0건), 병합작업 시작")
+            except Exception as ex:
+                _log_cash_after("cash_after.json 초기화 쓰기 무시: %s" % ex)
         _log_cash_after("(1/6) bank_after 로드 중: %s" % BANK_AFTER_PATH)
         df_bank = _load_bank_after_for_merge()
         df_card_raw = pd.DataFrame()
@@ -582,7 +588,7 @@ def merge_bank_card_to_cash_after():
         if df_bank.empty and df_card_raw.empty:
             _log_cash_after("실패: bank_after·card_after 모두 없음")
             _log_cash_after("========== cash_after 생성 종료 (실패: 병합할 데이터 없음) ==========")
-            return (False, 'bank_after와 card_after가 모두 없거나 비어 있어 병합할 수 없습니다. 은행 또는 신용카드 전처리에서 전처리후 다시 실행 후 시도하세요.')
+            return (False, 'bank_after와 card_after가 모두 없거나 비어 있어 병합할 수 없습니다. 은행 또는 신용카드 전처리에서 병합작업 다시 실행 후, 금융정보에서 병합작업 다시 실행을 시도하세요.')
         _log_cash_after("(3/6) bank+card DataFrame 병합 중")
         df = _dataframe_to_cash_after_creation(df_bank, df_card_raw if not df_card_raw.empty else None)
         if df.empty:
@@ -593,17 +599,16 @@ def merge_bank_card_to_cash_after():
         _log_cash_after("(4/6) linkage_table 업종분류·위험도 매칭 적용 중")
         _apply_업종분류_from_linkage(df)
         _log_cash_after("linkage_table 매칭 완료")
-        _log_cash_after("(5/6) 위험도 지표 1~8호 적용 중")
+        _log_cash_after("(5/6) 위험도 지표 1~10호 적용 중")
         try:
-            # 통합 서버(app.py)에서 호출 시 sys.path에 MyCash가 없어 import 실패할 수 있음 → 명시적으로 추가
             if SCRIPT_DIR not in sys.path:
                 sys.path.insert(0, SCRIPT_DIR)
             from risk_indicators import apply_risk_indicators
-            apply_risk_indicators(df)
-            _log_cash_after("위험도 지표 1~8호 적용 완료")
+            apply_risk_indicators(df, category_table_path=CATEGORY_TABLE_PATH)
+            _log_cash_after("위험도 지표 1~10호 적용 완료")
         except Exception as e:
             _log_cash_after("위험도 지표 적용 예외: %s" % e)
-            print(f"위험도 지표(1~8호) 적용 중 오류: {e}", flush=True)
+            print(f"위험도 지표(1~10호) 적용 중 오류: {e}", flush=True)
             traceback.print_exc()
         # 저장 전 위험도 최소 0.1 보장
         if '위험도' in df.columns:
@@ -656,9 +661,20 @@ def _delete_cash_after_on_enter():
 # ----- 페이지 라우트: 전처리(/)·업종분류(/category)·분석·도움말 -----
 @app.route('/')
 def index():
-    """금융정보 전처리 페이지. 전처리전(은행)·전처리후(신용카드)·업종분류 조회·그래프. cash_after는 진입 시 삭제하지 않음."""
+    """금융정보 병합작업 페이지. 전처리전(은행)·전처리후(신용카드)·업종분류 조회·금융정보 병합조회(은행+카드)·그래프. cash_after는 진입 시 삭제하지 않음."""
     workspace_path = str(SCRIPT_DIR)  # 전처리전 작업폴더(MyCash 경로)
-    resp = make_response(render_template('index.html', workspace_path=workspace_path))
+    # 업종분류(linkage) 테이블: 서버에서 HTML로 렌더링 (데이터 적은 고정 표 통일)
+    linkage_table_data = []
+    try:
+        from linkage_table_io import get_linkage_table_data
+        linkage_table_data = get_linkage_table_data() or []
+    except Exception:
+        pass
+    resp = make_response(render_template(
+        'index.html',
+        workspace_path=workspace_path,
+        linkage_table_data=linkage_table_data,
+    ))
     # 전처리 페이지 캐시 방지: 네비게이션 갱신이 바로 반영되도록
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
@@ -718,7 +734,7 @@ def _list_memory_bytes(data):
 
 @app.route('/api/cache-info')
 def get_cache_info():
-    """캐시 이름·크기·총메모리 (금융정보 통합정보 헤더 표시용)."""
+    """캐시 이름·크기·총메모리 (금융정보 병합정보 헤더 표시용)."""
     try:
         caches = []
         total = 0
@@ -879,7 +895,7 @@ def get_category_applied_data():
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             return response
         
-        # 통합 컬럼 정규화: 은행명/카드사 → 금융사, 계좌번호/카드번호 → 계좌번호, 거래일/이용일 → 거래일, 거래시간/이용시간 → 거래시간, 기타거래/가맹점명 → 기타거래
+        # 병합 컬럼 정규화: 은행명/카드사 → 금융사, 계좌번호/카드번호 → 계좌번호, 거래일/이용일 → 거래일, 거래시간/이용시간 → 거래시간, 기타거래/가맹점명 → 기타거래
         if '금융사' not in df.columns:
             if '은행명' in df.columns:
                 df['금융사'] = df['은행명'].fillna('')
@@ -923,7 +939,7 @@ def get_category_applied_data():
             except Exception:
                 pass
         
-        # 위험도 최소값 필터 (금융정보 기본분석: 위험도 1.0 이상만)
+        # 위험도 최소값 필터 (금융정보 종합분석: 위험도 0.1 이상만, min_risk 쿼리로 지정)
         min_risk = request.args.get('min_risk', '')
         if min_risk != '' and '위험도' in df.columns:
             try:
@@ -1189,16 +1205,189 @@ def save_category_table():
         return response, 500
 
 # 분석 페이지 라우트
-# ----- 페이지: 금융정보 기본분석·인쇄 -----
+# ----- 페이지: 금융정보 종합분석·인쇄 -----
 @app.route('/analysis/basic')
 def analysis_basic():
     """기본 기능 분석 페이지"""
     return render_template('analysis_basic.html')
 
 @app.route('/analysis/print')
-def print_analysis_redirect():
-    """구 URL 호환: /analysis/print → /analysis/basic 리다이렉트"""
-    return redirect('/cash/analysis/basic', code=302)
+@ensure_working_directory
+def print_analysis():
+    """금융정보 종합분석 인쇄용 페이지 (출력일, 금융사/전체, 전체 합계, 위험도 테이블, 세부내역 테이블, 위험도 원그래프, 종합의견)."""
+    try:
+        bank_filter = (request.args.get('bank') or '').strip()
+        df = load_category_file()
+        if df.empty:
+            return "데이터가 없습니다. cash_after를 생성한 뒤 다시 시도하세요.", 400
+
+        # 컬럼 정규화 (get_category_applied_data와 동일)
+        if '금융사' not in df.columns:
+            if '은행명' in df.columns:
+                df['금융사'] = df['은행명'].fillna('')
+            elif '카드사' in df.columns:
+                df['금융사'] = df['카드사'].fillna('')
+            else:
+                df['금융사'] = ''
+        if '계좌번호' not in df.columns and '카드번호' in df.columns:
+            df['계좌번호'] = df['카드번호'].fillna('').astype(str)
+        if '거래일' not in df.columns and '이용일' in df.columns:
+            df['거래일'] = df['이용일'].fillna('')
+        if '거래시간' not in df.columns and '이용시간' in df.columns:
+            df['거래시간'] = df['이용시간'].fillna('')
+        if '기타거래' not in df.columns and '가맹점명' in df.columns:
+            df['기타거래'] = df['가맹점명'].fillna('')
+
+        if bank_filter and '금융사' in df.columns:
+            df = df[df['금융사'].fillna('').astype(str).str.strip() == bank_filter]
+
+        # 위험도 0.1 이상만 (종합분석과 동일)
+        if '위험도' in df.columns:
+            try:
+                risk = df['위험도'].fillna(0).astype(float)
+                df = df.loc[risk >= 0.1]
+            except (TypeError, ValueError):
+                pass
+
+        total_count = len(df)
+        total_deposit = int(df['입금액'].sum()) if not df.empty and '입금액' in df.columns else 0
+        total_withdraw = int(df['출금액'].sum()) if not df.empty and '출금액' in df.columns else 0
+        src_col = '출처' if '출처' in df.columns else '구분'
+        if not df.empty and src_col in df.columns:
+            src_trim = df[src_col].fillna('').astype(str).str.strip()
+            bank_mask = src_trim == '은행거래'
+            card_mask = src_trim == '신용카드'
+            print_bank_count = int(bank_mask.sum())
+            print_card_count = int(card_mask.sum())
+            print_bank_withdraw = int(df.loc[bank_mask, '출금액'].sum()) if '출금액' in df.columns else 0
+            print_card_withdraw = int(df.loc[card_mask, '출금액'].sum()) if '출금액' in df.columns else 0
+        else:
+            print_bank_count = print_card_count = 0
+            print_bank_withdraw = print_card_withdraw = 0
+        if (print_bank_count == 0 and print_card_count == 0) and not df.empty and total_count > 0 and '금융사' in df.columns:
+            bank_names = {'국민은행', '신한은행', '하나은행'}
+            gu = df['금융사'].fillna('').astype(str).str.strip()
+            print_bank_count = int(gu.isin(bank_names).sum())
+            print_card_count = total_count - print_bank_count
+            print_bank_withdraw = int(df.loc[gu.isin(bank_names), '출금액'].sum()) if '출금액' in df.columns else 0
+            print_card_withdraw = total_withdraw - print_bank_withdraw
+
+        # 1호~10호 고정 순서 및 인쇄용 표시명
+        RISK_ORDER_PRINT = ['분류제외지표', '심야폐업지표', '자료소명지표', '비정형지표', '투기성지표', '사기파산지표', '가상자산지표', '자산은닉지표', '과소비지표', '사행성지표']
+        RISK_DISPLAY_PRINT = ['1호(업종분류제외)', '2호(심야폐업지표)', '3호(자료소명지표)', '4호(비정형지표)', '5호(투기성지표)', '6호(사기파산지표)', '7호(가상자산지표)', '8호(자산은닉지표)', '9호(과소비지표)', '10호(사행성지표)']
+        RISK_DEFAULT_VAL = [0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
+
+        # 위험도분류별 집계 (1호~10호 모두 출력, 인쇄용 표시명)
+        risk_classification_rows = []
+        if not df.empty and '위험도분류' in df.columns:
+            col = '위험도분류'
+            raw_to_key = lambda x: (x.strip() if x and str(x).strip() else '분류제외지표')
+            df_key = df[col].fillna('').astype(str).apply(raw_to_key)
+            grp = df.groupby(df_key).agg({'입금액': 'sum', '출금액': 'sum', '위험도': 'min'}).reset_index()
+            grp = grp.rename(columns={col: 'classification', '입금액': 'deposit', '출금액': 'withdraw', '위험도': 'risk'})
+            by_cls = {r['classification']: r for _, r in grp.iterrows()}
+            for i, cls in enumerate(RISK_ORDER_PRINT):
+                r = by_cls.get(cls, {})
+                rv = r.get('risk')
+                risk_val = float(rv) if pd.notna(rv) and rv != '' else RISK_DEFAULT_VAL[i]
+                risk_classification_rows.append({
+                    'classification': RISK_DISPLAY_PRINT[i],
+                    'risk': risk_val,
+                    'count': int(len(df[df_key == cls])) if cls in by_cls else 0,
+                    'deposit': int(r.get('deposit', 0)),
+                    'withdraw': int(r.get('withdraw', 0))
+                })
+        else:
+            risk_classification_rows = [{'classification': RISK_DISPLAY_PRINT[i], 'risk': RISK_DEFAULT_VAL[i], 'count': 0, 'deposit': 0, 'withdraw': 0} for i in range(10)]
+
+        # 세부내역: 위험도 내림 → 거래일 내림, 인쇄용 10행 + 위험도(1호~10호) 표시
+        risk_detail_rows = []
+        risk_detail_total_count = 0
+        risk_detail_deposit_sum = 0
+        risk_detail_withdraw_sum = 0
+        if not df.empty:
+            for c in ['금융사', '거래일', '기타거래', '입금액', '출금액']:
+                if c not in df.columns:
+                    df[c] = 0 if c in ('입금액', '출금액') else ''
+            if '위험도분류' not in df.columns:
+                df['위험도분류'] = ''
+            try:
+                df_sorted = df.sort_values(
+                    by=['위험도', '거래일'] if '거래일' in df.columns else ['위험도'],
+                    ascending=[False, False],
+                    na_position='last'
+                )
+            except Exception:
+                df_sorted = df
+            risk_detail_total_count = len(df_sorted)
+            risk_detail_deposit_sum = int(df_sorted['입금액'].sum()) if '입금액' in df_sorted.columns else 0
+            risk_detail_withdraw_sum = int(df_sorted['출금액'].sum()) if '출금액' in df_sorted.columns else 0
+            df_slice = df_sorted.head(10)
+            for _, row in df_slice.iterrows():
+                raw_cls = str(row.get('위험도분류', '')).strip() or '분류제외지표'
+                try:
+                    idx = RISK_ORDER_PRINT.index(raw_cls)
+                    cls_display = RISK_DISPLAY_PRINT[idx]
+                except ValueError:
+                    cls_display = raw_cls
+                risk_detail_rows.append({
+                    '금융사': str(row.get('금융사', '')),
+                    '거래일': str(row.get('거래일', '')),
+                    '기타거래': str(row.get('기타거래', '')),
+                    '위험도분류_display': cls_display,
+                    '출금액': int(row.get('출금액', 0) or 0)
+                })
+
+        # 원그래프용: 위험도분류별 출금액 (출금액 > 0만) + SVG path (인쇄용 원그래프)
+        risk_pie_data = [{'label': r['classification'], 'value': r['withdraw']} for r in risk_classification_rows if r['withdraw'] > 0]
+        import math
+        pie_total = sum(p['value'] for p in risk_pie_data)
+        risk_pie_slices = []
+        if pie_total and pie_total > 0:
+            colors = ['#1976d2', '#2e7d32', '#ed6c02', '#c62828', '#6a1b9a', '#00838f', '#558b2f', '#ad1457', '#283593', '#1565c0']
+            cx, cy, r = 100, 100, 80
+            cum = 0
+            for i, p in enumerate(risk_pie_data):
+                pct = (p['value'] / pie_total) * 100
+                a1 = cum * 3.6 - 90
+                a2 = (cum + pct) * 3.6 - 90
+                cum += pct
+                rad1, rad2 = math.radians(a1), math.radians(a2)
+                x1 = cx + r * math.cos(rad1)
+                y1 = cy + r * math.sin(rad1)
+                x2 = cx + r * math.cos(rad2)
+                y2 = cy + r * math.sin(rad2)
+                large = 1 if pct > 50 else 0
+                path_d = 'M %g %g L %g %g A %g %g 0 %d 1 %g %g Z' % (cx, cy, x1, y1, r, r, large, x2, y2)
+                risk_pie_slices.append({'path_d': path_d, 'color': colors[i % len(colors)], 'label': p['label'], 'value': p['value'], 'pct': round(pct, 1)})
+        else:
+            risk_pie_slices = []
+
+        return render_template('print_analysis.html',
+                             report_date=datetime.now().strftime('%Y-%m-%d'),
+                             bank_filter=bank_filter or '전체',
+                             total_count=total_count,
+                             total_deposit=total_deposit,
+                             total_withdraw=total_withdraw,
+                             bank_count=print_bank_count,
+                             bank_withdraw=print_bank_withdraw,
+                             card_count=print_card_count,
+                             card_withdraw=print_card_withdraw,
+                             risk_classification_rows=risk_classification_rows,
+                             risk_detail_rows=risk_detail_rows,
+                             risk_detail_total_count=risk_detail_total_count,
+                             risk_detail_deposit_sum=risk_detail_deposit_sum,
+                             risk_detail_withdraw_sum=risk_detail_withdraw_sum,
+                             risk_pie_data=risk_pie_data,
+                             risk_pie_slices=risk_pie_slices)
+    except Exception as e:
+        traceback.print_exc()
+        return "오류 발생: " + str(e), 500
+
+@app.route('/analysis/opinion')
+def analysis_opinion_fragment():
+    """금융정보 검토 종합의견 프래그먼트 (종합분석 페이지 iframe용, 헤더·네비 없음)."""
+    return render_template('opinion_fragment.html')
 
 # 분석 API 라우트
 @app.route('/api/analysis/summary')
@@ -1217,37 +1406,57 @@ def get_analysis_summary():
                 'withdraw_count': 0
             })
         bank_filter = request.args.get('bank', '')
-        if bank_filter and '은행명' in df.columns:
+        if bank_filter and '금융사' in df.columns:
+            df = df[df['금융사'].fillna('').astype(str).str.strip() == bank_filter]
+        elif bank_filter and '은행명' in df.columns:
             df = df[df['은행명'] == bank_filter]
 
-        # 금융정보 기본분석: 합계·건수는 위험도 1.0 이상만 반영
+        # 금융정보 종합분석: 합계·건수는 위험도 0.1 이상만 반영
         if '위험도' in df.columns:
             try:
                 risk = df['위험도'].fillna(0).astype(float)
-                df = df.loc[risk >= 1.0]
+                df = df.loc[risk >= 0.1]
             except (TypeError, ValueError):
                 pass
 
-        total_deposit = df['입금액'].sum()
-        total_withdraw = df['출금액'].sum()
+        total_deposit = int(df['입금액'].sum()) if '입금액' in df.columns else 0
+        total_withdraw = int(df['출금액'].sum()) if '출금액' in df.columns else 0
         net_balance = total_deposit - total_withdraw
-        # 거래건수 = 은행거래 건수 + 신용카드 건수
         total_count = len(df)
-        # 입금건수 = 은행거래 건수, 출금건수 = 신용카드 건수. 구분에 은행/신용카드 없으면 입금·출금 건수로 대체
-        if '구분' in df.columns and ((df['구분'].fillna('').astype(str).str.strip() == '은행거래').any() or (df['구분'].fillna('').astype(str).str.strip() == '신용카드').any()):
-            deposit_count = int((df['구분'].fillna('').astype(str).str.strip() == '은행거래').sum())
-            withdraw_count = int((df['구분'].fillna('').astype(str).str.strip() == '신용카드').sum())
+        # 출처(은행거래/신용카드) 기준 건수·출금합계. 출처 없으면 금융사로 은행/신용 구분
+        src_col = '출처' if '출처' in df.columns else '구분'
+        if src_col in df.columns:
+            src_trim = df[src_col].fillna('').astype(str).str.strip()
+            bank_mask = src_trim == '은행거래'
+            card_mask = src_trim == '신용카드'
+            bank_count = int(bank_mask.sum())
+            card_count = int(card_mask.sum())
+            bank_withdraw = int(df.loc[bank_mask, '출금액'].sum()) if '출금액' in df.columns else 0
+            card_withdraw = int(df.loc[card_mask, '출금액'].sum()) if '출금액' in df.columns else 0
         else:
-            deposit_count = len(df[df['입금액'] > 0])
-            withdraw_count = len(df[df['출금액'] > 0])
+            bank_count = card_count = 0
+            bank_withdraw = card_withdraw = 0
+        if (bank_count == 0 and card_count == 0) and total_count > 0 and '금융사' in df.columns:
+            bank_names = {'국민은행', '신한은행', '하나은행'}
+            gu = df['금융사'].fillna('').astype(str).str.strip()
+            bank_count = int(gu.isin(bank_names).sum())
+            card_count = total_count - bank_count
+            bank_withdraw = int(df.loc[gu.isin(bank_names), '출금액'].sum()) if '출금액' in df.columns else 0
+            card_withdraw = total_withdraw - bank_withdraw
+        deposit_count = bank_count
+        withdraw_count = card_count
 
         response = jsonify({
-            'total_deposit': int(total_deposit),
-            'total_withdraw': int(total_withdraw),
-            'net_balance': int(net_balance),
+            'total_deposit': total_deposit,
+            'total_withdraw': total_withdraw,
+            'net_balance': net_balance,
             'total_count': total_count,
             'deposit_count': deposit_count,
-            'withdraw_count': withdraw_count
+            'withdraw_count': withdraw_count,
+            'bank_count': bank_count,
+            'bank_withdraw': bank_withdraw,
+            'card_count': card_count,
+            'card_withdraw': card_withdraw
         })
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         return response

@@ -34,14 +34,14 @@
 <body>
     <nav class="main-nav" aria-label="금융정보 메뉴">
         <a href="/" class="nav-item">🏠 홈</a>
-        <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-        <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
-        <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
-        <a href="/cash/help" class="nav-item active">❓ 금융정보 도움말</a>
+        <a href="/cash/" class="nav-item">🏦 전처리</a>
+        <a href="/cash/category" class="nav-item">🏷️ 업종분류</a>
+        <a href="/cash/analysis/basic" class="nav-item">📊 종합분석</a>
+        <a href="/cash/help" class="nav-item active">❓ 도움말</a>
     </nav>
     <div class="container">
         <h1>❓ 금융정보 도움말</h1>
-        <p>금융정보(MyCash)는 <strong>은행거래(bank_after)</strong>와 <strong>신용카드(card_after)</strong>를 하나로 합쳐 통합 관리·위험도 분류·종합 분석을 제공합니다.</p>
+        <p>금융정보(MyCash)는 <strong>은행거래(bank_after)</strong>와 <strong>신용카드(card_after)</strong>를 하나로 합쳐 병합 관리·위험도 분류·종합 분석을 제공합니다.</p>
 
         <div class="help-section toc">
             <h2>목차</h2>
@@ -49,7 +49,7 @@
                 <li><a href="#flow">1. 사용 흐름</a></li>
                 <li><a href="#pages">2. 메뉴별 안내</a></li>
                 <li><a href="#cash-after">3. cash_after 생성(병합)</a></li>
-                <li><a href="#risk">4. 위험도분류(1~8호)</a></li>
+                <li><a href="#risk">4. 위험도분류(1~10호)</a></li>
                 <li><a href="#trouble">5. 문제 해결</a></li>
                 <li><a href="#faq">6. 자주 묻는 질문</a></li>
             </ul>
@@ -59,87 +59,96 @@
             <h2>1. 사용 흐름</h2>
             <ol>
                 <li><strong>은행·카드 전처리</strong>: .source/Bank, .source/Card에 원본 엑셀을 넣고 각각 전처리하여 bank_after, card_after를 만듭니다.</li>
-                <li><strong>금융정보 전처리(/cash/)</strong>: 화면에서 은행·카드 데이터를 확인한 뒤 <strong>「cash_after 생성(병합)」</strong>을 클릭합니다. bank_after + card_after가 합쳐져 <strong>MyCash/cash_after.json</strong>이 생성되고, 1~8호 위험도가 자동 적용됩니다.</li>
+                <li><strong>금융정보 병합작업(/cash/)</strong>: 화면에서 은행·카드 데이터를 확인한 뒤 <strong>「cash_after 생성(병합)」</strong>을 클릭합니다. bank_after + card_after가 합쳐져 <strong>MyCash/cash_after.json</strong>이 생성되고, 1~10호 위험도가 자동 적용됩니다.</li>
                 <li><strong>금융정보 업종분류(/cash/category)</strong>: 「금융정보(위험도분류) 적용후」 테이블에서 위험도키워드·위험도분류·위험도·필터·출력을 확인합니다.</li>
-                <li><strong>금융정보 기본분석(/cash/analysis/basic)</strong>: cash_after 기준 통계·차트를 확인합니다.</li>
+                <li><strong>금융정보 종합분석(/cash/analysis/basic)</strong>: cash_after 기준 통계·차트를 확인합니다.</li>
+                <li><strong>금융정보 검토 종합의견</strong>: 종합분석(/cash/analysis/basic) 페이지 우측 컨테이너에서 확인합니다.</li>
             </ol>
             <p><strong>참고</strong>: 금융정보 메뉴에 들어갈 때마다 기존 <strong>cash_after.json</strong>이 삭제됩니다. 데이터를 보려면 전처리 후 다시 「cash_after 생성(병합)」을 실행하세요.</p>
         </div>
 
         <div class="help-section" id="pages">
             <h2>2. 메뉴별 안내</h2>
-            <h3>금융정보 전처리 (/cash/)</h3>
-            <p>은행거래(bank_after)와 신용카드(card_after) 테이블을 한 화면에서 볼 수 있습니다. <strong>cash_after 생성(병합)</strong> 버튼을 누르면 두 데이터를 합쳐 cash_after.json을 만들고, linkage_table 매칭과 1~8호 위험도 지표를 적용한 뒤 저장합니다.</p>
+            <h3>금융정보 병합작업 (/cash/)</h3>
+            <p>은행거래(bank_after)와 신용카드(card_after) 테이블을 한 화면에서 볼 수 있습니다. <strong>cash_after 생성(병합)</strong> 버튼을 누르면 두 데이터를 합쳐 cash_after.json을 만들고, linkage_table 매칭과 1~10호 위험도 지표를 적용한 뒤 저장합니다.</p>
             <h3>금융정보 업종분류 (/cash/category)</h3>
             <p>카테고리 정의 테이블과 <strong>금융정보(위험도분류) 적용후</strong> 테이블을 제공합니다. 적용후 테이블은 cash_after.json을 위험도·위험도키워드·거래일·거래시간 내림차순으로 정렬하며, 헤더는 스크롤 시 고정됩니다. 각 컬럼의 드롭다운으로 필터링하고 「📄 출력」으로 인쇄용 창을 띄울 수 있습니다.</p>
-            <h3>금융정보 기본분석 (/cash/analysis/basic)</h3>
+            <h3>금융정보 종합분석 (/cash/analysis/basic)</h3>
             <p>cash_after 기준 전체 통계, 카테고리별·월별·금융사별 집계와 차트를 제공합니다.</p>
+            <h3>금융정보 검토 종합의견</h3>
+            <p>종합분석 페이지 우측 컨테이너에 병합(은행+카드) 금융정보(cash_after) 기반 검토 종합의견이 표시됩니다.</p>
         </div>
 
         <div class="help-section" id="cash-after">
             <h2>3. cash_after 생성(병합)</h2>
             <p>bank_after와 card_after를 병합할 때 다음이 수행됩니다.</p>
             <ul>
-                <li>금융사·계좌번호·거래일·거래시간·입금액·출금액·기타거래·키워드·카테고리·사업자번호·구분 등 컬럼 통합</li>
+                <li>금융사·계좌번호·거래일·거래시간·입금액·출금액·기타거래·키워드·카테고리·사업자번호·구분 등 컬럼 병합</li>
                 <li>linkage_table.json으로 위험도키워드→위험도분류·위험도 매칭</li>
-                <li>risk_indicators 적용: 1~8호 순서로 위험도키워드·위험도분류·위험도 저장(기본 위험도 0.1)</li>
+                <li>risk_indicators 적용: 1~10호 순서로 위험도키워드·위험도분류·위험도 저장(1호 기본 위험도 0.1)</li>
                 <li>고위험(가상자산·증권투자·금전대부) 카테고리 보정 시 위험도 5.0 설정</li>
             </ul>
             <p>결과 파일: <strong>MyCash/cash_after.json</strong></p>
         </div>
 
         <div class="help-section" id="risk">
-            <h2>4. 위험도분류(1~8호) 상세</h2>
-            <p>금융정보(cash_after) 생성(병합) 시 <strong>1호부터 8호</strong>까지 순서대로 위험도 지표가 적용됩니다. 모든 행의 기본 위험도는 <strong>0.1</strong>이며, 조건에 맞는 행에만 위험도키워드·위험도분류·위험도가 설정됩니다. <strong>나중 호수가 이전 호수를 덮어씁니다.</strong> 적용 전 데이터는 카테고리·키워드·거래일 올림차순으로 정렬된 뒤 진행됩니다.</p>
+            <h2>4. 위험도분류(1~10호) 상세</h2>
+            <p>금융정보(cash_after) 생성(병합) 시 <strong>1호(분류제외지표, 0.1)</strong>를 기본값으로 두고, <strong>2호 → 3호 → … → 10호</strong> 순차 적용하며 조건 만족 시 덮어씁니다. 프린터 출력 시에는 1호(분류제외지표) 행은 제외됩니다.</p>
 
-            <h3>4.1 검색 텍스트 (2~8호 공통)</h3>
-            <p>2호부터 8호까지 매칭 시 사용하는 검색 텍스트는 <strong>(카테고리 + 키워드) + 기타거래</strong>를 붙인 문자열입니다. 공백 기준으로 동일한 단어(토큰)는 한 번만 남기고 제거한 뒤 키워드 포함 여부를 판단합니다. 1호·2호는 금액·횟수 조건과 해당 행의 키워드(또는 기타거래) 값을 위험도키워드에 저장하는 방식입니다.</p>
+            <h3>4.1 검색 텍스트 (5~10호 공통)</h3>
+            <p>5호부터 10호까지 매칭 시 사용하는 검색 텍스트는 <strong>(카테고리 + 키워드) + 기타거래</strong>를 붙인 문자열입니다. 공백 기준 동일 단어는 한 번만 남기고 키워드 포함 여부를 판단합니다.</p>
 
-            <h3>4.2 호별 상세 조건 및 키워드</h3>
+            <h3>4.2 호별 상세 조건 (호수, 위험도분류, 위험도, 금액/횟수 조건, 키워드·기타 조건)</h3>
             <table class="risk-table">
                 <thead>
                     <tr><th>호수</th><th>위험도분류</th><th>위험도</th><th>금액/횟수 조건</th><th>키워드·기타 조건</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>1호</td><td>자료소명지표</td><td>1.0</td><td>출금액 <strong>1000만원 이상</strong></td><td>해당 행의 <strong>키워드</strong>(또는 기타거래) 값을 위험도키워드에 그대로 저장. 키워드 매칭 없음.</td></tr>
-                    <tr><td>2호</td><td>비정형지표</td><td>1.5</td><td><strong>출금만존재</strong>, <strong>100만원 이상</strong>, <strong>5회 이상</strong> (같은 키워드·특정인 기준)</td><td>해당 키워드(특정인)를 위험도키워드에 저장. 입금액 0이고 출금만 100만원 이상인 행만 집계 후, 키워드별 건수 5회 이상인 키워드의 해당 행들에 2호 부여.</td></tr>
-                    <tr><td>3호</td><td>투기성지표</td><td>2.0</td><td>입금 또는 출금 <strong>50만원 이상</strong></td><td>검색 텍스트에 <strong>증권, 선물, 자산운용, 위탁, 증권입금</strong> 중 하나 포함. 단, <strong>하나증권금융센터</strong>가 포함된 행은 3호에서 제외(카드사 금융센터 명칭).</td></tr>
-                    <tr><td>4호</td><td>사기파산지표</td><td>2.5</td><td>입금 또는 출금 50만원 이상</td><td>검색 텍스트에 <strong>대부, P2P, 카드깡, 원리금</strong> 중 하나 포함.</td></tr>
-                    <tr><td>5호</td><td>가상자산지표</td><td>3.0</td><td>입금 또는 출금 50만원 이상</td><td>(1) 해당 행의 <strong>카테고리</strong>가 "가상자산" 이거나, (2) 검색 텍스트에 <strong>업비트, 빗썸, 코인원, 코빗, 가상자산, VASP, 거래소, 코인, 비트코인, 암호화폐</strong> 중 하나 포함.</td></tr>
-                    <tr><td>6호</td><td>자산은닉지표</td><td>3.5</td><td><strong>출금만</strong> 50만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>해외송금, 고액현금인출, 외화송금, 영문성명, Wise, TransferWise, SWIFT</strong> 중 하나 포함.</td></tr>
-                    <tr><td>7호</td><td>과소비지표</td><td>4.0</td><td>출금만 30만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>백화점, 명품, 귀금속, 유흥, 고가가전, 고가가구, 유흥주점, 무도장, 콜라텍, 댄스홀</strong> 중 하나 포함.</td></tr>
-                    <tr><td>8호</td><td>사행성지표</td><td>5.0</td><td>출금만 10만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>경마, 복권, 사설도박, 도박기계, 사행성게임기, 오락기구, 휴게텔, 키스방, 대화방, 안마, 마사지, 사행성, 도박</strong> 중 하나 포함.</td></tr>
+                    <tr><td>1호</td><td>분류제외지표</td><td>0.1</td><td>금액제한 없음</td><td>2호~10호에 해당하지 않은 거래</td></tr>
+                    <tr><td>2호</td><td>심야폐업지표</td><td>0.5</td><td>금액 무관</td><td>거래시간이 <strong>심야구분</strong>에 해당하거나, <strong>구분</strong>이 <strong>폐업</strong>인 거래(둘 다 금액 조건 없음)</td></tr>
+                    <tr><td>3호</td><td>자료소명지표</td><td>1.0</td><td>출금액 <strong>500만원 이상</strong></td><td>해당 행의 키워드(또는 기타거래) 값을 위험도키워드에 저장</td></tr>
+                    <tr><td>4호</td><td>비정형지표</td><td>1.5</td><td>출금만 100만원 이상, 같은 키워드 <strong>3회 이상</strong></td><td>해당 키워드(특정인)를 위험도키워드에 저장</td></tr>
+                    <tr><td>5호</td><td>투기성지표</td><td>2.0</td><td>출금만 50만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>증권, 선물, 자산운용, 위탁, 증권입금</strong> 중 하나 포함</td></tr>
+                    <tr><td>6호</td><td>사기파산지표</td><td>2.5</td><td>출금만 50만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>대부, P2P, 카드깡, 원리금</strong> 중 하나 포함</td></tr>
+                    <tr><td>7호</td><td>가상자산지표</td><td>3.0</td><td>출금만 50만원 이상 (입금 0)</td><td>카테고리 "가상자산" 또는 <strong>업비트, 빗썸, 코인원, 코빗, 가상자산, VASP, 거래소, 코인, 비트코인, 암호화폐</strong> 중 하나 포함</td></tr>
+                    <tr><td>8호</td><td>자산은닉지표</td><td>3.5</td><td>출금만 50만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>해외송금, 고액현금인출, 외화송금, 영문성명, Wise, TransferWise, SWIFT</strong> 중 하나 포함</td></tr>
+                    <tr><td>9호</td><td>과소비지표</td><td>4.0</td><td>출금만 30만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>백화점, 명품, 귀금속, 유흥, 고가가전, 고가가구, 유흥주점, 무도장, 콜라텍, 댄스홀</strong> 중 하나 포함</td></tr>
+                    <tr><td>10호</td><td>사행성지표</td><td>5.0</td><td>출금만 10만원 이상 (입금 0)</td><td>검색 텍스트에 <strong>경마, 복권, 사설도박, 도박기계, 사행성게임기, 오락기구, 휴게텔, 키스방, 대화방, 안마, 마사지, 사행성, 도박</strong> 중 하나 포함</td></tr>
                 </tbody>
             </table>
 
             <h3>4.3 위험도키워드 저장 방식</h3>
             <ul>
-                <li><strong>1호·2호</strong>: 해당 행의 <strong>키워드</strong>(또는 기타거래) 값을 그대로 위험도키워드에 저장합니다. (특정인·자료 소명 대상 식별용)</li>
-                <li><strong>3~8호</strong>: 검색 텍스트에서 <strong>처음 매칭된 키워드</strong> 하나를 위험도키워드에 저장합니다. (예: 증권, 대부, 업비트, 해외송금 등)</li>
+                <li><strong>1호·2호</strong>: 1호는 키워드 저장 없음. 2호는 심야 또는 폐업 조건 해당 시 위험도 0.5로 설정.</li>
+                <li><strong>3호·4호</strong>: 해당 행의 키워드(또는 기타거래) 값을 위험도키워드에 저장.</li>
+                <li><strong>5~10호</strong>: 검색 텍스트에서 처음 매칭된 키워드 하나를 위험도키워드에 저장.</li>
             </ul>
 
             <h3>4.4 고위험 카테고리 보정</h3>
-            <p>cash_after 생성 시 <strong>가상자산·증권투자·금전대부</strong> 등 고위험 카테고리에 해당하는 행은 별도 보정 로직으로 <strong>위험도 5.0</strong>이 설정될 수 있습니다. (linkage_table 또는 내부 규칙 적용)</p>
+            <p>cash_after 생성 시 <strong>가상자산·증권투자·금전대부</strong> 등 고위험 카테고리에 해당하는 행은 별도 보정으로 <strong>위험도 5.0</strong>이 설정될 수 있습니다. (linkage_table 또는 내부 규칙 적용)</p>
 
-            <h3>4.5 참고 파일</h3>
-            <p>구현: <code>MyCash/risk_indicators.py</code> — <code>apply_risk_indicators()</code>. 문서: readme(삭제하지 말것) 폴더의 <strong>금융정보_위험도_지표_매칭_가이드.md</strong>, <strong>금융정보_위험도_분류_저장.md</strong>, <strong># 모든 행의 위험도는 0.1이 기본.txt</strong>를 참고하세요.</p>
+            <h3>4.5 프린터 출력</h3>
+            <p>금융정보(위험도분류) 적용후(cash_after.json)를 프린터로 출력할 때 <strong>1호(분류제외지표)</strong> 행은 제외하고, <strong>위험도 0.1 이상</strong>인 행만 인쇄됩니다.</p>
+
+            <h3>4.6 참고 파일</h3>
+            <p>구현: <code>MyCash/risk_indicators.py</code> — <code>apply_risk_indicators()</code>. 문서: readme(삭제하지 말것) 폴더의 <strong>금융정보_위험도_지표_매칭_가이드.md</strong>, <strong>금융정보_위험도_분류_저장.md</strong>를 참고하세요.</p>
         </div>
 
         <div class="help-section" id="trouble">
             <h2>5. 문제 해결</h2>
             <h3>「cash_after 생성 중...」만 보이고 생성이 안 돼요</h3>
-            <p>금융정보(업종분류) 조회에서 데이터가 없을 때 자동으로 cash_after 생성을 시도하며 이 메시지를 띄웁니다. <strong>생성에 실패하면 그 아래에 서버가 반환한 오류 사유가 표시됩니다.</strong> 흔한 원인은 다음과 같습니다.</p>
+            <p>금융정보(은행+카드) 병합조회에서 데이터가 없을 때 자동으로 cash_after 생성을 시도하며 이 메시지를 띄웁니다. <strong>생성에 실패하면 그 아래에 서버가 반환한 오류 사유가 표시됩니다.</strong> 흔한 원인은 다음과 같습니다.</p>
             <ul>
-                <li><strong>bank_after와 card_after가 모두 없거나 비어 있음</strong> — cash_after는 bank_after + card_after 병합으로 생성됩니다. <strong>둘 중 하나라도</strong> 있으면 생성 가능합니다. 은행 또는 신용카드 전처리에서 <strong>전처리후 다시 실행</strong>으로 한 개 이상 만든 뒤, 금융정보에서 <strong>전처리후 다시 실행</strong>을 시도하세요.</li>
+                <li><strong>bank_after와 card_after가 모두 없거나 비어 있음</strong> — cash_after는 bank_after + card_after 병합으로 생성됩니다. <strong>둘 중 하나라도</strong> 있으면 생성 가능합니다. 은행 또는 신용카드 전처리에서 <strong>병합작업 다시 실행</strong>으로 한 개 이상 만든 뒤, 금융정보에서 <strong>병합작업 다시 실행</strong>을 시도하세요.</li>
                 <li><strong>병합 결과 데이터가 비어 있음</strong> — bank_after·card_after는 있으나 읽기 오류나 컬럼 문제로 병합 결과가 0건인 경우. 은행·카드 after 파일이 정상 생성되었는지 해당 메뉴에서 확인하세요.</li>
                 <li><strong>임시 파일 쓰기/교체 실패</strong> — MyCash 폴더에 쓰기 권한이 없거나, 디스크 부족·한글 경로 등으로 cash_after.json 저장이 실패한 경우. 프로젝트 경로를 한글이 없는 경로(C:\CursorWorkspace 등)로 옮기고 다시 시도하세요.</li>
-                <li><strong>요청 시간 초과</strong> — 데이터가 많을 때 120초 안에 완료되지 않으면 타임아웃됩니다. 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도하세요.</li>
+                <li><strong>요청 시간 초과</strong> — 데이터가 많을 때 120초 안에 완료되지 않으면 타임아웃됩니다. 새로고침(F5) 후 <strong>병합작업 다시 실행</strong> 버튼으로 재시도하세요.</li>
             </ul>
-            <p>수동으로 생성하려면: 금융정보 전처리 페이지에서 <strong>전처리후 다시 실행</strong> 버튼을 누르면 동일한 API(POST /api/generate-category)가 호출됩니다. 실패 시 버튼 위/아래에 표시되는 오류 문구를 확인하세요.</p>
+            <p>수동으로 생성하려면: 금융정보 병합작업 페이지에서 <strong>병합작업 다시 실행</strong> 버튼을 누르면 동일한 API(POST /api/generate-category)가 호출됩니다. 실패 시 버튼 위/아래에 표시되는 오류 문구를 확인하세요.</p>
             <h3>데이터가 없습니다</h3>
-            <p>금융정보 업종분류에서 이 메시지가 나오면 cash_after.json이 없거나 비어 있는 상태입니다. 금융정보 전처리에서 <strong>cash_after 생성(병합)</strong>을 실행하세요. bank_after와 card_after <strong>둘 중 하나라도</strong> 있으면 cash_after 생성이 가능합니다.</p>
+            <p>금융정보 업종분류에서 이 메시지가 나오면 cash_after.json이 없거나 비어 있는 상태입니다. 금융정보 병합작업에서 <strong>cash_after 생성(병합)</strong>을 실행하세요. bank_after와 card_after <strong>둘 중 하나라도</strong> 있으면 cash_after 생성이 가능합니다.</p>
             <h3>위험도가 모두 0.1로 나와요</h3>
-            <p>1~8호 조건에 맞는 거래가 없거나, 예전에 생성된 cash_after를 쓰는 경우입니다. <strong>cash_after 생성(병합)</strong>을 다시 실행하면 최신 위험도 규칙이 적용됩니다.</p>
+            <p>1~10호 조건에 맞는 거래가 없거나, 예전에 생성된 cash_after를 쓰는 경우입니다. <strong>cash_after 생성(병합)</strong>을 다시 실행하면 최신 위험도 규칙이 적용됩니다.</p>
             <h3>한글 깨짐 / Add-Content 오류</h3>
             <p>경로에 한글이 있거나 TEMP 폴더가 한글 경로일 때 발생할 수 있습니다. readme(삭제하지 말것)의 <strong>한글_깨짐_Add-Content_오류.md</strong>, <strong>start-cursor-no-hangul.ps1</strong>을 참고해 한글이 없는 경로(C:\CursorWorkspace 등)에서 작업하세요.</p>
         </div>
@@ -147,7 +156,7 @@
         <div class="help-section" id="faq">
             <h2>6. 자주 묻는 질문</h2>
             <p><strong>Q. 금융정보에 들어가면 cash_after가 사라져요.</strong><br>의도된 동작입니다. 금융정보 메뉴 진입 시 cash_after.json을 삭제하므로, 매번 「cash_after 생성(병합)」으로 최신 병합·위험도 결과를 만듭니다.</p>
-            <p><strong>Q. 위험도키워드에 지표명(비정형지표 등)이 들어가요.</strong><br>1·2호는 해당 행의 키워드(또는 기타거래) 값을, 3~8호는 매칭된 키워드(증권, 대부 등)를 저장합니다. cash_after를 다시 생성하면 반영됩니다.</p>
+            <p><strong>Q. 위험도키워드에 지표명(비정형지표 등)이 들어가요.</strong><br>1호·2호는 별도 저장 없음/심야 조건. 3·4호는 해당 행 키워드, 5~10호는 매칭된 키워드(증권, 대부 등)를 저장합니다. cash_after를 다시 생성하면 반영됩니다.</p>
             <p><strong>Q. 통합 도움말은 어디서 보나요?</strong><br>홈에서 <strong>금융정보 보고서</strong> 또는 <a href="/help">/help</a>로 접속하면 은행·카드·금융정보 전체 도움말을 볼 수 있습니다.</p>
         </div>
     </div>

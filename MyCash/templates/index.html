@@ -6,8 +6,12 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>금융정보 전처리</title>
+    <title>금융정보 병합작업</title>
     <style>
+        /* 모든 테이블 헤더 배경 (hex: #FFCC80) */
+        table thead, table thead th { background-color: #FFCC80 !important; }
+        /* 모든 테이블 합계 행 배경 (hex: #FFCC80) */
+        table tr.sum-row, table tr.total-row, table tr[data-sum-row="true"] { background-color: #FFCC80 !important; }
         * {
             margin: 0;
             padding: 0;
@@ -69,7 +73,7 @@
             margin-left: auto;
         }
 
-        /* 통합 네비게이터 스타일 */
+        /* 병합 네비게이터 스타일 */
         .main-nav {
             display: flex;
             flex-wrap: wrap;
@@ -822,6 +826,7 @@
         /* 업종분류 조회 말풍선 - 은행/신용카드 카테고리조회와 동일 속성 (최상위 레이어 보장) */
         #row-tooltip-overlay { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: none; }
         #row-tooltip-overlay .row-tooltip-bubble { pointer-events: auto; }
+        /* 말풍선 배경색: rgb(255, 204, 128) (#FFCC80) */
         .row-tooltip-bubble { position: fixed; z-index: 2147483647; max-width: 560px; max-height: 70vh; min-width: 280px; min-height: 80px; overflow: auto; background: rgb(255, 204, 128); border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 10px; font-size: 11px; line-height: 1.2; font-family: 'Malgun Gothic', sans-serif; }
         .row-tooltip-bubble .tooltip-title { font-weight: bold; color: #333; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
         .row-tooltip-bubble .tooltip-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
@@ -836,6 +841,7 @@
         #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 20%; }
         #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 12%; }
         #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 68%; }
+        #linkage-query-table thead, #linkage-query-table thead th { background-color: #FFCC80 !important; }
 
         /* 업종분류 조회 테이블: 한 줄 표시, 말줄임 */
         #category-query-table { table-layout: fixed; width: 100%; font-size: 11px; }
@@ -862,7 +868,7 @@
         #source-data-table thead th,
         #processed-data-table thead th {
             opacity: 1 !important;
-            background-color: #f0f0f0 !important;
+            background-color: #FFCC80 !important;
             z-index: 100;
             isolation: isolate; /* sticky 시 테이블 행이 헤더 뒤에 보이지 않도록 */
         }
@@ -874,7 +880,7 @@
             box-sizing: border-box;
         }
         
-        /* 금융정보 전처리: 은행거래·신용카드 컬럼 너비는 JS LEFT_WIDTHS/RIGHT_WIDTHS(계좌/카드 1.0, 기타거래/가맹점명 2.0)로 th에 inline 적용. */
+        /* 금융정보 병합작업: 은행거래·신용카드 컬럼 너비는 JS LEFT_WIDTHS/RIGHT_WIDTHS(계좌/카드 1.0, 기타거래/가맹점명 2.0)로 th에 inline 적용. */
         #source-data-table th {
             text-align: center !important;
         }
@@ -1386,19 +1392,19 @@
     <div class="header">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                <h1>금융정보 전처리</h1>
+                <h1>금융정보 병합작업</h1>
                 <div style="font-size: 14px; opacity: 0.5;">MyCash</div>
             </div>
             <div class="header-filters" style="display: flex; align-items: center; gap: 12px;">
             </div>
         </div>
-        <!-- 은행거래 통합정보 네비게이터 -->
+        <!-- 은행거래 병합정보 네비게이터 -->
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
-            <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-            <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
-            <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
-            <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
+            <a href="/cash/" class="nav-item">🏦 전처리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 업종분류</a>
+            <a href="/cash/analysis/basic" class="nav-item">📊 종합분석</a>
+            <a href="/cash/help" class="nav-item">❓ 도움말</a>
         </nav>
     </div>
     <div class="preprocess-container">
@@ -1484,14 +1490,14 @@
         <!-- 박스 컨텐츠 영역 -->
         <div class="wrapper-box-content">
             <div class="box-content left-box-content" id="left-content">
-                <div class="loading">데이터 로딩 중...</div>
+                <div class="loading">데이터 로딩중 ... (0건)</div>
             </div>
             <div class="box-content right-box-content" id="right-content">
             </div>
         </div>
     </div>
     
-    <!-- 금융정보: 업종분류 조회 + 금융정보(업종분류) 조회 + 금융정보(업종분류) 그래프 (신용카드 전처리와 동일 너비/높이) -->
+    <!-- 금융정보: 업종분류 조회 + 금융정보(은행+카드) 병합조회 + 금융정보(업종분류) 그래프 (신용카드 전처리와 동일 너비/높이) -->
     <div id="category-section-container" class="chart-card" style="margin-top: 10px; margin-bottom: 10px; padding: 4px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <div style="display: flex; justify-content: flex-start; gap: 20px;">
             <!-- 좌측: 업종분류 조회 (신용카드 전처리 카테고리 테이블과 동일 25%, 높이 600px) -->
@@ -1502,23 +1508,46 @@
                 </div>
                 <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 600px; max-height: 600px; min-height: 600px; flex: none; position: relative;">
                     <div id="linkage-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
-                        <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
+                        {% if linkage_table_data is defined and linkage_table_data %}
+                        <table id="linkage-query-table" style="background-color: white;"><thead style="position: sticky; top: 0; background-color: #FFCC80; z-index: 10;"><tr>
+                            <th style="text-align: left; border: 1px solid #ddd;">업종분류</th>
+                            <th style="text-align: center; border: 1px solid #ddd;">리스크</th>
+                            <th style="text-align: center; border: 1px solid #ddd;">업종코드_업종코드세세분류</th>
+                        </tr></thead><tbody>
+                        {% for row in linkage_table_data %}
+                        <tr class="linkage-query-row" data-tx-index="{{ loop.index0 }}" style="{% if loop.index0 % 2 == 1 %}background-color: rgba(33, 150, 243, 0.08);{% endif %}">
+                            <td style="text-align: left; border: 1px solid #ddd;" title="{{ (row.get('업종분류') or '')|e }}">{{ (row.get('업종분류') or '')|e }}</td>
+                            <td style="text-align: center; border: 1px solid #ddd;" title="{{ (row.get('업종리스크') or '')|e }}">{{ (row.get('업종리스크') or '')|e }}</td>
+                            <td style="text-align: left; border: 1px solid #ddd;" title="{{ (row.get('업종코드_업종코드세세분류') or '')|e }}">{{ (row.get('업종코드_업종코드세세분류') or '')|e }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody></table>
+                        {% else %}
+                        {% if linkage_table_data is defined %}
+                        <div style="padding: 20px; text-align: center; color: #666;">업종분류 데이터가 없습니다. .source/linkage_table.xlsx를 넣고 새로고침하세요.</div>
+                        {% else %}
+                        <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>
+                        {% endif %}
+                        {% endif %}
                     </div>
+                    <script>
+                    window.__linkageTableData = {{ linkage_table_data | default([]) | tojson }};
+                    </script>
                 </div>
             </div>
-            <!-- 우측: 금융정보(업종분류) 조회 + 금융정보(업종분류) 그래프 (신용카드 전처리와 동일 75%, 조회 300px·그래프 250px) -->
+            <!-- 우측: 금융정보(은행+카드) 병합조회 + 금융정보(업종분류) 그래프 (신용카드 전처리와 동일 75%, 조회 300px·그래프 250px) -->
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(업종분류) 조회</h2>
+                            <h2 style="margin: 0; margin-bottom: 5px; padding-bottom: 3px;">금융정보(은행+카드) 병합조회</h2>
                             <div class="path-filename-text" style="opacity: 0.6; margin-left: 8px;">cash_after.json</div>
                         </div>
-                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategoryFile()" title="after 파일을 재 생성합니다">전처리후 다시 실행</button>
+                        <button id="generate-category-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="generateCategory()" title="cash_after(은행+카드 병합) 재생성">병합작업 다시 실행</button>
                     </div>
                     <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
-                            <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
+                            <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>
                         </div>
                     </div>
                 </div>
@@ -1730,7 +1759,7 @@
                     return;
                 }
                 
-                // files 배열 추출 (금융정보 전처리전은 bank_after 사용으로 파일 선택 UI 미사용)
+                // files 배열 추출 (금융정보 병합작업전은 bank_after 사용으로 파일 선택 UI 미사용)
                 const files = data.files || [];
                 sourceFilesList = files;
                 const fileSelector = document.getElementById('left-file-selector');
@@ -1778,7 +1807,7 @@
         async function loadLeftData() {
             const contentDiv = document.getElementById('left-content');
             if (!contentDiv) return;
-            contentDiv.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
+            contentDiv.innerHTML = '<div class="loading">데이터 로딩중 ... (0건)</div>';
 
             const bankFilter = document.getElementById('left-bank-filter')?.value || '';
             const accountFilter = document.getElementById('left-account-filter')?.value || '';
@@ -1883,7 +1912,7 @@
                         });
                         html += '</tr>';
                     });
-                    html += '<tr class="sum-row" style="background-color: #f0f0f0; font-weight: bold;">';
+                    html += '<tr class="sum-row" style="background-color: #FFCC80; font-weight: bold;">';
                     LEFT_COLUMNS.forEach((col, i) => {
                         const align = LEFT_ALIGN[i] || 'left';
                         if (col === '입금액') html += `<td style="text-align: right; color: #0000FF;">${formatNumber(totalDeposit)}</td>`;
@@ -1948,7 +1977,7 @@
         async function loadRightData() {
             const contentDiv = document.getElementById('right-content');
             if (!contentDiv) return;
-            contentDiv.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
+            contentDiv.innerHTML = '<div class="loading">데이터 로딩중 ... (0건)</div>';
 
             const bankFilterEl = document.getElementById('right-bank-filter');
             const yearFilterEl = document.getElementById('right-year-filter');
@@ -2269,7 +2298,7 @@
                         html += '</tr>';
                     });
                     
-                    html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f0f0f0; font-weight: bold;">';
+                    html += '<tr class="sum-row" data-sum-row="true" style="background-color: #FFCC80; font-weight: bold;">';
                     columns.forEach((col, i) => {
                         const align = RIGHT_ALIGN[i] || 'left';
                         if (col === '입금액') html += `<td style="text-align: right; color: #0000FF;" data-sum-col="입금액">${formatAmount(sumDeposit)}</td>`;
@@ -2337,8 +2366,16 @@
             }
         }
 
-        // 업종분류 적용(cash_after 생성) 함수
+        // 업종분류 적용(cash_after 생성) 함수 — 병합작업 다시 실행 버튼에서 호출
         async function generateCategory() {
+            const btn = document.getElementById('generate-category-btn');
+            const originalText = btn ? btn.textContent : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '병합 중...';
+                btn.style.cursor = 'not-allowed';
+                btn.style.background = '#9e9e9e';
+            }
             try {
                 const ctrl = new AbortController();
                 const timeoutId = setTimeout(() => ctrl.abort(), 120000);
@@ -2350,9 +2387,9 @@
                 clearTimeout(timeoutId);
                 const generateResult = await generateResponse.json().catch(() => ({}));
                 if (generateResult.success) {
-                    // cash_after 반영(업종키워드/위험도분류/위험도) 후 테이블 자동 갱신 — 새로고침 불필요
+                    // cash_after 반영 후 테이블 자동 갱신
                     if (typeof loadCategoryQueryTable === 'function') {
-                        await loadCategoryQueryTable();
+                        await loadCategoryQueryTable(true);
                     }
                     // 누락된 레코드가 있으면 팝업 표시
                     if (generateResult.missing_records) {
@@ -2374,6 +2411,13 @@
                 console.error('Error generating category:', error);
                 const msg = (error && error.name === 'AbortError') ? '요청 시간이 초과되었습니다.' : (error && error.message) ? String(error.message) : '알 수 없는 오류';
                 alert(`업종분류 적용 중 오류가 발생했습니다: ${msg}`);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = originalText || '병합작업 다시 실행';
+                    btn.style.cursor = 'pointer';
+                    btn.style.background = '#2196F3';
+                }
             }
         }
         
@@ -2496,7 +2540,7 @@
         }
         
         
-        // 금융정보 전처리 페이지: 업종분류 조회에만 말풍선 사용. "금융정보(업종분류) 조회"에는 말풍선 없음.
+        // 금융정보 병합작업 페이지: 업종분류 조회에만 말풍선 사용. "금융정보(은행+카드) 병합조회"에는 말풍선 없음.
         document.addEventListener('click', function(e) {
             const linkageRow = e.target.closest('#linkage-query-content .linkage-query-row');
             if (linkageRow && linkageTableData.length > 0) {
@@ -2520,12 +2564,16 @@
             setupFilterBackgrounds();
             loadSourceFiles();
             loadLeftData();
-            // 전처리후·금융정보(업종분류) 조회 병렬 로드 (로딩 시간 단축)
+            // 전처리후·금융정보(은행+카드) 병합조회 병렬 로드 (로딩 시간 단축)
             Promise.all([
                 loadRightData(),
                 typeof loadCategoryQueryTable === 'function' ? loadCategoryQueryTable() : Promise.resolve()
             ]).catch(() => {});
-            loadLinkageTable();
+            if (window.__linkageTableData && Array.isArray(window.__linkageTableData)) {
+                linkageTableData = window.__linkageTableData;
+            } else {
+                loadLinkageTable();
+            }
             
             // ESC, F1~F12: 입력/수정/삭제 모드 취소 → 출력 모드로 전환
             document.addEventListener('keydown', (e) => {
@@ -2560,7 +2608,7 @@
         // 카테고리 테이블 전체 데이터 저장
         let allCategoryTableData = [];
         
-        // 금융정보(업종분류) 조회 데이터 저장 (필터/그래프용. 이 페이지에서는 행 클릭 말풍선 없음)
+        // 금융정보(은행+카드) 병합조회 데이터 저장 (필터/그래프용. 이 페이지에서는 행 클릭 말풍선 없음)
         let categoryQueryDataOriginal = [];
         let categoryQueryTableData = [];
         let _tooltipSelectedRow = null;
@@ -2831,11 +2879,11 @@
         }
 
         // 분류 입력 검증 (전처리/후처리/계정과목만, 거래방법/거래지점 미사용)
-        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '업종분류'];
         function validateChasuInput(input) {
             const value = (input.value || '').toString().trim();
             if (value && !VALID_CHASU_VALUES.includes(value)) {
-                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분, 업종분류만 입력할 수 있습니다.');
                 if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
@@ -2971,11 +3019,11 @@
             }
             
             if (!VALID_CHASU_VALUES.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분, 업종분류만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
-            
+
             if (action === '수정' && !selectedRowData) {
                 alert('수정할 행을 먼저 선택해주세요.');
                 return;
@@ -3105,7 +3153,7 @@
         async function loadLinkageTable() {
             const contentEl = document.getElementById('linkage-query-content');
             if (!contentEl) return;
-            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
             try {
                 const response = await fetch(`${API_BASE}/api/linkage-table`);
                 const result = await response.json().catch(() => ({}));
@@ -3123,7 +3171,7 @@
                     contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">업종분류 데이터가 없습니다. .source/linkage_table.xlsx를 넣고 새로고침하세요.</div>';
                     return;
                 }
-                let html = '<table id="linkage-query-table" style="background-color: white;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;"><tr>';
+                let html = '<table id="linkage-query-table" style="background-color: white;"><thead style="position: sticky; top: 0; background-color: #FFCC80; z-index: 10;"><tr>';
                 cols.forEach(c => { html += '<th style="text-align: center; border: 1px solid #ddd;">' + (colLabels[c] || c) + '</th>'; });
                 html += '</tr></thead><tbody>';
                 data.forEach((row, i) => {
@@ -3175,8 +3223,8 @@
             const contentEl = document.getElementById('category-query-content');
             if (!contentEl) return;
             categoryQueryTableData = [];
-            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
-            const loadingMsg = '데이터 로딩 중';
+            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
+            const loadingMsg = '데이터 로딩중';
             let safetyTimeoutId = setTimeout(() => {
                 if (contentEl.textContent && contentEl.textContent.includes(loadingMsg)) {
                     contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">요청 시간이 초과되었습니다. 새로고침(F5) 후 다시 시도하세요.</div>';
@@ -3270,9 +3318,9 @@
                             + '<p style="margin: 0 0 12px 0; font-weight: bold; color: #F44336;">' + safeErr + '</p>'
                             + '<p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">cash_after를 생성하지 못하는 흔한 이유:</p>'
                             + '<ul style="text-align: left; margin: 0 auto 12px auto; padding-left: 24px; max-width: 420px; font-size: 12px; color: #555;">'
-                            + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>전처리후 다시 실행</strong> 후 재시도</li>'
+                            + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>병합작업 다시 실행</strong> 후, 금융정보에서 <strong>병합작업 다시 실행</strong> 재시도</li>'
                             + '<li>쓰기 권한·한글 경로·디스크 부족 → 한글 없는 경로(C:\\CursorWorkspace 등)에서 실행</li>'
-                            + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도</li>'
+                            + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>병합작업 다시 실행</strong> 버튼으로 재시도</li>'
                             + '</ul><a href="' + API_BASE + '/help#trouble" style="font-size: 12px;">자세한 문제 해결 (도움말)</a>'
                             + '</div>';
                     } catch (createErr) {
@@ -3280,7 +3328,7 @@
                         const isTimeout = createErr && createErr.name === 'AbortError';
                         const msg = isTimeout ? '생성 요청 시간이 초과되었습니다.' : (createErr && createErr.message) ? String(createErr.message) : '데이터가 없습니다.';
                         const color = isTimeout ? '#F44336' : '#666';
-                        contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: ' + color + ';">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + (isTimeout ? '<br><small style="color:#666;">새로고침(F5) 후 위 "전처리후 다시 실행" 버튼으로 재시도하세요.</small><br><button type="button" id="category-query-retry-btn" style="margin-top:12px;padding:8px 16px;cursor:pointer;background:#2196F3;color:white;border:none;border-radius:4px;">다시 시도</button>' : '') + '</div>';
+                        contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: ' + color + ';">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + (isTimeout ? '<br><small style="color:#666;">새로고침(F5) 후 위 "병합작업 다시 실행" 버튼으로 재시도하세요.</small><br><button type="button" id="category-query-retry-btn" style="margin-top:12px;padding:8px 16px;cursor:pointer;background:#2196F3;color:white;border:none;border-radius:4px;">다시 시도</button>' : '') + '</div>';
                         const retryBtn = document.getElementById('category-query-retry-btn');
                         if (retryBtn) retryBtn.addEventListener('click', function() { loadCategoryQueryTable(); });
                     }
@@ -3451,7 +3499,7 @@
                 });
             }
             
-            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
+            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #FFCC80;">';
             availableColumns.forEach(col => {
                 const align = columnAlign[col] || 'left';
                 let cellStyle = ` style="white-space: nowrap; text-align: ${align}; padding: 4px; border: 1px solid #ddd;"`;
@@ -3644,7 +3692,7 @@
                     });
                     
                     const availableColumns = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => th.textContent.trim());
-                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">' +
+                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #FFCC80;">' +
                         availableColumns.map(col => {
                             if (col === '입금액') {
                                 return `<td style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;" data-sum-col="입금액">${formatNumber(totalDeposit)}</td>`;

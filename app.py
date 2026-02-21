@@ -453,7 +453,7 @@ def redirect_bank():
 
 @app.route('/cash')
 def redirect_cash():
-    """금융정보 전처리: 끝 슬래시 없이 접속 시 /cash/ 로 리다이렉트"""
+    """금융정보 병합작업: 끝 슬래시 없이 접속 시 /cash/ 로 리다이렉트"""
     return redirect('/cash/', code=302)
 
 
@@ -539,7 +539,8 @@ if __name__ == '__main__':
     os.chdir(script_dir)
     # Railway/Heroku 등에서는 PORT가 주입되며 0.0.0.0으로 바인딩 필요
     port = int(os.environ.get('PORT', 8080))
-    host = '0.0.0.0' if os.environ.get('PORT') else '127.0.0.1'
+    # 0.0.0.0으로 listen 시 localhost(IPv4/IPv6) 접속 가능
+    host = '0.0.0.0'
     try:
         from waitress import serve
         # threads 늘려서 요청 대기 시 queue depth 경고 완화

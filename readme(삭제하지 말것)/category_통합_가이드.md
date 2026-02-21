@@ -7,7 +7,7 @@
 |------|------|-------|
 | `MyBank/templates/category.html` | 은행거래 카테고리 | ~2,461 |
 | `MyCard/templates/category.html` | 신용카드 카테고리 | ~2,957 |
-| `MyCash/templates/category.html` | 금융정보 카테고리 | ~2,896 |
+| `MyCash/templates/category.html` | 금융정보 업종분류 | ~2,896 |
 
 - 공통: 레이아웃·CSS·Chart.js, 네비게이션, 테이블/필터 구조
 - 차이: 제목, API 경로(`/bank/`, `/card/`, `/cash/`), 컬럼(은행명/계좌 vs 카드사/카드번호 vs 구분 등), 도메인별 JS

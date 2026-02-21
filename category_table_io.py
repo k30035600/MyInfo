@@ -45,6 +45,45 @@ def _xlsx_path_from_json(json_path):
     return base + '.xlsx'
 
 
+# 업종분류 5~10호 행 (분류, 키워드, 카테고리). 있으면 수정, 없으면 추가.
+_업종분류_RISK_ROWS = [
+    {'분류': '업종분류', '키워드': '분류5호/증권/선물/자산운용/위탁/증권입금', '카테고리': '투기성지표'},
+    {'분류': '업종분류', '키워드': '분류6호/대부/P2P/카드깡/원리금', '카테고리': '사기파산지표'},
+    {'분류': '업종분류', '키워드': '분류7호/가상자산/업비트/빗썸/코인원/코빗/VASP/거래소/코인/비트코인/암호화폐', '카테고리': '가상자산지표'},
+    {'분류': '업종분류', '키워드': '분류8호/해외송금/고액현금인출/외화송금/영문성명/Wise/TransferWise/SWIFT', '카테고리': '자산은닉지표'},
+    {'분류': '업종분류', '키워드': '분류9호/백화점/명품/귀금속/유흥/고가가전/고가가구/유흥주점/무도장/콜라텍/댄스홀', '카테고리': '과소비지표'},
+    {'분류': '업종분류', '키워드': '분류10호/경마/복권/사설도박/도박기계/사행성게임기/오락기구/휴게텔/키스방/대화방/안마/마사지/사행성/도박', '카테고리': '사행성지표'},
+]
+
+
+def _ensure_업종분류_risk_rows(path, df):
+    """업종분류 5~10호 행을 df에 반영. (분류, 카테고리) 일치 행이 있으면 키워드 수정, 없으면 추가. 변경 시 저장."""
+    if df is None:
+        df = pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS)
+    for c in CATEGORY_TABLE_COLUMNS:
+        if c not in df.columns:
+            df[c] = ''
+    df = df.fillna('').copy()
+    changed = False
+    for row in _업종분류_RISK_ROWS:
+        분류, 키워드, 카테고리 = row['분류'], row['키워드'], row['카테고리']
+        mask = (df['분류'].astype(str).str.strip() == 분류) & (df['카테고리'].astype(str).str.strip() == 카테고리)
+        if mask.any():
+            idx = mask.idxmax()
+            if (df.at[idx, '키워드'] or '').strip() != (키워드 or '').strip():
+                df.at[idx, '키워드'] = 키워드
+                changed = True
+        else:
+            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+            changed = True
+    if changed and path:
+        try:
+            safe_write_category_table(path, df[CATEGORY_TABLE_COLUMNS])
+        except Exception:
+            pass
+    return df
+
+
 def load_category_table(path, default_empty=True):
     """JSON 안전 읽기. xlsx면 json 경로로 변환. 없/손상 시 빈 DataFrame 또는 None."""
     path = _json_path(path)
@@ -75,8 +114,7 @@ def load_category_table(path, default_empty=True):
         for c in CATEGORY_TABLE_COLUMNS:
             if c not in df.columns:
                 df[c] = ''
-        if '분류' in df.columns and (df['분류'].astype(str).str.strip() == '업종분류').any():
-            df = df[df['분류'].astype(str).str.strip() != '업종분류'].copy()
+        df = _ensure_업종분류_risk_rows(path, df)
         return df
     except (json.JSONDecodeError, TypeError, IOError):
         return pd.DataFrame(columns=CATEGORY_TABLE_COLUMNS) if default_empty else None
@@ -154,9 +192,6 @@ def get_category_table(path):
     for c in CATEGORY_TABLE_COLUMNS:
         if c not in df.columns:
             df[c] = ''
-    # 카테고리테이블에서는 업종분류 미사용 — 행 제거
-    if '분류' in df.columns and (df['분류'].astype(str).str.strip() == '업종분류').any():
-        df = df[df['분류'].astype(str).str.strip() != '업종분류'].copy()
     return (df, file_existed)
 
 
@@ -211,9 +246,6 @@ def apply_category_action(path, action, data):
         df = df[~((df['분류'] == 분류값) & (df['키워드'] == keyword) & (df['카테고리'] == category))]
     else:
         return (False, f'unknown action: {action}', 0)
-    # 카테고리테이블에서는 업종분류 미사용 — 저장 전 해당 행 제거
-    if '분류' in df.columns and (df['분류'].astype(str).str.strip() == '업종분류').any():
-        df = df[df['분류'].astype(str).str.strip() != '업종분류'].copy()
     safe_write_category_table(path, df)
     return (True, None, len(df))
 
@@ -323,6 +355,20 @@ def safe_write_category_table(path, df):
                         if attempt < 4:
                             time.sleep(1.0 * (attempt + 1))
                             continue
+                        # Fallback: rename 실패 시 임시 파일 내용을 대상 경로에 직접 덮어쓰기 시도 (Windows 파일 잠금 완화)
+                        try:
+                            with open(tmp, 'r', encoding='utf-8') as rf:
+                                content = rf.read()
+                            with open(path, 'w', encoding='utf-8') as wf:
+                                wf.write(content)
+                            try:
+                                os.remove(tmp)
+                            except OSError:
+                                pass
+                            tmp = None
+                            break
+                        except Exception:
+                            pass
                         raise PermissionError(
                             "category_table.json 저장 실패(파일이 사용 중일 수 있음). "
                             "다른 프로그램에서 category_table.json을 닫고, 동기화가 끝날 때까지 기다린 뒤 다시 시도해 주세요. 원인: " + str(e)

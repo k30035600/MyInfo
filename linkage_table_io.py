@@ -106,11 +106,44 @@ def get_linkage_table_data():
             rows = json.load(f)
     except Exception:
         return []
+    # 1호·2호 행 (업종리스크, 업종분류, 업종코드 "", 업종코드세세분류). 해당 행이 있으면 수정, 없으면 추가.
+    ROW_1HO = {'업종분류': '분류제외지표', '업종리스크': '0.1', '업종코드': '', '업종코드세세분류': '2호~10호에 해당하지 않는 거래'}
+    ROW_2HO = {'업종분류': '심야폐업지표', '업종리스크': '0.5', '업종코드': '', '업종코드세세분류': '심야 및 폐업에 해당하는 거래'}
+    _1ho_names = ('분류제외지표', '업종분류 제외')
+    _2ho_names = ('심야폐업지표', '심야/폐업지표', '심야사용 의심')
+
+    new_rows = []
+    has_1ho, has_2ho = False, False
+    for r in rows:
+        분류 = _str_clean(r.get('업종분류'))
+        if 분류 in _1ho_names:
+            if not has_1ho:
+                new_rows.append(ROW_1HO.copy())
+                has_1ho = True
+            continue
+        if 분류 in _2ho_names:
+            if not has_2ho:
+                new_rows.append(ROW_2HO.copy())
+                has_2ho = True
+            continue
+        new_rows.append(r)
+    if not has_1ho:
+        new_rows.append(ROW_1HO.copy())
+    if not has_2ho:
+        new_rows.append(ROW_2HO.copy())
+    rows = new_rows
+    try:
+        os.makedirs(SOURCE_DIR, exist_ok=True)
+        with open(LINKAGE_JSON, 'w', encoding='utf-8') as f:
+            json.dump(rows, f, ensure_ascii=False, indent=0)
+    except Exception:
+        pass
+
     out = []
     for r in rows:
         업종코드 = _업종코드_문자_소수점없음(r.get('업종코드', '')) or _str_clean(r.get('업종코드', ''))
         세세 = _str_clean(r.get('업종코드세세분류', ''))
-        combined = f"{업종코드}_{세세}" if 세세 else 업종코드
+        combined = f"{업종코드}_{세세}" if (업종코드 and 세세) else (세세 if 세세 else 업종코드)
         risk_val = _risk_value_1decimal(r.get('업종리스크') or r.get('리스크', ''))
         out.append({
             '업종분류': _str_clean(r.get('업종분류', '')),

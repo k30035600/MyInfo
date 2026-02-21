@@ -11,7 +11,7 @@
 | [Git_호스팅_가이드.md](Git_호스팅_가이드.md) | Git 저장소 만들기 ~ Railway 배포 흐름 |
 | [Railway_가입_배포_도메인.md](Railway_가입_배포_도메인.md) | Railway 가입·배포·커스텀 도메인·한글 깨짐 |
 | [Git_GitHub_Railway_참고.md](Git_GitHub_Railway_참고.md) | Git·GitHub·Railway 한 페이지 참고 |
-| [금융정보_고급분석.md](금융정보_고급분석.md) | 금융정보 고급분석 |
+| [금융정보_고급분석.md](금융정보_고급분석.md) | 금융정보 종합의견 |
 | [코드_개선_조언.md](코드_개선_조언.md) | 코드 개선 조언 |
 | [한글경로-해결방법.md](한글경로-해결방법.md) | 한글 경로 문제 해결 |
 | [category_table_xlsx_복구.md](category_table_xlsx_복구.md) | category_table.json → xlsx 내보내기(복구) |

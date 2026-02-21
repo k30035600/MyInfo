@@ -6,6 +6,10 @@
     <title>금융정보 업종분류</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* 모든 테이블 헤더 배경 (hex: #FFCC80) */
+        table thead, table thead th { background-color: #FFCC80 !important; }
+        /* 모든 테이블 합계 행 배경 (hex: #FFCC80) */
+        table tr.sum-row, table tr.total-row, table tr[data-sum-row="true"] { background-color: #FFCC80 !important; }
         * {
             margin: 0;
             padding: 0;
@@ -74,7 +78,7 @@
             font-family: inherit;
         }
 
-        /* 통합 네비게이터 스타일 */
+        /* 병합 네비게이터 스타일 */
         .main-nav {
             display: flex;
             flex-wrap: wrap;
@@ -219,7 +223,7 @@
         /* 업종분류 조회 테이블: 너비 25% : 15% : 60%, 말줄임 */
         #linkage-query-table { table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse; }
         #linkage-query-table th, #linkage-query-table td { padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 25%; }
+        #linkage-query-table th:nth-child(1), #linkage-query-table td:nth-child(1) { width: 25%; text-align: left; }
         #linkage-query-table th:nth-child(2), #linkage-query-table td:nth-child(2) { width: 15%; }
         #linkage-query-table th:nth-child(3), #linkage-query-table td:nth-child(3) { width: 60%; }
 
@@ -338,9 +342,9 @@
             white-space: nowrap;
             min-width: 0;
         }
-        /* 금융정보(위험도분류) 적용후 테이블 헤더 고정(스크롤 시 상단 고정) */
+        /* 금융정보(업종분류) 적용후 테이블 헤더 고정(스크롤 시 상단 고정), 배경 #FFCC80 */
         #category-applied-content thead th {
-            background-color: #f5f5f5 !important;
+            background-color: #FFCC80 !important;
             box-shadow: 0 1px 0 #ddd;
         }
 
@@ -544,14 +548,14 @@
                 <button type="button" id="export-category-applied-btn" class="category-print-btn">📄 출력</button>
             </div>
         </div>
-        <!-- 은행거래 통합정보 네비게이터 -->
-        <!-- 은행거래 통합정보 네비게이터 -->
+        <!-- 은행거래 병합정보 네비게이터 -->
+        <!-- 은행거래 병합정보 네비게이터 -->
         <nav class="main-nav" aria-label="은행거래 메뉴">
             <a href="/" class="nav-item">🏠 홈</a>
-            <a href="/cash/" class="nav-item">🏦 금융정보 전처리</a>
-            <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
-            <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
-            <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
+            <a href="/cash/" class="nav-item">🏦 전처리</a>
+            <a href="/cash/category" class="nav-item">🏷️ 업종분류</a>
+            <a href="/cash/analysis/basic" class="nav-item">📊 종합분석</a>
+            <a href="/cash/help" class="nav-item">❓ 도움말</a>
         </nav>
     </div>
 
@@ -564,7 +568,7 @@
         </div>
         <div class="bank_category-container" style="overflow-x: auto; overflow-y: auto; height: 450px; max-height: 450px; min-height: 450px; flex: none;">
             <div id="category-applied-content" style="width: 100%; height: 100%; overflow-y: auto;">
-                <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
+                <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>
             </div>
         </div>
     </div>
@@ -912,11 +916,11 @@
         }
 
         // 분류 입력 검증 (전처리/후처리/계정과목만, 거래방법/거래지점 미사용)
-        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '업종분류'];
         function validateChasuInput(input) {
             const value = (input.value || '').toString().trim();
             if (value && !VALID_CHASU_VALUES.includes(value)) {
-                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분, 업종분류만 입력할 수 있습니다.');
                 if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
@@ -998,7 +1002,7 @@
             
             // 분류 검증 (전처리/후처리/계정과목만)
             if (!VALID_CHASU_VALUES.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분, 업종분류만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -1150,8 +1154,8 @@
             const contentDiv = document.getElementById('category-applied-content');
             if (!contentDiv) return;
             
-            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
-            const loadingMsg = '데이터 로딩 중';
+            contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
+            const loadingMsg = '데이터 로딩중';
             let safetyTimeoutId = setTimeout(() => {
                 if (contentDiv.textContent && contentDiv.textContent.includes(loadingMsg)) {
                     contentDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">요청 시간이 초과되었습니다. 새로고침(F5) 후 다시 시도하세요.</div>';
@@ -1212,9 +1216,9 @@
                                 + '<p style="margin: 0 0 12px 0; font-weight: bold; color: #F44336;">' + safeErr + '</p>'
                                 + '<p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">cash_after를 생성하지 못하는 흔한 이유:</p>'
                                 + '<ul style="text-align: left; margin: 0 auto 12px auto; padding-left: 24px; max-width: 420px; font-size: 12px; color: #555;">'
-                                + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>전처리후 다시 실행</strong> 후 재시도</li>'
+                                + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>병합작업 다시 실행</strong> 후 재시도</li>'
                                 + '<li>쓰기 권한·한글 경로·디스크 부족 → 한글 없는 경로(C:\\CursorWorkspace 등)에서 실행</li>'
-                                + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도</li>'
+                                + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>병합작업 다시 실행</strong> 버튼으로 재시도</li>'
                                 + '</ul><a href="' + API_BASE + '/help#trouble" style="font-size: 12px;">자세한 문제 해결 (도움말)</a>'
                                 + '</div>';
                         } catch (createErr) {
@@ -1299,15 +1303,32 @@
             }
             const totalRatio = availableColumns.reduce((sum, col, i) => sum + (QUERY_WIDTHS[columns.indexOf(col)] || 1.0), 0);
             
-            // 필터용 고유값 추출 (구분: 폐업만)
+            // 필터용 고유값 추출 (구분: 폐업만, 위험도분류/위험도: 1호·2호 항상 포함)
             const uniqueValues = {};
             availableColumns.forEach(col => {
                 let uniqueValuesList = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined && v !== ''))].map(v => typeof v === 'string' ? v.trim() : v);
+                if (col === '위험도분류') {
+                    if (!uniqueValuesList.some(v => String(v).trim() === '분류제외지표')) uniqueValuesList.push('분류제외지표');
+                    if (!uniqueValuesList.some(v => String(v).trim() === '심야폐업지표')) uniqueValuesList.push('심야폐업지표');
+                }
+                if (col === '위험도') {
+                    if (!uniqueValuesList.some(v => parseFloat(v) === 0.1)) uniqueValuesList.push(0.1);
+                    if (!uniqueValuesList.some(v => parseFloat(v) === 0.5)) uniqueValuesList.push(0.5);
+                }
                 if (col === '구분') {
                     if (!uniqueValuesList.some(v => String(v).trim() === '폐업')) uniqueValuesList.push('폐업');
                     uniqueValuesList.sort((a, b) => String(a).localeCompare(String(b)));
                 }
                 if (col === '입금액' || col === '출금액') {
+                    uniqueValuesList = uniqueValuesList.sort((a, b) => {
+                        const numA = parseFloat(a);
+                        const numB = parseFloat(b);
+                        if (isNaN(numA) && isNaN(numB)) return 0;
+                        if (isNaN(numA)) return 1;
+                        if (isNaN(numB)) return -1;
+                        return numA - numB;
+                    });
+                } else if (col === '위험도') {
                     uniqueValuesList = uniqueValuesList.sort((a, b) => {
                         const numA = parseFloat(a);
                         const numB = parseFloat(b);
@@ -1325,7 +1346,7 @@
             const columnBgColors = {};
             availableColumns.forEach(c => { columnBgColors[c] = 'rgba(33, 150, 243, 0.08)'; });
             
-            let html = '<table id="category-applied-table-index" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;"><tr>';
+            let html = '<table id="category-applied-table-index" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #FFCC80; z-index: 10;"><tr>';
             
             availableColumns.forEach(col => {
                 const ratio = QUERY_WIDTHS[columns.indexOf(col)] || 1.0;
@@ -1358,7 +1379,7 @@
                 if (uniqueValues[col]) {
                     uniqueValues[col].forEach(val => {
                         let displayVal = val;
-                        if (col === '입금액' || col === '출금액') {
+                        if (col === '입금액' || col === '출금액' || col === '위험도') {
                             const numVal = parseFloat(val);
                             if (!isNaN(numVal)) displayVal = formatNumber(numVal);
                         }
@@ -1416,7 +1437,7 @@
                 totalWithdraw += parseFloat(row['출금액']) || 0;
             });
             
-            html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f5f5f5; font-weight: bold; border-top: 2px solid #ddd;">';
+            html += '<tr class="sum-row" data-sum-row="true" style="background-color: #FFCC80; font-weight: bold; border-top: 2px solid #ddd;">';
             availableColumns.forEach(col => {
                 const align = QUERY_ALIGN[columns.indexOf(col)] || 'left';
                 let cellStyle = ` style="white-space: nowrap; text-align: ${align}; padding: 4px; border: 1px solid #ddd;"`;
@@ -1570,7 +1591,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         totalWithdraw += parseFloat(rowData['출금액']) || 0;
                     });
                     
-                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="background-color: #f5f5f5; font-weight: bold; border-top: 2px solid #ddd;">' +
+                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="background-color: #FFCC80; font-weight: bold; border-top: 2px solid #ddd;">' +
                         availableColumns.map(col => {
                             if (col === '입금액') {
                                 return `<td style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;" data-sum-col="입금액">${formatNumber(totalDeposit)}</td>`;
@@ -1593,7 +1614,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         async function loadLinkageTable() {
             const contentEl = document.getElementById('linkage-query-content');
             if (!contentEl) return;
-            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+            contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
             try {
                 const response = await fetch(`${API_BASE}/api/linkage-table`);
                 const result = await response.json().catch(() => ({}));
@@ -1889,8 +1910,8 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
         async function loadCategoryAppliedTable(skipAutoCreate) {
             const btn = document.getElementById('generate-category-btn');
             const appliedContent = document.getElementById('category-applied-content');
-            if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
-            const loadingMsg = '데이터 로딩 중';
+            if (appliedContent) appliedContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
+            const loadingMsg = '데이터 로딩중';
             let safetyTimeoutId = appliedContent ? setTimeout(() => {
                 if (appliedContent.textContent && appliedContent.textContent.includes(loadingMsg)) {
                     appliedContent.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">요청 시간이 초과되었습니다. 새로고침(F5) 후 다시 시도하세요.</div>';
@@ -1953,9 +1974,9 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                                 + '<p style="margin: 0 0 12px 0; font-weight: bold; color: #F44336;">' + safeErr + '</p>'
                                 + '<p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">cash_after를 생성하지 못하는 흔한 이유:</p>'
                                 + '<ul style="text-align: left; margin: 0 auto 12px auto; padding-left: 24px; max-width: 420px; font-size: 12px; color: #555;">'
-                                + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>전처리후 다시 실행</strong> 후 재시도</li>'
+                                + '<li>bank_after·card_after가 없거나 비어 있음 → 은행/신용카드 전처리에서 <strong>병합작업 다시 실행</strong> 후 재시도</li>'
                                 + '<li>쓰기 권한·한글 경로·디스크 부족 → 한글 없는 경로(C:\\CursorWorkspace 등)에서 실행</li>'
-                                + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>전처리후 다시 실행</strong> 버튼으로 재시도</li>'
+                                + '<li>요청 시간 초과 → 새로고침(F5) 후 <strong>병합작업 다시 실행</strong> 버튼으로 재시도</li>'
                                 + '</ul><a href="' + API_BASE + '/help#trouble" style="font-size: 12px;">자세한 문제 해결 (도움말)</a>'
                                 + '</div>';
                         } catch (createErr) {
@@ -2016,15 +2037,23 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const columnBgColors = {};
             availableColumns.forEach(c => { columnBgColors[c] = 'rgba(33, 150, 243, 0.08)'; });
             
-            // 필터용 고유값 추출 (구분: card_after '폐업' 포함, 없으면 항상 추가)
+            // 필터용 고유값 추출 (구분: 폐업, 위험도분류/위험도: 1호·2호 항상 포함)
             const uniqueValues = {};
             availableColumns.forEach(col => {
                 let uniqueValuesList = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined && v !== ''))].map(v => typeof v === 'string' ? v.trim() : v);
+                if (col === '위험도분류') {
+                    if (!uniqueValuesList.some(v => String(v).trim() === '분류제외지표')) uniqueValuesList.push('분류제외지표');
+                    if (!uniqueValuesList.some(v => String(v).trim() === '심야폐업지표')) uniqueValuesList.push('심야폐업지표');
+                }
+                if (col === '위험도') {
+                    if (!uniqueValuesList.some(v => parseFloat(v) === 0.1)) uniqueValuesList.push(0.1);
+                    if (!uniqueValuesList.some(v => parseFloat(v) === 0.5)) uniqueValuesList.push(0.5);
+                }
                 if (col === '구분') {
                     if (!uniqueValuesList.some(v => String(v).trim() === '폐업')) uniqueValuesList.push('폐업');
                     uniqueValuesList.sort((a, b) => String(a).localeCompare(String(b)));
                 }
-                // 입금액/출금액은 숫자로 변환하여 정렬 (올림차순)
+                // 입금액/출금액/위험도는 숫자로 변환하여 정렬 (올림차순)
                 if (col === '입금액' || col === '출금액') {
                     uniqueValuesList = uniqueValuesList.sort((a, b) => {
                         const numA = parseFloat(a);
@@ -2034,13 +2063,22 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                         if (isNaN(numB)) return -1;
                         return numA - numB; // 올림차순
                     });
+                } else if (col === '위험도') {
+                    uniqueValuesList = uniqueValuesList.sort((a, b) => {
+                        const numA = parseFloat(a);
+                        const numB = parseFloat(b);
+                        if (isNaN(numA) && isNaN(numB)) return 0;
+                        if (isNaN(numA)) return 1;
+                        if (isNaN(numB)) return -1;
+                        return numA - numB;
+                    });
                 } else if (col !== '구분') {
                     uniqueValuesList.sort(); // 문자열 정렬
                 }
                 uniqueValues[col] = uniqueValuesList;
             });
             
-            let html = '<table id="category-applied-table" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;">';
+            let html = '<table id="category-applied-table" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #FFCC80; z-index: 10;">';
             
             html += '<tr>';
             availableColumns.forEach(col => {
@@ -2074,7 +2112,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 if (uniqueValues[col]) {
                     uniqueValues[col].forEach(val => {
                         let displayVal = val;
-                        if (col === '입금액' || col === '출금액') {
+                        if (col === '입금액' || col === '출금액' || col === '위험도') {
                             const numVal = parseFloat(val);
                             if (!isNaN(numVal)) displayVal = formatNumber(numVal);
                         }
@@ -2143,7 +2181,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             const columnAlign = {};
             columns.forEach((c, i) => { columnAlign[c] = QUERY_ALIGN[i]; });
             
-            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
+            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #FFCC80;">';
             availableColumns.forEach(col => {
                 // 합계 행은 회색 배경 사용
                 let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 4px; border: 1px solid #ddd;"`;
@@ -2191,10 +2229,10 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                 }
             });
             
-            // 화면에 보이는 행만 그래프에 표시 (기본분석 페이지와 동일한 방식)
+            // 화면에 보이는 행만 그래프에 표시 (종합분석 페이지와 동일한 방식)
             updateChartFromTable();
             
-            // 스크롤 이벤트 리스너 추가 (기본분석 페이지와 동일한 방식)
+            // 스크롤 이벤트 리스너 추가 (종합분석 페이지와 동일한 방식)
             // 업종분류 조회 테이블의 스크롤 컨테이너 찾기
             const categoryAppliedContent = document.getElementById('category-applied-content');
             const scrollContainer = categoryAppliedContent || document.querySelector('.bank_category-container');
@@ -2324,7 +2362,7 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
                     
                     const headerRow = table.querySelector('thead tr:first-child');
                     const availableColumns = headerRow ? Array.from(headerRow.querySelectorAll('th')).map(th => th.getAttribute('data-col') || th.textContent.trim()) : [];
-                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">' +
+                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #FFCC80;">' +
                         availableColumns.map(col => {
                             if (col === '입금액') {
                                 return `<td style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;" data-sum-col="입금액">${formatNumber(totalDeposit)}</td>`;
@@ -2407,22 +2445,24 @@ const rowIndex = parseInt(row.getAttribute('data-i'));
             return filtered;
         }
         
-        // 업종분류 적용후 테이블 출력 (프린트용 새 창). 위험도 0.9 미만은 생략.
+        // 업종분류 적용후 테이블 출력 (프린트용 새 창). 1호(분류제외지표) 제외, 위험도 0.1 이상만 인쇄.
         function exportCategoryAppliedTable() {
             let data = getCategoryAppliedDataForExport();
             if (!data || data.length === 0) {
                 alert('출력할 데이터가 없습니다.');
                 return;
             }
-            // 위험도 0.9 이상인 행만 출력
+            // 1호(분류제외지표) 제외
+            data = data.filter(row => String(row['위험도분류'] != null ? row['위험도분류'] : '').trim() !== '분류제외지표');
+            // 위험도 0.1 이상인 행만 출력
             data = data.filter(row => {
                 const v = row['위험도'];
                 if (v === null || v === undefined || v === '') return false;
                 const num = parseFloat(String(v).replace(/,/g, ''));
-                return !isNaN(num) && num >= 0.9;
+                return !isNaN(num) && num >= 0.1;
             });
             if (!data || data.length === 0) {
-                alert('위험도 0.9 이상인 데이터가 없습니다. 출력할 데이터가 없습니다.');
+                alert('위험도 0.1 이상인 데이터가 없습니다. 출력할 데이터가 없습니다.');
                 return;
             }
             const columns = [

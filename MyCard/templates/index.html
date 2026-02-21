@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>신용카드 전처리</title>
     <style>
+        /* 모든 테이블 헤더 배경 (hex: #FFCC80) */
+        table thead, table thead th { background-color: #FFCC80 !important; }
+        /* 모든 테이블 합계 행 배경 (hex: #FFCC80) */
+        table tr.sum-row, table tr.total-row, table tr[data-sum-row="true"] { background-color: #FFCC80 !important; }
         * {
             margin: 0;
             padding: 0;
@@ -842,7 +846,16 @@
             height: 18px;
             min-height: 18px;
         }
+        /* 말풍선 출력·*.after 테이블 헤더 배경 (hex: #FFCC80) */
+        #category-query-table thead,
+        #category-query-table thead th { background-color: #FFCC80 !important; }
+        #category-definition-table thead,
+        #category-definition-table thead th { background-color: #FFCC80 !important; }
+        #source-data-table thead th,
+        #processed-data-table thead th { background-color: #FFCC80 !important; }
 
+        /* 전처리전 테이블: 마지막 행 배경 #FFCC80 */
+        #source-data-table tbody tr:last-child td { background-color: #FFCC80 !important; }
         /* 전처리전 테이블: 파란색 기반 패턴 */
         #source-data-table tr:nth-child(even) {
             background-color: rgba(33, 150, 243, 0.1);
@@ -1420,6 +1433,7 @@
             height: 18px;
             min-height: 18px;
         }
+        /* 카테고리(category_table.json) 조회 테이블 헤더 배경 (hex: #FFCC80) - 위 rule로 적용 */
         
         /* 카테고리 테이블 컬럼 너비: 15% : 60% : 25% (분류:키워드:카테고리), 분류 컬럼 중앙정렬 */
         #category-definition-table th:nth-child(1),
@@ -1460,10 +1474,10 @@
         <!-- 신용카드 통합정보 네비게이터 -->
         <nav class="main-nav">
             <a href="/" class="nav-item">🏠 홈</a>
-            <a href="/card/" class="nav-item active">💳 신용카드 전처리</a>
-            <a href="/card/category" class="nav-item">🏷️ 신용카드 카테고리</a>
-            <a href="/card/analysis/basic" class="nav-item">📊 신용카드 기본분석</a>
-            <a href="/card/help" class="nav-item">❓ 신용카드 도움말</a>
+            <a href="/card/" class="nav-item active">💳 전처리</a>
+            <a href="/card/category" class="nav-item">🏷️ 카테고리</a>
+            <a href="/card/analysis/basic" class="nav-item">📊 기본분석</a>
+            <a href="/card/help" class="nav-item">❓ 도움말</a>
         </nav>
     </div>
     <div class="preprocess-container">
@@ -1543,7 +1557,7 @@
         <!-- 박스 컨텐츠 영역 -->
         <div class="wrapper-box-content">
             <div class="box-content left-box-content" id="left-content">
-                <div class="loading">데이터 로딩 중...</div>
+                <div class="loading">데이터 로딩중 ... (0건)</div>
             </div>
             <div class="box-content right-box-content" id="right-content">
             </div>
@@ -1559,11 +1573,11 @@
                         <h2 style="margin: 0;">카테고리 조회</h2>
                         <div style="font-size: 14px; opacity: 0.5; margin-left: 10px;"><span id="category-table-filename">category_table.json</span></div>
                     </div>
-                    <button id="export-category-table-btn" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">출력</button>
+                    <button id="export-category-table-btn" style="padding: 6px 12px; {% if category_file_exists is defined and category_file_exists %}background: #4CAF50;{% else %}background: #FF9800;{% endif %} color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; height: auto;">{% if category_file_exists is defined and category_file_exists %}출력{% else %}생성{% endif %}</button>
                 </div>
                 <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 600px; max-height: 600px; min-height: 600px; flex: none; position: relative;">
                     <table id="category-definition-table" style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                    <thead style="position: sticky; top: 0; background-color: #f5f5f5;">
+                    <thead style="position: sticky; top: 0; background-color: #FFCC80;">
                         <tr>
                             <th style="text-align: center; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">분류</th>
                             <th style="text-align: left; border: 1px solid #ddd; padding: 2px 2px; white-space: nowrap;">키워드</th>
@@ -1584,6 +1598,7 @@
                                     <option value="가상자산">가상자산</option>
                                     <option value="증권투자">증권투자</option>
                                     <option value="해외송금">해외송금</option>
+                                    <option value="업종분류">업종분류</option>
                                 </select>
                             </td>
                             <td style="border: 1px solid #ddd; padding: 2px 2px;">
@@ -1609,6 +1624,7 @@
                                     <option value="증권투자">증권투자</option>
                                     <option value="해외송금">해외송금</option>
                                     <option value="심야구분">심야구분</option>
+                                    <option value="업종분류">업종분류</option>
                                 </select>
                             </td>
                             <td style="border: 1px solid #ddd; padding: 2px 2px;">
@@ -1620,18 +1636,32 @@
                         </tr>
                     </thead>
                     <tbody id="category-definition-table-body">
-                        <tr>
-                            <td colspan="3" class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td>
+                        {% if category_table_rows is defined and category_table_rows %}
+                        {% for row in category_table_rows %}
+                        <tr class="category-table-row" data-chasu="{{ (row.분류 or '')|e }}" data-keyword="{{ (row.키워드 or '')|e }}" data-category="{{ (row.카테고리 or '')|e }}" style="border-bottom: 1px solid #eee;{% if loop.index0 % 2 == 1 %} background-color: rgba(255, 152, 0, 0.1);{% endif %} cursor: pointer;" onclick="selectCategoryRow(this)">
+                            <td style="border: 1px solid #ddd; padding: 2px;">{{ (row.분류 or '')|e }}</td>
+                            <td style="border: 1px solid #ddd; padding: 2px;">{{ (row.키워드 or '')|e }}</td>
+                            <td style="border: 1px solid #ddd; padding: 2px;">{{ (row.카테고리 or '')|e }}</td>
                         </tr>
+                        {% endfor %}
+                        {% elif category_file_exists is defined and not category_file_exists %}
+                        <tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">category_table.json 파일이 없습니다.</td></tr>
+                        {% else %}
+                        <tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">카테고리 데이터가 없습니다.</td></tr>
+                        {% endif %}
                     </tbody>
                     </table>
                 </div>
             </div>
+            <script>
+            window.__categoryTableRows = {{ category_table_rows | default([]) | tojson }};
+            window.__categoryFileExists = {{ 'true' if (category_file_exists is defined and category_file_exists) else 'false' }};
+            </script>
             <div style="display: flex; flex-direction: column; width: calc(75% - 20px); min-width: 400px; gap: 20px;">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 13px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <h2 style="margin: 0;">신용카드(카테고리) 조회</h2>
+                            <h2 style="margin: 0;">신용카드 전처리후 조회</h2>
                             <span class="path-filename-text" style="opacity: 0.6;" title="사용 파일">card_after.json</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
@@ -1642,12 +1672,12 @@
                     </div>
                     <div class="category-table-container" style="overflow-x: auto; overflow-y: auto; height: 300px; max-height: 300px; min-height: 300px; flex: none;">
                         <div id="category-query-content" style="width: 100%; height: 100%; overflow-y: auto;">
-                            <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>
+                            <div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>
                         </div>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column;">
-                    <h2>신용카드(카테고리) 그래프</h2>
+                    <h2>신용카드 전처리후 그래프</h2>
                     <div class="chart-container" style="height: 250px; max-height: 250px;">
                         <canvas id="category-combined-chart"></canvas>
                     </div>
@@ -1924,7 +1954,7 @@
             const leftWithdrawEl = document.getElementById('left-withdraw');
             const filenameFilterEl = document.getElementById('left-filename-filter');
             if (!contentDiv) return;
-            contentDiv.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
+            contentDiv.innerHTML = '<div class="loading">데이터 로딩중 ... (0건)</div>';
 
             try {
                 const response = await fetchWithTimeout(`${API_BASE}/api/source-data`);
@@ -2019,7 +2049,7 @@
         async function loadRightData() {
             const contentDiv = document.getElementById('right-content');
             if (!contentDiv) return;
-            contentDiv.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
+            contentDiv.innerHTML = '<div class="loading">데이터 로딩중 ... (0건)</div>';
 
             const bankFilterEl = document.getElementById('right-bank-filter');
             const cardnoFilterEl = document.getElementById('right-cardno-filter');
@@ -2042,7 +2072,7 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
-                params.append('limit', '500');
+                params.append('limit', '300');
                 params.append('offset', '0');
 
                 const response = await fetchWithTimeout(`${API_BASE}/api/processed-data?${params}`);
@@ -2063,7 +2093,7 @@
                 if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '500');
+                        restParams.set('offset', '300');
                         restParams.delete('limit');
                         const restRes = await fetchWithTimeout(`${API_BASE}/api/processed-data?${restParams}`);
                         const restData = await restRes.json();
@@ -2249,7 +2279,7 @@
                     });
                     
                     // 합계 행: 맨 마지막 한 행, 누적 합계
-                    html += '<tr class="sum-row" data-sum-row="true" style="background-color: #f0f0f0; font-weight: bold;">';
+                    html += '<tr class="sum-row" data-sum-row="true" style="background-color: #FFCC80; font-weight: bold;">';
                     columns.forEach(col => {
                         if (col === '카드사' || col === '거래일') {
                             html += `<td style="text-align: left;" data-sum-col="${col}">합계</td>`;
@@ -2450,7 +2480,7 @@
         
         // 페이지 로드 시 필터 배경색 초기화
         document.addEventListener('click', function(e) {
-            // 신용카드(카테고리) 조회 테이블에서는 말풍선 미표시. 카테고리 조회(왼쪽 분류/키워드/카테고리)만 selectCategoryRow에서 말풍선 표시.
+            // 신용카드 전처리후 조회 테이블에서는 말풍선 미표시. 카테고리 조회(왼쪽 분류/키워드/카테고리)만 selectCategoryRow에서 말풍선 표시.
             const overlay = document.getElementById('row-tooltip-overlay');
             const bubble = document.getElementById('row-tooltip-bubble');
             if (overlay && overlay.style.display === 'block' && !bubble.contains(e.target) && !e.target.closest('.category-table-row')) {
@@ -2474,25 +2504,30 @@
             if (btnRegenerateBeforeAfter) {
                 btnRegenerateBeforeAfter.addEventListener('click', async function() {
                     if (this.disabled) return;
-                    // 신용카드(카테고리) 조회 테이블 초기화
-                        if (typeof categoryQueryDataOriginal !== 'undefined') categoryQueryDataOriginal = [];
-                        categoryQueryTableData = [];
+                    // 신용카드 전처리후 조회 테이블 초기화
+                    if (typeof categoryQueryDataOriginal !== 'undefined') categoryQueryDataOriginal = [];
+                    categoryQueryTableData = [];
                     const categoryQueryContent = document.getElementById('category-query-content');
-                    if (categoryQueryContent) categoryQueryContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+                    if (categoryQueryContent) categoryQueryContent.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
                     safeSetTextContent(document.getElementById('category-query-count'), '총 0건');
                     safeSetTextContent(document.getElementById('category-query-deposit'), '0');
                     safeSetTextContent(document.getElementById('category-query-deposit-count'), '');
                     safeSetTextContent(document.getElementById('category-query-withdraw'), '0');
                     safeSetTextContent(document.getElementById('category-query-withdraw-count'), '');
+                    const contentDiv = document.getElementById('right-content');
                     this.disabled = true;
                     const origText = this.textContent;
                     this.textContent = '재생성 중...';
+                    this.style.cursor = 'not-allowed';
+                    this.style.background = '#9e9e9e';
+                    if (contentDiv) contentDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">전처리/후처리 재생성 중...<br><small style="color:#888;margin-top:8px;display:block;">데이터가 많으면 2분까지 걸릴 수 있습니다.</small></div>';
                     try {
                         const res = await fetchWithTimeout(`${API_BASE}/api/regenerate-before-after`, { method: 'POST' });
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok || !data.ok) {
                             const msg = (data.error || `서버 오류 ${res.status}`).replace(/\n/g, ' ');
                             alert('전처리/후처리 재생성 실패: ' + msg);
+                            if (contentDiv) contentDiv.innerHTML = '<div style="padding: 20px; color: #F44336;">' + (msg || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</div>';
                             return;
                         }
                         await loadRightData();
@@ -2500,16 +2535,35 @@
                         if (data.message) alert(data.message);
                     } catch (e) {
                         alert('전처리/후처리 재생성 중 오류: ' + (e && e.message ? e.message : '네트워크 확인'));
+                        if (contentDiv) contentDiv.innerHTML = '<div style="padding: 20px; color: #F44336;">요청 오류</div>';
                     } finally {
                         this.disabled = false;
                         this.textContent = origText;
+                        this.style.cursor = '';
+                        this.style.background = '';
                     }
                 });
             }
             
-            // 카테고리 테이블 먼저 로드 후 카테고리 조회 로드
+            // 카테고리 정의 테이블: 서버 렌더 시 fetch 생략, 클라이언트 데이터만 동기화
             (async () => {
-                await loadCategoryDefinitionTable();
+                if (window.__categoryTableRows && Array.isArray(window.__categoryTableRows)) {
+                    allCategoryTableData = window.__categoryTableRows;
+                    if (typeof updateDropdownOptions === 'function') updateDropdownOptions();
+                    if (!window.__categoryFileExists) {
+                        const btn = document.getElementById('export-category-table-btn');
+                        if (btn) {
+                            const newBtn = btn.cloneNode(true);
+                            btn.parentNode.replaceChild(newBtn, btn);
+                            const updatedBtn = document.getElementById('export-category-table-btn');
+                            updatedBtn.textContent = '생성';
+                            updatedBtn.style.background = '#FF9800';
+                            updatedBtn.addEventListener('click', generateCategoryTable);
+                        }
+                    }
+                } else {
+                    await loadCategoryDefinitionTable();
+                }
                 loadCategoryQueryTable();
             })();
         });
@@ -2839,11 +2893,11 @@
         }
 
         // 분류 입력 검증 (입력/수정/삭제/계정과목/업종분류만 허용)
-        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분'];
+        const VALID_CHASU_VALUES = ['전처리', '후처리', '계정과목', '신용카드', '가상자산', '증권투자', '해외송금', '심야구분', '업종분류'];
         function validateChasuInput(input) {
             const value = (input.value || '').toString().trim();
             if (value && !VALID_CHASU_VALUES.includes(value)) {
-                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분, 업종분류만 입력할 수 있습니다.');
                 if (input.tagName === 'SELECT') input.value = ''; else input.value = '';
                 return false;
             }
@@ -2963,7 +3017,7 @@
             }
             
             if (!VALID_CHASU_VALUES.includes(chasuInput)) {
-                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분만 입력할 수 있습니다.');
+                alert('분류는 전처리, 후처리, 계정과목, 신용카드, 가상자산, 증권투자, 해외송금, 심야구분, 업종분류만 입력할 수 있습니다.');
                 document.getElementById('new-category-chasu-input').value = '';
                 return;
             }
@@ -3213,7 +3267,7 @@
                         params.append('date', `${year}-${mm}`);
                     }
                 }
-                params.append('limit', '500');
+                params.append('limit', '300');
                 params.append('offset', '0');
                 const response = await fetch(`${API_BASE}/api/category-applied-data?${params}`);
                 const text = await response.text();
@@ -3242,7 +3296,7 @@
                 if ((data.total || 0) > 500 && data.data && data.data.length > 0) {
                     try {
                         const restParams = new URLSearchParams(params);
-                        restParams.set('offset', '500');
+                        restParams.set('offset', '300');
                         restParams.delete('limit');
                         const restRes = await fetch(`${API_BASE}/api/category-applied-data?${restParams}`);
                         const restJson = await restRes.json();
@@ -3267,7 +3321,7 @@
                     updateCategoryChartFromQuery();
                 } else {
                     if (!fileExists) {
-                        contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</div>';
+                        contentEl.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</div>';
                         let createOk = false;
                         try {
                             const ctrl = new AbortController();
@@ -3447,7 +3501,7 @@
                 '기타거래': '기타거래'
             };
             
-            let html = '<table id="category-query-table" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #f5f5f5; z-index: 10;">';
+            let html = '<table id="category-query-table" style="background-color: white; table-layout: fixed; width: 100%; font-size: 11px; border-collapse: collapse;"><thead style="position: sticky; top: 0; background-color: #FFCC80; z-index: 10;">';
             
             html += '<tr>';
             availableColumns.forEach(col => {
@@ -3554,7 +3608,7 @@
                 });
             }
             
-            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">';
+            html += '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #FFCC80;">';
             availableColumns.forEach(col => {
                 let cellStyle = ` style="white-space: nowrap; text-align: left; padding: 2px; border: 1px solid #ddd;"`;
                 let displayValue = '';
@@ -3753,7 +3807,7 @@
                     });
                     
                     const availableColumns = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => th.textContent.trim());
-                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #f0f0f0;">' +
+                    const sumRowHtml = '<tr class="sum-row" data-sum-row="true" style="font-weight: bold; border-top: 2px solid #ddd; background-color: #FFCC80;">' +
                         availableColumns.map(col => {
                             if (col === '입금액') {
                                 return `<td style="white-space: nowrap; text-align: right; padding: 4px; border: 1px solid #ddd; color: #0000FF; font-size: 11px;" data-sum-col="입금액">${formatNumber(totalDeposit)}</td>`;

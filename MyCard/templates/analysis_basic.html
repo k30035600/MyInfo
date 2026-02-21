@@ -6,6 +6,14 @@
     <title>신용카드 기본분석</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* 모든 테이블 헤더 배경 (hex: #FFCC80) */
+        table thead, table thead th { background-color: #FFCC80 !important; }
+        /* 모든 테이블 합계 행 배경 (hex: #FFCC80) */
+        table tr.sum-row, table tr.total-row, table tr[data-sum-row="true"] { background-color: #FFCC80 !important; }
+        /* 신용카드기본분석: 입출금내역/세부내역/카드사별집계/카드별집계 합계 행·푸터 */
+        #transaction-table tfoot tr, #transaction-table tfoot td { background-color: #FFCC80 !important; }
+        #account-table tfoot tr, #account-table tfoot td { background-color: #FFCC80 !important; }
+        #category-table-footer, #bank-table-footer { background-color: #FFCC80 !important; }
         * {
             margin: 0;
             padding: 0;
@@ -388,12 +396,12 @@
         /* 카테고리별 입출금 내역 합계: 테이블과 동일 열 폭(50%:25%:25%), 스크롤 영역 안에 있어 컬럼 정렬 */
         .category-table-footer-wrap {
             flex-shrink: 0;
-            background-color: #f5f5f5;
+            background-color: #FFCC80;
             border-top: 2px solid #ddd;
             padding: 3px;
             font-weight: bold;
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr; /* 50% : 25% : 25% - 입금액/출금액 테이블과 정렬 */
+            grid-template-columns: 5fr 1fr 2fr 2fr; /* 카테고리 50% : 건수 10% : 입금액 20% : 출금액 20% */
             gap: 0;
             font-size: 11px;
             width: 100%;
@@ -434,8 +442,9 @@
             padding: 3px !important;
         }
         #category-table th:nth-child(1), #category-table td:nth-child(1) { width: 50%; }
-        #category-table th:nth-child(2), #category-table td:nth-child(2) { width: 25%; }
-        #category-table th:nth-child(3), #category-table td:nth-child(3) { width: 25%; }
+        #category-table th:nth-child(2), #category-table td:nth-child(2) { width: 10%; }
+        #category-table th:nth-child(3), #category-table td:nth-child(3) { width: 20%; }
+        #category-table th:nth-child(4), #category-table td:nth-child(4) { width: 20%; }
 
         /* 카테고리 거래내역: 헤더/행 25px, 셀 패딩 2px */
         #transaction-table {
@@ -445,10 +454,11 @@
         }
         #transaction-table thead tr {
             height: 25px;
-            background-color: #f5f5f5;
+            background-color: #FFCC80;
         }
         #transaction-table thead th {
             border-bottom: 2px solid #ddd;
+            background-color: #FFCC80 !important;
         }
         #transaction-table tbody tr {
             min-height: 25px;
@@ -478,11 +488,11 @@
         }
 
         /* 컬럼: 카드사, 이용일, 거래점명, 입금액, 출금액 (자릿수 모자르면 말줄임) */
-        #transaction-table th:nth-child(1), #transaction-table td:nth-child(1) { width: 15%; }
-        #transaction-table th:nth-child(2), #transaction-table td:nth-child(2) { width: 15%; }
-        #transaction-table th:nth-child(3), #transaction-table td:nth-child(3) { width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #transaction-table th:nth-child(4), #transaction-table td:nth-child(4) { width: 20%; }
-        #transaction-table th:nth-child(5), #transaction-table td:nth-child(5) { width: 20%; }
+        #transaction-table th:nth-child(1), #transaction-table td:nth-child(1) { width: 12%; }
+        #transaction-table th:nth-child(2), #transaction-table td:nth-child(2) { width: 12%; }
+        #transaction-table th:nth-child(3), #transaction-table td:nth-child(3) { width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #transaction-table th:nth-child(4), #transaction-table td:nth-child(4) { width: 18%; }
+        #transaction-table th:nth-child(5), #transaction-table td:nth-child(5) { width: 18%; }
 
         /* 카드사별 집계 / 카드별 집계: 헤더/행 25px, 셀 패딩 2px */
         #bank-table,
@@ -854,10 +864,10 @@
         <!-- 신용카드 통합정보 네비게이터 -->
         <nav class="main-nav">
             <a href="/" class="nav-item">🏠 홈</a>
-            <a href="/card/" class="nav-item">💳 신용카드 전처리</a>
-            <a href="/card/category" class="nav-item">🏷️ 신용카드 카테고리</a>
-            <a href="/card/analysis/basic" class="nav-item active">📊 신용카드 기본분석</a>
-            <a href="/card/help" class="nav-item">❓ 신용카드 도움말</a>
+            <a href="/card/" class="nav-item">💳 전처리</a>
+            <a href="/card/category" class="nav-item">🏷️ 카테고리</a>
+            <a href="/card/analysis/basic" class="nav-item active">📊 기본분석</a>
+            <a href="/card/help" class="nav-item">❓ 도움말</a>
         </nav>
     </div>
 
@@ -867,21 +877,22 @@
             <div class="category-table-container">
                 <div class="category-table-scroll">
                     <table id="category-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
-                        <thead style="position: sticky; top: 0; background-color: #f5f5f5;">
+                        <thead style="position: sticky; top: 0; background-color: #FFCC80;">
                             <tr>
                                 <th style="width: 50%; text-align: left; border-bottom: 2px solid #ddd;">카테고리</th>
-                                <th style="width: 25%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
-                                <th style="width: 25%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
+                                <th style="width: 10%; text-align: right; border-bottom: 2px solid #ddd;">건수</th>
+                                <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
+                                <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
                             </tr>
                         </thead>
                         <tbody id="category-table-body">
                             <tr>
-                                <td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td>
+                                <td colspan="4" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</td>
                             </tr>
                         </tbody>
                     </table>
                     <div id="category-table-footer" class="category-table-footer-wrap" style="display: none;">
-                        <span>합계</span><span id="total-deposit-category" style="text-align:right;color:#0000FF;">0</span><span id="total-withdraw-category" style="text-align:right;color:#FF0000;">0</span>
+                        <span>합계</span><span id="total-count-category" class="text-right">0</span><span id="total-deposit-category" style="text-align:right;color:#0000FF;">0</span><span id="total-withdraw-category" style="text-align:right;color:#FF0000;">0</span>
                     </div>
                 </div>
             </div>
@@ -891,12 +902,12 @@
             <div class="transaction-table-container" style="min-width: 0;">
                 <table id="transaction-table" style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
                     <thead>
-                        <tr id="transaction-table-header" style="background-color: #f5f5f5; position: sticky; top: 0;">
-                            <th style="width: 15%; text-align: left; border-bottom: 2px solid #ddd;">카드사</th>
-                            <th style="width: 15%; text-align: center; border-bottom: 2px solid #ddd;">이용일</th>
-                            <th style="width: 30%; text-align: left; border-bottom: 2px solid #ddd;">거래점명</th>
-                            <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
-                            <th style="width: 20%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
+                        <tr id="transaction-table-header" style="background-color: #FFCC80; position: sticky; top: 0;">
+                            <th style="width: 12%; text-align: left; border-bottom: 2px solid #ddd;">카드사</th>
+                            <th style="width: 12%; text-align: center; border-bottom: 2px solid #ddd;">이용일</th>
+                            <th style="width: 40%; text-align: left; border-bottom: 2px solid #ddd;">거래점명</th>
+                            <th style="width: 18%; text-align: right; border-bottom: 2px solid #ddd; color: #0000FF;">입금액</th>
+                            <th style="width: 18%; text-align: right; border-bottom: 2px solid #ddd; color: #FF0000;">출금액</th>
                         </tr>
                     </thead>
                     <tbody id="transaction-table-body">
@@ -904,7 +915,7 @@
                             <td colspan="5" style="padding: 20px; text-align: center; color: #666;">신용카드 입출금내역에서 카테고리를 선택하면 거래 내역이 표시됩니다.</td>
                         </tr>
                     </tbody>
-                    <tfoot id="transaction-table-footer" style="position: sticky; bottom: 0; background-color: #f5f5f5; border-top: 2px solid #ddd;">
+                    <tfoot id="transaction-table-footer" style="position: sticky; bottom: 0; background-color: #FFCC80; border-top: 2px solid #ddd;">
                         <tr>
                             <td style="font-weight: bold; padding: 3px; text-align: left;">합계</td>
                             <td style="font-weight: bold; padding: 3px; text-align: center;"></td>
@@ -983,12 +994,12 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="3" class="loading">데이터 로딩 중...</td>
+                                <td colspan="4" class="loading">데이터 로딩중 ... (0건)</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <div id="bank-table-footer" class="bank-stats-footer" style="flex-shrink: 0; background-color: #f5f5f5; border-top: 2px solid #ddd; padding: 3px; font-weight: bold; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; font-size: 11px;">
+                <div id="bank-table-footer" class="bank-stats-footer" style="flex-shrink: 0; background-color: #FFCC80; border-top: 2px solid #ddd; padding: 3px; font-weight: bold; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; font-size: 11px;">
                     <span>합계</span><span style="text-align:right;color:#0000FF;">0원</span><span style="text-align:right;color:#FF0000;">0원</span>
                 </div>
             </div>
@@ -1008,10 +1019,10 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="4" class="loading">데이터 로딩 중...</td>
+                                <td colspan="4" class="loading">데이터 로딩중 ... (0건)</td>
                             </tr>
                         </tbody>
-                        <tfoot id="account-table-foot" style="position: sticky; bottom: 0; background-color: #f5f5f5; border-top: 2px solid #ddd;">
+                        <tfoot id="account-table-foot" style="position: sticky; bottom: 0; background-color: #FFCC80; border-top: 2px solid #ddd;">
                             <tr class="total-row">
                                 <td style="font-weight: bold; padding: 3px; text-align: left;">합계</td>
                                 <td style="font-weight: bold; padding: 3px; text-align: left;"></td>
@@ -1439,20 +1450,20 @@
                 if (!response.ok) {
                     const msg = (data.error || `서버 오류 ${response.status}`).replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-table-body').innerHTML = 
-                        `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 오류: ${msg}</td></tr>`;
+                        `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 오류: ${msg}</td></tr>`;
                     document.getElementById('category-table-footer').style.display = 'none';
                     return;
                 }
                 if (data.error) {
                     const errEsc = String(data.error).replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     document.getElementById('category-table-body').innerHTML = 
-                        `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 오류: ${errEsc}</td></tr>`;
+                        `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 오류: ${errEsc}</td></tr>`;
                     document.getElementById('category-table-footer').style.display = 'none';
                     return;
                 }
                 if (!data.data || data.data.length === 0) {
                     document.getElementById('category-table-body').innerHTML = 
-                        '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
+                        '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">데이터가 없습니다.</td></tr>';
                     document.getElementById('category-table-footer').style.display = 'none';
                     return;
                 }
@@ -1473,22 +1484,28 @@
                 let tableHtml = '';
                 let totalDeposit = 0;
                 let totalWithdraw = 0;
+                let totalCount = 0;
                 
                 allCategoryData.forEach((item, index) => {
                     totalDeposit += item.deposit || 0;
                     totalWithdraw += item.withdraw || 0;
+                    totalCount += item.count != null ? item.count : 0;
                     const catVal = (item.category || '(빈값)').replace(/"/g, '&quot;');
+                    const cnt = item.count != null ? item.count : 0;
                     tableHtml += `<tr class="category-row" data-category="${catVal}" data-index="${index}" data-deposit="${item.deposit || 0}" data-withdraw="${item.withdraw || 0}" style="cursor: pointer;">
                         <td style="width: 50%; border-bottom: 1px solid #eee;">${item.category || '(빈값)'}</td>
-                        <td style="width: 25%; text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(item.deposit || 0)}</td>
-                        <td style="width: 25%; text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(item.withdraw || 0)}</td>
+                        <td style="width: 10%; text-align: right; border-bottom: 1px solid #eee;">${formatNumber(cnt)}</td>
+                        <td style="width: 20%; text-align: right; border-bottom: 1px solid #eee; color: #0000FF;">${formatAmount(item.deposit || 0)}</td>
+                        <td style="width: 20%; text-align: right; border-bottom: 1px solid #eee; color: #FF0000;">${formatAmount(item.withdraw || 0)}</td>
                     </tr>`;
                 });
                 
                 document.getElementById('category-table-body').innerHTML = tableHtml;
                 
-                // 합계를 tfoot에 표시
+                // 합계를 푸터에 표시 (건수, 입금액, 출금액)
                 const tableFooter = document.getElementById('category-table-footer');
+                const totalCountEl = document.getElementById('total-count-category');
+                if (totalCountEl) totalCountEl.textContent = formatNumber(totalCount);
                 document.getElementById('total-deposit-category').textContent = formatAmount(totalDeposit);
                 document.getElementById('total-withdraw-category').textContent = formatAmount(totalWithdraw);
                 tableFooter.style.display = '';
@@ -1511,7 +1528,7 @@
                 console.error('Error loading category analysis:', error);
                 const errMsg = (error && error.message) ? String(error.message).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '알 수 없음';
                 document.getElementById('category-table-body').innerHTML = 
-                    `<tr><td colspan="3" style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 오류: ${errMsg}</td></tr>`;
+                    `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #F44336;">데이터 로딩 오류: ${errMsg}</td></tr>`;
                 document.getElementById('category-table-footer').style.display = 'none';
             }
         }
@@ -1554,7 +1571,7 @@
             }
             if (titleEl) titleEl.textContent = '신용카드 세부내역 (' + selectedCategory + ')';
             transactionDetailData = [];
-            tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">데이터 로딩 중...</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">데이터 로딩중 ... (0건)</td></tr>';
             try {
                 const bankFilter = document.getElementById('bank-filter').value;
                 const urlParams = new URLSearchParams({ type: 'detail', category: selectedCategory });
@@ -1601,6 +1618,11 @@
             }
         }
 
+        // 입출금내역 영역 클릭 시 세부내역 말풍선 즉시 닫기 (캡처 단계에서 먼저 실행)
+        const categoryTableEl = document.getElementById('category-table');
+        if (categoryTableEl) {
+            categoryTableEl.addEventListener('click', function(e) { hideRowTooltip(); }, true);
+        }
         // 카테고리별 입출금 내역 - 행 클릭 시 거래내역 로드, 출력용 선택 저장
         document.getElementById('category-table').addEventListener('click', function(e) {
             const row = e.target.closest('.category-row');

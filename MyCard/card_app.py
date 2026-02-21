@@ -41,6 +41,8 @@ app.config['JSON_AS_ASCII'] = False
 # ----- 경로·상수 -----
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 # category_table: MyInfo/.source (category_table_io로 읽기/쓰기)
 CATEGORY_TABLE_PATH = str(Path(PROJECT_ROOT) / '.source' / 'category_table.json')
 try:
@@ -339,7 +341,23 @@ def load_category_file():
 def index():
     workspace_path = str(SCRIPT_DIR)
     folder_name = os.path.basename(SCRIPT_DIR)
-    return render_template('index.html', workspace_path=workspace_path, folder_name=folder_name, category_filename='category_table.json')
+    # 카테고리 정의 테이블: 서버에서 HTML로 렌더링 (데이터 적은 고정 표 통일)
+    category_table_rows = []
+    category_file_exists = False
+    try:
+        df, category_file_exists = _io_get_category_table(str(Path(CATEGORY_TABLE_PATH)))
+        if df is not None and not df.empty:
+            category_table_rows = df[['분류', '키워드', '카테고리']].fillna('').to_dict('records')
+    except Exception:
+        category_file_exists = Path(CATEGORY_TABLE_PATH).exists()
+    return render_template(
+        'index.html',
+        workspace_path=workspace_path,
+        folder_name=folder_name,
+        category_filename='category_table.json',
+        category_table_rows=category_table_rows,
+        category_file_exists=category_file_exists,
+    )
 
 @app.route('/favicon.ico')
 def favicon():
@@ -1066,6 +1084,8 @@ def get_analysis_by_category():
             agg_dict['거래점'] = 'first'
         
         category_stats = df.groupby(group_col).agg(agg_dict).reset_index()
+        counts = df.groupby(group_col).size().reset_index(name='count')
+        category_stats = category_stats.merge(counts, on=group_col)
         
         # 차액 계산
         category_stats['차액'] = category_stats['입금액'] - category_stats['출금액']
@@ -1081,6 +1101,7 @@ def get_analysis_by_category():
             cat_val = row[group_col] if pd.notna(row[group_col]) and row[group_col] != '' else '(빈값)'
             item = {
                 'category': cat_val,
+                'count': int(row['count']) if pd.notna(row['count']) else 0,
                 'deposit': int(row['입금액']) if pd.notna(row['입금액']) else 0,
                 'withdraw': int(row['출금액']) if pd.notna(row['출금액']) else 0,
                 'balance': int(row['차액']) if pd.notna(row['차액']) else 0

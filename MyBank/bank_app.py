@@ -256,7 +256,21 @@ def load_category_file():
 @app.route('/')
 def index():
     folder_name = os.path.basename(SCRIPT_DIR)
-    resp = make_response(render_template('index.html', folder_name=folder_name))
+    # 카테고리 정의 테이블: 서버에서 HTML로 렌더링 (데이터 적은 고정 표 통일)
+    category_table_rows = []
+    category_file_exists = False
+    try:
+        df, category_file_exists = _io_get_category_table(str(Path(CATEGORY_TABLE_PATH)))
+        if df is not None and not df.empty:
+            category_table_rows = df[['분류', '키워드', '카테고리']].fillna('').to_dict('records')
+    except Exception:
+        category_file_exists = Path(CATEGORY_TABLE_PATH).exists()
+    resp = make_response(render_template(
+        'index.html',
+        folder_name=folder_name,
+        category_table_rows=category_table_rows,
+        category_file_exists=category_file_exists,
+    ))
     # 전처리 페이지 캐시 방지: 네비게이션 갱신이 바로 반영되도록
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
@@ -1223,6 +1237,8 @@ def get_analysis_by_category():
         if '거래점' in df.columns and '거래점' != group_col:
             agg_dict['거래점'] = 'first'
         category_stats = df.groupby(group_col).agg(agg_dict).reset_index()
+        counts = df.groupby(group_col).size().reset_index(name='count')
+        category_stats = category_stats.merge(counts, on=group_col)
         
         # 차액 계산
         category_stats['차액'] = category_stats['입금액'] - category_stats['출금액']
@@ -1236,6 +1252,7 @@ def get_analysis_by_category():
             cat_val = row[group_col] if pd.notna(row[group_col]) and str(row[group_col]).strip() != '' else '(빈값)'
             item = {
                 'category': cat_val,
+                'count': int(row['count']) if pd.notna(row['count']) else 0,
                 'deposit': int(row['입금액']) if pd.notna(row['입금액']) else 0,
                 'withdraw': int(row['출금액']) if pd.notna(row['출금액']) else 0,
                 'balance': int(row['차액']) if pd.notna(row['차액']) else 0

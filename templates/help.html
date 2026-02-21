@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>도움말 - 금융정보 통합정보</title>
+    <title>도움말 - 금융정보 병합정보</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background-color: #f5f5f5; padding: 20px; }
@@ -41,9 +41,9 @@
         <a href="/bank/category" class="nav-item">🏷️ 은행거래 카테고리</a>
         <a href="/bank/analysis/basic" class="nav-item">📊 은행거래 기본분석</a>
         <a href="/bank/help" class="nav-item">❓ 은행거래 도움말</a>
-        <a href="/cash/" class="nav-item">📋 금융정보 전처리</a>
+        <a href="/cash/" class="nav-item">📋 금융정보 병합작업</a>
         <a href="/cash/category" class="nav-item">🏷️ 금융정보 업종분류</a>
-        <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 기본분석</a>
+        <a href="/cash/analysis/basic" class="nav-item">📊 금융정보 종합분석</a>
         <a href="/cash/help" class="nav-item">❓ 금융정보 도움말</a>
         <a href="/card/" class="nav-item">💳 신용카드 전처리</a>
         <a href="/card/category" class="nav-item">🏷️ 신용카드 카테고리</a>
@@ -51,7 +51,7 @@
         <a href="/help" class="nav-item active">❓ 금융정보 보고서</a>
     </nav>
     <div class="container">
-        <h1>❓ 도움말 - 금융정보 통합정보</h1>
+        <h1>❓ 도움말 - 금융정보 병합정보</h1>
 
         <div class="help-section toc">
             <h2>목차</h2>
@@ -73,12 +73,12 @@
 
         <div class="help-section" id="overview">
             <h2>1. 개요</h2>
-            <p>금융정보 통합정보(MyInfo)는 <strong>은행거래 통합정보(MyBank)</strong>, <strong>신용카드 통합정보(MyCard)</strong>, <strong>금융정보 종합분석(MyCash)</strong> 세 서비스를 한곳에서 제공하는 웹 기반 시스템입니다. 은행·신용카드 거래 내역을 전처리, 카테고리 분류, 위험도 분류, 기본·고급 분석을 통해 통합 관리하고 종합 분석할 수 있습니다.</p>
+            <p>금융정보 병합정보(MyInfo)는 <strong>은행거래 통합정보(MyBank)</strong>, <strong>신용카드 통합정보(MyCard)</strong>, <strong>금융정보 종합분석(MyCash)</strong> 세 서비스를 한곳에서 제공하는 웹 기반 시스템입니다. 은행·신용카드 거래 내역을 전처리, 카테고리 분류, 위험도 분류, 기본분석·종합의견을 통해 병합 관리하고 종합 분석할 수 있습니다.</p>
             <h3>1.1 공통 사용 순서</h3>
             <ol>
                 <li><strong>전처리</strong>: 원본 엑셀(.xls/.xlsx)을 표준 형식으로 변환하여 *_before.xlsx 생성.</li>
                 <li><strong>카테고리 분류</strong>: 키워드 기반 규칙(category_table.json)으로 거래를 분류하고 *_after.xlsx(또는 cash_after.json) 생성.</li>
-                <li><strong>분석</strong>: 기본분석·고급분석 페이지에서 통계, 차트, 필터·출력으로 결과 확인.</li>
+                <li><strong>분석</strong>: 기본분석·종합의견 페이지에서 통계, 차트, 필터·출력으로 결과 확인.</li>
             </ol>
             <h3>1.2 데이터·파일 위치</h3>
             <ul>
@@ -95,7 +95,7 @@
                 <li><strong>통합 서버 (app.py)</strong>: 홈페이지(/)와 이 도움말(/help)을 제공하며, /bank/*, /card/*, /cash/* 요청을 각각 MyBank·MyCard·MyCash 서브 앱으로 전달합니다.</li>
                 <li><strong>은행거래 통합정보 (MyBank)</strong>: URL 접두사 /bank/. 전처리(/bank/), 카테고리(/bank/category), 기본분석(/bank/analysis/basic), 은행거래 도움말(/bank/help). 은행 거래만 대상으로 합니다.</li>
                 <li><strong>신용카드 통합정보 (MyCard)</strong>: URL 접두사 /card/. 전처리(/card/), 카테고리(/card/category), 기본분석(/card/analysis/basic), 신용카드 도움말(/card/help). 신용카드 거래만 대상으로 합니다.</li>
-                <li><strong>금융정보 종합분석 (MyCash)</strong>: URL 접두사 /cash/. 전처리(/cash/), 카테고리(/cash/category), 기본분석(/cash/analysis/basic), 금융정보 도움말(/cash/help). 은행·신용카드 거래를 하나로 모아 통합 관리·종합 분석합니다.</li>
+                <li><strong>금융정보 종합분석 (MyCash)</strong>: URL 접두사 /cash/. 전처리(/cash/), 카테고리(/cash/category), 종합분석(/cash/analysis/basic), 금융정보 도움말(/cash/help). 은행·신용카드 거래를 하나로 모아 병합 관리·종합 분석합니다.</li>
             </ul>
         </div>
 
@@ -136,7 +136,7 @@ py app.py</div>
             <h3>5.2 2단계: 카테고리</h3>
             <p>카테고리 페이지에서 "카테고리 생성"으로 <strong>category_table.json</strong> 규칙을 만든 뒤, 필요 시 분류·키워드·카테고리를 추가·수정합니다. "카테고리 적용"을 실행하면 *_after.xlsx(은행/카드) 또는 금융정보의 경우 cash_after 생성(병합) 시 카테고리가 반영됩니다.</p>
             <h3>5.3 3단계: 금융정보에서 cash_after 생성(병합)</h3>
-            <p>금융정보 전처리 페이지에서 <strong>cash_after 생성(병합)</strong>을 실행하면, bank_after와 card_after를 합쳐 <strong>MyCash/cash_after.json</strong>이 생성됩니다. 이때 linkage_table 매칭과 1~8호 위험도 지표가 자동 적용됩니다. 금융정보 업종분류 페이지의 "금융정보(위험도분류) 적용후" 테이블은 이 cash_after.json을 사용합니다.</p>
+            <p>금융정보 병합작업 페이지에서 <strong>cash_after 생성(병합)</strong>을 실행하면, bank_after와 card_after를 합쳐 <strong>MyCash/cash_after.json</strong>이 생성됩니다. 이때 linkage_table 매칭과 1~8호 위험도 지표가 자동 적용됩니다. 금융정보 업종분류 페이지의 "금융정보(위험도분류) 적용후" 테이블은 이 cash_after.json을 사용합니다.</p>
             <h3>5.4 4단계: 분석</h3>
             <p>기본분석 페이지에서 전체 통계, 적요/가맹점별·월별·은행/카드사별 집계, 차트를 확인합니다. 상단 "은행명" 또는 "카드사" 필터와 "📄 출력" 버튼으로 인쇄용 뷰를 만들 수 있습니다.</p>
         </div>
@@ -156,7 +156,7 @@ py app.py</div>
             <h3>은행거래 통합정보 (MyBank)</h3>
             <p>지원 은행: <strong>국민은행, 신한은행, 하나은행</strong>. 파일명에 은행명이 포함되어야 인식합니다. 전처리 결과는 <strong>bank_before.xlsx</strong>, 카테고리 규칙은 <strong>category_table.json</strong>(은행·카드·금융정보 공통), 카테고리 적용 후 최종 데이터는 <strong>bank_after.xlsx</strong>입니다. 카테고리 분류는 <strong>전처리(적요·내용·송금메모·거래점 치환) → 계정과목(before_text 키워드 매칭) → 후처리(적요·내용·송금메모 치환)</strong> 순으로 적용됩니다. <strong>카테고리 분류 상세</strong>는 <a href="/bank/help">은행거래 도움말</a>을 참고하세요.</p>
             <h3>금융정보 종합분석 (MyCash)</h3>
-            <p>은행·신용카드 거래를 하나로 모아 통합 관리합니다. bank_after + card_after 병합으로 <strong>cash_after.json</strong>을 생성하며, 이때 <strong>1~8호 위험도 지표</strong>가 자동 적용됩니다. 기본 위험도 0.1, 자료소명·비정형·투기성·사기파산·가상자산·자산은닉·과소비·사행성 순으로 매칭됩니다. <strong>위험도 분류 상세(검색 텍스트, 호별 키워드, 위험도키워드 저장 방식)</strong>는 <a href="/cash/help">금융정보 도움말</a>을 참고하세요.</p>
+            <p>은행·신용카드 거래를 하나로 모아 병합 관리합니다. bank_after + card_after 병합으로 <strong>cash_after.json</strong>을 생성하며, 이때 <strong>1~8호 위험도 지표</strong>가 자동 적용됩니다. 기본 위험도 0.1, 자료소명·비정형·투기성·사기파산·가상자산·자산은닉·과소비·사행성 순으로 매칭됩니다. <strong>위험도 분류 상세(검색 텍스트, 호별 키워드, 위험도키워드 저장 방식)</strong>는 <a href="/cash/help">금융정보 도움말</a>을 참고하세요.</p>
             <h3>신용카드 통합정보 (MyCard)</h3>
             <p>지원 카드사: <strong>국민카드, 신한카드, 현대카드, 하나카드</strong>. 파일명 형식은 <code>카드사_기타.xlsx</code>(예: 신한카드_김찬식_2024.xlsx)이며, 첫 번째 밑줄 앞이 카드사명으로 사용됩니다. 전처리 결과는 <strong>card_before</strong>, 카테고리 규칙은 <strong>category_table.json</strong>, 카테고리 적용 후 최종 데이터는 <strong>card_after</strong>입니다. 카테고리 분류는 <strong>전처리(가맹점명·카드사 치환) → 계정과목(가맹점명 키워드 매칭) → 후처리(가맹점명·카드사 치환)</strong> 순으로 적용됩니다. <strong>카테고리 분류 상세</strong>는 <a href="/card/help">신용카드 도움말</a>을 참고하세요.</p>
         </div>
@@ -169,11 +169,11 @@ py app.py</div>
             <ul><li>카테고리 테이블(분류, 키워드, 카테고리)을 추가·수정·삭제로 관리합니다. "카테고리 생성"으로 bank_before 기준 규칙을 자동 생성하고, "카테고리 적용"으로 bank_after를 갱신합니다.</li></ul>
             <h3>은행거래 기본분석 (/bank/analysis/basic)</h3>
             <ul><li>전체 통계, 적요별·월별·은행/계좌별 분석, 차트를 제공합니다. "은행명" 필터와 "📄 출력"으로 인쇄용 뷰를 만들 수 있습니다.</li></ul>
-            <h3>금융정보 전처리 (/cash/)</h3>
-            <ul><li>이 페이지에 진입하면 기존 <strong>cash_after.json</strong>이 삭제됩니다. 은행·카드 전처리를 먼저 진행한 뒤, "cash_after 생성(병합)"을 실행하면 bank_after와 card_after가 병합되어 MyCash/cash_after.json이 생성되고 1~8호 위험도가 적용됩니다.</li><li>전처리 전(은행)·전처리 후(신용카드) 테이블과 금융정보(업종분류) 조회·그래프를 한 화면에서 볼 수 있습니다.</li></ul>
+            <h3>금융정보 병합작업 (/cash/)</h3>
+            <ul><li>이 페이지에 진입하면 기존 <strong>cash_after.json</strong>이 삭제됩니다. 은행·카드 전처리를 먼저 진행한 뒤, "cash_after 생성(병합)"을 실행하면 bank_after와 card_after가 병합되어 MyCash/cash_after.json이 생성되고 1~8호 위험도가 적용됩니다.</li><li>전처리 전(은행)·전처리 후(신용카드) 테이블과 금융정보 병합조회(은행+카드)·그래프를 한 화면에서 볼 수 있습니다.</li></ul>
             <h3>금융정보 업종분류 (/cash/category)</h3>
             <ul><li>카테고리 정의 테이블과 <strong>금융정보(위험도분류) 적용후</strong> 테이블을 제공합니다. 적용후 테이블은 cash_after.json 데이터를 위험도·위험도키워드·거래일·거래시간 내림차순으로 정렬하며, 헤더(컬럼명·필터 행)는 스크롤 시 고정됩니다.</li><li>위험도키워드·위험도분류·위험도 컬럼의 드롭다운은 테이블에 실제로 존재하는 값만 표시됩니다. "📄 출력"으로 인쇄용 창을 띄울 수 있습니다.</li></ul>
-            <h3>금융정보 기본분석 (/cash/analysis/basic)</h3>
+            <h3>금융정보 종합분석 (/cash/analysis/basic)</h3>
             <ul><li>cash_after 기준 전체 통계, 카테고리별·월별·금융사별 집계, 차트를 제공합니다.</li></ul>
             <h3>신용카드 전처리 (/card/)</h3>
             <ul><li>.source/Card에 .xls/.xlsx를 넣고 "전처리 실행"을 클릭합니다. 파일명 형식은 <code>카드사_기타.xlsx</code>(예: 신한카드_김찬식_2024.xlsx). 전처리 전·후 데이터 비교, <strong>카드사</strong>, <strong>년·월</strong> 필터를 사용할 수 있습니다.</li></ul>
@@ -190,14 +190,14 @@ py app.py</div>
             <h3>9.2 서버 연결 오류</h3>
             <ul><li>서버가 실행 중인지 확인하세요. 기본 포트는 8080(또는 환경 변수 PORT)입니다. 다른 프로그램이 해당 포트를 사용 중이면 포트를 바꾸거나 해당 프로그램을 종료하세요.</li><li>방화벽에서 localhost 접속이 허용되는지 확인하세요.</li><li>Windows에서 한글 경로(사용자명·TEMP 등) 때문에 터미널/스크립트 오류가 나면 readme의 <strong>start-cursor-no-hangul.ps1</strong> 실행 후 C:\CursorWorkspace에서 작업하는 것을 권장합니다.</li></ul>
             <h3>9.3 데이터가 표시되지 않음</h3>
-            <ul><li>.source/Bank 또는 .source/Card에 .xls/.xlsx가 있고, 파일명에 은행명(국민은행, 신한은행, 하나은행) 또는 카드사명이 포함되는지 확인하세요.</li><li>전처리 후 bank_before, card_before 등이 생성되었는지 확인하세요. 해당 파일을 Excel에서 열어두면 읽기·쓰기 실패할 수 있으니 닫고 다시 시도하세요.</li><li>금융정보 업종분류에서 "데이터가 없습니다"가 나오면 cash_after.json이 없는 상태입니다. 금융정보 전처리 페이지에서 "cash_after 생성(병합)"을 실행하세요.</li><li>브라우저 F12 → Console에서 JavaScript 오류, Network 탭에서 API 실패(4xx/5xx)를 확인하세요.</li></ul>
+            <ul><li>.source/Bank 또는 .source/Card에 .xls/.xlsx가 있고, 파일명에 은행명(국민은행, 신한은행, 하나은행) 또는 카드사명이 포함되는지 확인하세요.</li><li>전처리 후 bank_before, card_before 등이 생성되었는지 확인하세요. 해당 파일을 Excel에서 열어두면 읽기·쓰기 실패할 수 있으니 닫고 다시 시도하세요.</li><li>금융정보 업종분류에서 "데이터가 없습니다"가 나오면 cash_after.json이 없는 상태입니다. 금융정보 병합작업 페이지에서 "cash_after 생성(병합)"을 실행하세요.</li><li>브라우저 F12 → Console에서 JavaScript 오류, Network 탭에서 API 실패(4xx/5xx)를 확인하세요.</li></ul>
             <h3>9.4 카테고리·위험도가 적용되지 않음</h3>
             <ul><li>.source/category_table.json이 있는지, "카테고리 생성"을 먼저 실행했는지 확인하세요.</li><li>*_after 파일을 Excel에서 열어두지 말고, "카테고리 적용" 또는 "cash_after 생성(병합)"을 다시 실행하세요.</li><li>위험도가 모두 0.1로 나오면 1~8호 조건에 맞는 거래가 없거나, cash_after가 예전 규칙으로 생성된 것일 수 있습니다. cash_after를 다시 생성(병합)하면 최신 위험도 규칙이 적용됩니다.</li></ul>
         </div>
 
         <div class="help-section" id="faq">
             <h2>10. 자주 묻는 질문 (FAQ)</h2>
-            <div class="faq-item"><div class="faq-q">Q. MyBank와 MyCash의 차이는?</div><div class="faq-a">MyBank는 은행 거래만 다루고, MyCash는 은행·신용카드 거래를 하나로 모아 통합 관리·종합 분석합니다. 데이터 파일도 bank_* vs cash_*로 구분됩니다.</div></div>
+            <div class="faq-item"><div class="faq-q">Q. MyBank와 MyCash의 차이는?</div><div class="faq-a">MyBank는 은행 거래만 다루고, MyCash는 은행·신용카드 거래를 하나로 모아 병합 관리·종합 분석합니다. 데이터 파일도 bank_* vs cash_*로 구분됩니다.</div></div>
             <div class="faq-item"><div class="faq-q">Q. 전처리 후에도 테이블이 비어요.</div><div class="faq-a">MyInfo/.source/Bank 또는 .source/Card의 파일명에 은행명(국민은행, 신한은행, 하나은행) 또는 카드사명이 포함되어 있는지 확인하세요. Excel에서 해당 파일을 닫은 뒤 전처리를 다시 실행해 보세요.</div></div>
             <div class="faq-item"><div class="faq-q">Q. 카테고리 적용이 안 돼요.</div><div class="faq-a">*_after.xlsx를 Excel 등에서 열어두지 마세요. "카테고리 생성"을 먼저 실행한 뒤 "카테고리 적용"을 실행하세요.</div></div>
             <div class="faq-item"><div class="faq-q">Q. 포트 번호를 바꾸고 싶어요.</div><div class="faq-a">환경 변수 PORT를 설정하면 해당 포트로 서버가 기동됩니다. 예: Windows에서 <code>set PORT=9000</code> 후 python app.py</div></div>
@@ -218,7 +218,7 @@ py app.py</div>
             <ul>
                 <li><strong>1호 자료소명지표 (1.0)</strong>: 출금 1000만원 이상인 행. 해당 행의 키워드(또는 기타거래)를 위험도키워드에 저장.</li>
                 <li><strong>2호 비정형지표 (1.5)</strong>: 출금만존재, 100만원 이상, 5회 이상 (특정인=키워드 기준). 해당 키워드를 위험도키워드에 저장.</li>
-                <li><strong>3호 투기성지표 (2.0)</strong>: 입출금 50만원 이상 + (카테고리+키워드)+기타거래에 증권·선물·자산운용·위탁·증권입금 포함. 단 "하나증권금융센터"는 제외.</li>
+                <li><strong>3호 투기성지표 (2.0)</strong>: 입출금 50만원 이상 + (카테고리+키워드)+기타거래에 증권·선물·자산운용·위탁·증권입금 포함.</li>
                 <li><strong>4호 사기파산지표 (2.5)</strong>: 입출금 50만원 이상 + 대부·P2P·카드깡·원리금 등.</li>
                 <li><strong>5호 가상자산지표 (3.0)</strong>: 입출금 50만원 이상 + 카테고리 "가상자산" 또는 업비트·빗썸·코인원·코빗 등.</li>
                 <li><strong>6호 자산은닉지표 (3.5)</strong>: 출금만 50만원 이상 + 해외송금·Wise·SWIFT 등.</li>
@@ -233,14 +233,14 @@ py app.py</div>
             <p>기본 포트는 <strong>8080</strong>(환경 변수 PORT 미설정 시)입니다. 아래에서 <code>8080</code>을 실제 사용 포트로 바꿔 접속하세요.</p>
             <ul>
                 <li><strong>홈페이지:</strong> http://localhost:8080/</li>
-                <li><strong>금융정보 통합 도움말(본 페이지):</strong> http://localhost:8080/help</li>
+                <li><strong>금융정보 병합 도움말(본 페이지):</strong> http://localhost:8080/help</li>
                 <li><strong>은행거래 전처리:</strong> http://localhost:8080/bank/</li>
                 <li><strong>은행거래 카테고리:</strong> http://localhost:8080/bank/category</li>
                 <li><strong>은행거래 기본분석:</strong> http://localhost:8080/bank/analysis/basic</li>
                 <li><strong>은행거래 도움말:</strong> http://localhost:8080/bank/help</li>
-                <li><strong>금융정보 전처리:</strong> http://localhost:8080/cash/</li>
+                <li><strong>금융정보 병합작업:</strong> http://localhost:8080/cash/</li>
                 <li><strong>금융정보 업종분류:</strong> http://localhost:8080/cash/category</li>
-                <li><strong>금융정보 기본분석:</strong> http://localhost:8080/cash/analysis/basic</li>
+                <li><strong>금융정보 종합분석:</strong> http://localhost:8080/cash/analysis/basic</li>
                 <li><strong>금융정보 도움말:</strong> http://localhost:8080/cash/help</li>
                 <li><strong>신용카드 전처리:</strong> http://localhost:8080/card/</li>
                 <li><strong>신용카드 카테고리:</strong> http://localhost:8080/card/category</li>
